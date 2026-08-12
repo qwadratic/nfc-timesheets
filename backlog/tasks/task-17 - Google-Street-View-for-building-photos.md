@@ -4,14 +4,14 @@ title: Google Street View for building photos
 status: In Progress
 assignee: []
 created_date: '2026-07-28 13:49'
-updated_date: '2026-08-04 16:49'
+updated_date: '2026-08-12 05:05'
 labels:
   - web
   - api
-milestone: m-3
+milestone: m-6
 dependencies:
   - TASK-2
-priority: medium
+priority: low
 ordinal: 17000
 ---
 
@@ -32,30 +32,5 @@ On building creation or first view, fetch Street View static image by address/co
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-TRIAGE 2026-08-04 — CODE COMPLETE. BLOCKED ON ONE CHECKBOX IN THE OWNER GOOGLE CLOUD CONSOLE.
-
-MET: AC2 — a building without coverage gets a named reason, never a fake photograph. AC4 —
-coverage is resolved once and stored on the row (`locations.street_view_status`), not refetched
-per render.
-
-The gate that makes this safe (web/README.md): a Street View image is requested ONLY when
-`street_view_status === "OK"`, i.e. only after the metadata endpoint has confirmed coverage.
-Without that gate the static endpoint answers HTTP 200 with a grey "no imagery" tile, and an
-onError handler alone would ship that tile and present it as a photograph of a client building.
-`pnpm check` covers the gate.
-
-NOT MET — AC1 and AC3. No photograph will ever render, because the STREET VIEW STATIC API IS NOT
-ENABLED on the operator Google Cloud project. Asked with the real key, the answer was:
-  REQUEST_DENIED — This API key is not authorized to use this service or API.
-Production confirms it: the single `locations` row has `street_view_status` empty. Never probed
-successfully, so never OK, so no image.
-
-AC3 (admin uploads a replacement photo) was never built and is now a rare fallback rather than a
-required path — coverage was verified good across five Vienna districts (1010/1060/1020/1100/
-1220), imagery 2022-2026.
-
-BLOCKED ON THE OWNER: tick "Street View Static API" in the Google Cloud console for project
-`nfc-timesheets`. No code changes. Photographs appear the day the box is ticked.
-Note this ALSO needs TASK-16 fix #2 first — geocoding must run before there are coordinates to
-ask Street View about.
+AUDIT 2026-08-12. The Street View gate is correct and shipped: web/lib/map.ts:195-208 returns null unless street_view_status === 'OK'; status is persisted at server/lib/geocode.js:138 and server/routes/admin.js:73,560. AC#1 is blocked externally (Street View Static API not enabled on the Google project) — an owner console action, not a code task. AC#3 (admin uploads a replacement photo) was never built; there is no upload handler in server/routes/admin.js. Decide whether AC#3 is still wanted before working this.
 <!-- SECTION:NOTES:END -->

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "foundation.contract.json",
+  "title": "Phase 0 → Phase 1 contract",
+  "description": "What Phase 0 (FOUNDATION) guarantees to every Phase 1 lane. Phase 1 MUST NOT start until a document validating against this schema exists and every boolean is true. These are the guarantees that let eight lanes edit the same repo without fighting.",
+  "type": "object",
+  "required": [
+    "checkHarnessSplit",
+    "skipFailsUnderCI",
+    "dbGuardPorted",
+    "migrationNumbersReserved",
+    "baselineCommit"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "baselineCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$",
+      "description": "Commit every lane worktree branches from. Recorded so a lane that drifts can be diagnosed."
+    },
+    "checkHarnessSplit": {
+      "type": "object",
+      "description": "server/check-api.js is 3375 lines and every lane wants to append to it. That is the single worst merge conflict in this plan. Phase 0 converts it into an append-only manifest.",
+      "required": ["manifestPath", "checkDir", "existingSuitesRegistered", "verified"],
+      "additionalProperties": false,
+      "properties": {
+        "manifestPath": { "const": "ops/check-all.sh" },
+        "checkDir": { "const": "server/checks/" },
+        "existingSuitesRegistered": {
+          "type": "integer",
+          "minimum": 15,
+          "description": "All 15 existing harnesses reachable from the manifest. 13 of 15 were previously unreachable from any package manager."
+        },
+        "verified": { "const": true }
+      }
+    },
+    "skipFailsUnderCI": {
+      "type": "object",
+      "description": "check-api.js:211-214 and check-migrate.js:24-25 print SKIP and exit 0 with no database. Correct on a laptop, dangerous in CI: a misconfigured DATABASE_URL goes green having asserted nothing.",
+      "required": ["envVar", "filesPatched", "verified"],
+      "additionalProperties": false,
+      "properties": {
+        "envVar": { "enum": ["CI", "REQUIRE_DB"] },
+        "filesPatched": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string" }
+        },
+        "verified": {
+          "const": true,
+          "description": "Proven by running with the env var set and no database reachable, and observing a non-zero exit."
+        }
+      }
+    },
+    "dbGuardPorted": {
+      "type": "object",
+      "description": "check-api.js:45 defaults DATABASE_URL with no loopback check, no host= query check, no PGHOST check, no DB-name check. Pointed at production it CREATE SCHEMAs on the live payroll database. demo/db-guard.mjs already defeats all four and proves it in 16 cases.",
+      "required": ["sourceModule", "targetFiles", "verified"],
+      "additionalProperties": false,
+      "properties": {
+        "sourceModule": { "const": "demo/db-guard.mjs" },
+        "targetFiles": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "verified": {
+          "const": true,
+          "description": "Proven by pointing DATABASE_URL at a non-loopback host and observing a refusal."
+        }
+      }
+    },
+    "migrationNumbersReserved": {
+      "type": "array",
+      "description": "Migration numbers are a hard serialization point: two lanes both writing 006_*.sql collide unrecoverably. They are assigned here, up front, and no lane may choose its own.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["number", "lane", "filename", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "number": { "type": "integer", "minimum": 6 },
+          "lane": { "type": "string" },
+          "filename": { "type": "string", "pattern": "^0[0-9]{2}_[a-z0-9_]+\\.sql$" },
+          "kind": {
+            "enum": ["expand", "contract"],
+            "description": "expand = additive, safe against old code, may run before restart. contract = destructive, only after restart."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "demo-manifest.schema.json",
+  "title": "Demo contract — one per feature, verified by someone else",
+  "description": "Every lane that builds a FEATURE must ship a runnable demo. A demo is not a screenshot and not a paragraph claiming it works: it is a non-interactive script that another agent runs, on a machine that is not the builder's, and observes. Self-certification does not count.\n\nThis plugs into the demo rig that already exists (demo/, task-36) rather than inventing a second one — demo/db-guard.mjs already refuses to run against the live host and database, and demo/seed.sql already holds four months of shifts.",
+  "type": "object",
+  "required": ["required", "scripts", "verifiedBy"],
+  "additionalProperties": false,
+  "properties": {
+    "required": {
+      "type": "boolean",
+      "description": "false ONLY for lanes that ship no user-visible behaviour (PM docs, FIELD research). Every lane that changes what a worker or the director can see or do must set this true."
+    },
+    "scripts": {
+      "type": "array",
+      "description": "Empty iff required is false.",
+      "items": {
+        "type": "object",
+        "required": ["path", "provesTaskId", "whatYouSee", "runsAgainst", "exitCodeMeaning"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^demo/[a-z0-9-]+\\.demo\\.sh$"
+          },
+          "provesTaskId": { "type": "string", "pattern": "^task-[0-9]+$" },
+          "whatYouSee": {
+            "type": "string",
+            "minLength": 40,
+            "description": "Plain English, in the product's terms, not the code's. 'A raise is recorded, and a payroll report for the PRIOR month still prints the original figure' — not 'worker_rates INSERT succeeds'."
+          },
+          "runsAgainst": {
+            "const": "demo",
+            "description": "The seeded demo database only. demo/db-guard.mjs must be called first — a demo that can touch the live payroll database is a production incident waiting to happen."
+          },
+          "exitCodeMeaning": {
+            "type": "string",
+            "minLength": 20,
+            "description": "The script must be non-interactive and must exit non-zero when the thing it demonstrates is broken. A demo that always exits 0 proves nothing."
+          },
+          "durationSeconds": { "type": "integer", "maximum": 180 }
+        }
+      }
+    },
+    "verifiedBy": {
+      "type": "object",
+      "required": ["agentId", "isDifferentFromBuilder", "ranAt", "result"],
+      "additionalProperties": false,
+      "properties": {
+        "agentId": { "type": "string" },
+        "isDifferentFromBuilder": {
+          "const": true,
+          "description": "Hard requirement. The agent that wrote the feature may not be the agent that certifies its demo."
+        },
+        "ranAt": { "type": "string" },
+        "result": { "enum": ["PASS", "FAIL"] },
+        "observedOutput": {
+          "type": "string",
+          "description": "What the verifier actually saw. Pasted, not summarised."
+        }
+      }
+    }
+  }
+}

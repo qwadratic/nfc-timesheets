@@ -4,9 +4,11 @@ title: Decide CORS policy explicitly instead of relying on the default
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:45'
+updated_date: '2026-08-12 05:05'
 labels:
   - server
   - security
+milestone: m-6
 dependencies: []
 priority: low
 ordinal: 39000

@@ -4,11 +4,13 @@ title: 'Sentry is shipped but blind: SENTRY_DSN is unset in production'
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:59'
+updated_date: '2026-08-12 05:05'
 labels:
   - ops
   - telemetry
+milestone: m-5
 dependencies: []
-priority: medium
+priority: high
 ordinal: 44000
 ---
 

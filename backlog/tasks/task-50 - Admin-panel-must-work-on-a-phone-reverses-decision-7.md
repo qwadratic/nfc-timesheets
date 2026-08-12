@@ -1,9 +1,10 @@
 ---
 id: TASK-50
 title: Admin panel must work on a phone (reverses decision-7)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 23:02'
+updated_date: '2026-08-12 04:57'
 labels:
   - web
   - admin
@@ -38,3 +39,9 @@ work must not regress. Test at 320px width - that is a real phone, not a hypothe
 The map (TASK-48) and this task both touch the dashboard: sequence them, do not run them
 concurrently on the same file.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Shipped in commit 75834a2 (2026-08-12). DesktopOnlyGuard.tsx deleted; web/app/layout.tsx:29 records the reversal; web/components/ResponsiveTableLabels.tsx turns table rows into labelled cards below 768px. Status corrected 2026-08-12 during backlog audit — the work landed but the board was never updated.
+<!-- SECTION:NOTES:END -->

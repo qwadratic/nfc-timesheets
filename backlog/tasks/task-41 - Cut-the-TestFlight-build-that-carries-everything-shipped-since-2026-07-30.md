@@ -4,10 +4,11 @@ title: Cut the TestFlight build that carries everything shipped since 2026-07-30
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:56'
-updated_date: '2026-08-04 17:57'
+updated_date: '2026-08-12 05:05'
 labels:
   - ios
   - deploy
+milestone: m-5
 dependencies: []
 priority: high
 ordinal: 41000

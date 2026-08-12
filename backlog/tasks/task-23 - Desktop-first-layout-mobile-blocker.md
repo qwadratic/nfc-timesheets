@@ -4,10 +4,9 @@ title: Desktop-first layout + mobile blocker
 status: Done
 assignee: []
 created_date: '2026-07-28 13:51'
-updated_date: '2026-08-04 16:50'
+updated_date: '2026-08-12 04:57'
 labels:
-  - web
-  - ux
+  - obsolete
 milestone: m-3
 dependencies:
   - TASK-14
@@ -31,19 +30,5 @@ Below 1024px: full-screen message 'Admin designed for desktop.' Above: sidebar n
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-TRIAGE 2026-08-04 — DONE.
-
-AC1: web/components/DesktopOnlyGuard.tsx, threshold `DESKTOP_MIN_WIDTH_PX = 1024`
-(web/lib/nav.ts). Below it the admin UI is REPLACED, not reflowed — live proof from the shipped
-markup: the payroll page renders `<h1>Für den Computer gemacht</h1>` alongside
-`<h1>Lohnabrechnung</h1>`, i.e. the blocker ships in the same document and takes over. decision-7.
-AC2: web/components/AppShell.tsx + SidebarNav.tsx.
-AC3: web/lib/nav.ts PRIMARY_NAV — 11 destinations, all one click from the sidebar:
-  / (dashboard), /shifts/, /material-requests/, /workers/, /locations/, /clients/, /inventory/,
-  /contracts/, /payroll/, /pl/, /analytics/.
-Frames: all 11 admin-*.png stills, and docs/media/admin-walkthrough.mp4 (163 s) walks every one.
-
-ONE deliberate exception, and it is correct: the client portal (/reinigung/) gets NO desktop
-guard, because the person opening it is a client contact on a phone, not an admin. See
-web/lib/nav.ts CLIENT_PORTAL_PATH and components/AppShell.tsx.
+OBSOLETE as of decision-28 (2026-08-12). This task shipped the desktop-only blocker; decision-28 supersedes decision-7 and task-50 removed the blocker. Kept for history. Do NOT use this task's acceptance criteria as a specification — they describe reverted behaviour.
 <!-- SECTION:NOTES:END -->

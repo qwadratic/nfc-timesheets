@@ -1,10 +1,14 @@
 ---
-id: decision-28
+id: decision-29
 title: The admin panel works on a phone (supersedes decision-7)
 status: accepted
 date: 2026-08-12
 supersedes: decision-7
 ---
+
+> **Renumbered 2026-08-12.** This record was written as `decision-28`, colliding with the
+> contract-history record of 2026-08-03. That one was written first and keeps the number;
+> this one became 29. Anything citing "decision-28, the admin panel on a phone" means 29.
 
 ## Context
 

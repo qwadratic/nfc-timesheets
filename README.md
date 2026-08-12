@@ -81,7 +81,8 @@ NFC Tools on a real phone (30 s). Real hardware, no app of ours in it.
 
 ### The admin panel
 
-Desktop-first, German by default, built for one non-technical director.
+Works on a phone as well as a desktop (decision-29), German by default, built for one
+non-technical director.
 
 ▶ [`docs/media/admin-walkthrough.mp4`](docs/media/admin-walkthrough.mp4) — **161 s.** **Every
 screen in the sidebar, with none left out**: the day's exceptions, the shift log, workers,
@@ -287,8 +288,12 @@ The hostname is the one irreversible choice. Fix it *before* writing a single ta
 
 Live and in daily use on iOS. Working today: background NFC clock-in/out, Sign in with Apple,
 offline queue, 8 h auto-close with mandatory resolution, workers / buildings / clients / shifts /
-payroll / inventory admin, a read-only client portal, nightly backups with a tested restore, and
-German throughout.
+payroll / inventory admin, a read-only client portal, and German throughout.
+
+**Backups are not yet trustworthy.** A nightly `pg_dump` runs and a restore-test script exists,
+but the dump lands on the same disk as the database and the restore has never actually been
+executed. See "Things that will bite you" below. This sentence previously claimed "nightly
+backups with a tested restore" and was corrected on 2026-08-12.
 
 The Android client compiles, installs, signs in with an enrolment code (decision-26) and records
 a shift end to end — demonstrated in the clip above, against a local server. What it still does

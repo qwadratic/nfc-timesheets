@@ -4,10 +4,12 @@ title: German plurals on the migration receipt render as '4 alte Schichts'
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:46'
+updated_date: '2026-08-12 05:05'
 labels:
   - ios
   - i18n
   - bug
+milestone: m-5
 dependencies: []
 priority: medium
 ordinal: 40000

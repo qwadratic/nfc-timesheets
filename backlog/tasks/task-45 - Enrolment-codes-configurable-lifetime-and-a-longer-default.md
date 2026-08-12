@@ -4,13 +4,15 @@ title: 'Enrolment codes: configurable lifetime, and a longer default'
 status: To Do
 assignee: []
 created_date: '2026-08-04 18:27'
+updated_date: '2026-08-12 05:05'
 labels:
   - server
   - web
   - auth
   - ux
+milestone: m-5
 dependencies: []
-priority: high
+priority: medium
 ordinal: 45000
 ---
 

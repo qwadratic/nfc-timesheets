@@ -1,13 +1,15 @@
 ---
 id: TASK-48
 title: Vienna map on the admin dashboard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-11 19:12'
+updated_date: '2026-08-12 04:57'
 labels:
   - web
   - admin
   - maps
+  - duplicate
 dependencies: []
 priority: medium
 ordinal: 48000
@@ -41,3 +43,9 @@ SHAPE:
 HONEST CAVEAT: with one building this is decoration. It earns its place at ten or twenty,
 and the reason to build it now is that the geocoding and the key are already in place.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+CLOSED AS DUPLICATE of task-16 (2026-08-12 audit). The Vienna map WAS built — it lives on web/app/analytics/page.tsx (web/lib/map.ts:24,153; markers at :29,211; side panel :78-90,237-243), not on the dashboard. task-48 was filed because task-16's own implementation note wrongly claims the map is on web/app/page.tsx. Two real issues remain and are tracked on task-16: (1) ops/deploy.sh:44 passes only NEXT_PUBLIC_DEFAULT_LOCALE, so the Google Maps key is never inlined in the production build; (2) whether the map should ALSO appear on the dashboard is a product question, not a build task. This task's 'desktop-first per decision-7' constraint is also dead (decision-28).
+<!-- SECTION:NOTES:END -->

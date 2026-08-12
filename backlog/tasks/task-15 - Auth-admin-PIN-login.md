@@ -1,10 +1,10 @@
 ---
 id: TASK-15
-title: 'Auth: admin PIN login'
+title: 'Auth: admin email + password login'
 status: Done
 assignee: []
 created_date: '2026-07-28 13:49'
-updated_date: '2026-08-04 16:48'
+updated_date: '2026-08-12 04:58'
 labels:
   - web
   - auth
@@ -24,31 +24,21 @@ PIN login page. POST PIN to server, get session token (JWT or opaque). httpOnly 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Login page accepts PIN
-- [x] #2 Wrong PIN shows error
-- [x] #3 Correct PIN redirects to dashboard
-- [x] #4 Session persists across page refreshes
-- [x] #5 Logout clears session
+- [x] #1 Session persists across page refreshes
+- [x] #2 Logout clears session
+- [x] #3 Login page accepts email + password (decision-20; the PIN is gone)
+- [x] #4 Wrong password shows an error
+- [x] #5 Correct email + password redirects to dashboard
 <!-- AC:END -->
+
+
+
+
+
+
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-TRIAGE 2026-08-04 — DONE, but the MECHANISM changed. decision-20 deleted the PIN entirely.
-
-AC1 stays unchecked and must: there is no PIN login page and there will not be one. What shipped
-instead is email + password against the `admins` table.
-
-Evidence:
-- `POST /admin/login`, `POST /admin/logout`, `GET /admin/session` are all registered live (401
-  unauthenticated). AC5 = the logout route.
-- Production `admins` table holds 1 row.
-- `curl https://timesheets.exe.xyz/login/` -> 200 (web/app/login/page.tsx).
-- AC4: server/lib/auth.js:175 issues
-  `<name>=<token>; Path=/; Max-Age=…; HttpOnly; Secure; SameSite=Strict`. HttpOnly means script
-  cannot read it, SameSite=Strict means a third-party page cannot ride it.
-- Admin creation is out-of-band: server/bin/create-admin.js. No self-signup.
-- AC2: wrong credentials return the same 401 shape as no credentials.
-
-The old ADMIN_PIN is gone from /etc/nfc/env — the file holds only APP_KEY, DATABASE_URL, PORT.
+Retitled 2026-08-12. decision-20 removed ADMIN_PIN entirely; server/server.js:22 asserts it is deliberately absent and server/check-api.js:508,574 assert it is no longer required. Auth is now scrypt email+password (server/lib/auth.js:6,53,65) against the admins table, created by server/bin/create-admin.js. The original AC#1 'Login page accepts PIN' could never pass and has been replaced.
 <!-- SECTION:NOTES:END -->

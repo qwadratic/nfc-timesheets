@@ -4,7 +4,7 @@ title: Android ecosystem research
 status: Done
 assignee: []
 created_date: '2026-07-28 13:51'
-updated_date: '2026-08-04 16:50'
+updated_date: '2026-08-12 04:57'
 labels:
   - docs
   - research
@@ -22,11 +22,15 @@ Research: Kotlin vs Java, Android Studio on macOS, NFC background reading, FCM p
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [x] #1 Written guide in docs/android-research.md
-- [x] #2 Covers language, IDE, NFC, push, distribution
-- [x] #3 Recommendation with reasoning
-- [x] #4 Cross-platform assessment
+- [x] #1 Covers language, IDE, NFC, push, distribution
+- [x] #2 Recommendation with reasoning
+- [x] #3 Cross-platform assessment
+- [x] #4 Written guide in research/android-path.md and research/android-and-white-label-plan.md
 <!-- AC:END -->
+
+
+
+
 
 ## Implementation Notes
 

@@ -4,14 +4,14 @@ title: Workers CRUD + hourly rates
 status: In Progress
 assignee: []
 created_date: '2026-07-28 13:50'
-updated_date: '2026-08-04 16:49'
+updated_date: '2026-08-12 05:05'
 labels:
   - web
-milestone: m-3
+milestone: m-5
 dependencies:
   - TASK-15
   - TASK-2
-priority: high
+priority: medium
 ordinal: 20000
 ---
 

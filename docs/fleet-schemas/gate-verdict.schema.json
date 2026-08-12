@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gate-verdict.schema.json",
+  "title": "Phase 4 verdict — the last thing the fleet emits",
+  "description": "Produced by the review gate. This is the document a human reads to decide whether to ship. It is deliberately hostile: its job is to find reasons NOT to ship, and 'everything passed' must be earned rather than assumed.",
+  "type": "object",
+  "required": ["baselineCommit", "headCommit", "lanesMerged", "decisionCompliance", "demos", "checks", "pilotExitCriteria", "verdict"],
+  "additionalProperties": false,
+  "properties": {
+    "baselineCommit": { "type": "string" },
+    "headCommit": { "type": "string" },
+    "lanesMerged": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decisionCompliance": {
+      "type": "object",
+      "description": "Re-run independently of each lane's self-report. The gate's verdict wins over the lane's.",
+      "required": ["decisionsChecked", "violations", "agentsMdInSync"],
+      "additionalProperties": false,
+      "properties": {
+        "decisionsChecked": { "type": "integer", "minimum": 30 },
+        "violations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["decisionId", "file", "line", "offendingCode", "why"],
+            "additionalProperties": false,
+            "properties": {
+              "decisionId": { "type": "string" },
+              "file": { "type": "string" },
+              "line": { "type": "integer" },
+              "offendingCode": { "type": "string" },
+              "why": { "type": "string", "minLength": 20 }
+            }
+          }
+        },
+        "agentsMdInSync": {
+          "type": "boolean",
+          "description": "Every record in backlog/decisions/ appears in the AGENTS.md checklist, and nothing superseded is listed as binding. This went stale for eight days once already."
+        }
+      }
+    },
+    "demos": {
+      "type": "array",
+      "description": "One entry per feature built. A feature with no demo BLOCKS the verdict.",
+      "items": {
+        "type": "object",
+        "required": ["taskId", "demoPath", "ranClean", "verifierAgentId"],
+        "additionalProperties": false,
+        "properties": {
+          "taskId": { "type": "string" },
+          "demoPath": { "type": "string" },
+          "ranClean": { "type": "boolean" },
+          "verifierAgentId": { "type": "string" }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": ["suitesRun", "suitesPassed", "skipsObserved", "totalAssertions"],
+      "additionalProperties": false,
+      "properties": {
+        "suitesRun": { "type": "integer" },
+        "suitesPassed": { "type": "integer" },
+        "skipsObserved": {
+          "type": "integer",
+          "maximum": 0,
+          "description": "Must be zero. Run with REQUIRE_DB=1; a skip is a failure, because 'passed' and 'never ran' are otherwise indistinguishable."
+        },
+        "totalAssertions": { "type": "integer", "minimum": 1300 }
+      }
+    },
+    "pilotExitCriteria": {
+      "type": "array",
+      "description": "Scored against backlog/milestones/m-5 - vienna-pilot.md. Honest partials are expected — two criteria REQUIRE physical hardware and ten calendar days and cannot be satisfied by any amount of agent work.",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "state", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "criterion": { "type": "string" },
+          "state": { "enum": ["MET", "PARTIAL", "NOT_MET", "NEEDS_HUMAN", "NEEDS_ELAPSED_TIME"] },
+          "evidence": { "type": "string", "minLength": 20 }
+        }
+      }
+    },
+    "verdict": {
+      "enum": ["SHIP", "SHIP_WITH_CONCERNS", "BLOCK"],
+      "description": "BLOCK if any decision violation, any missing or failing demo, any non-zero skip count, or any lane reporting BLOCKED."
+    },
+    "concerns": { "type": "array", "items": { "type": "string" } },
+    "handoffMemoPath": {
+      "type": "string",
+      "description": "Where the next session picks up. Required regardless of verdict."
+    }
+  }
+}

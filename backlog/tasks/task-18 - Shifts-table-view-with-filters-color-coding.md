@@ -4,14 +4,14 @@ title: Shifts table view with filters + color coding
 status: In Progress
 assignee: []
 created_date: '2026-07-28 13:50'
-updated_date: '2026-08-04 16:49'
+updated_date: '2026-08-12 05:05'
 labels:
   - web
-milestone: m-3
+milestone: m-5
 dependencies:
   - TASK-15
   - TASK-3
-priority: high
+priority: medium
 ordinal: 18000
 ---
 
@@ -33,24 +33,5 @@ Table: worker, building, date, start, end, duration, status. Filters: worker, bu
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-TRIAGE 2026-08-04 — SHIPPED BUT INCOMPLETE. Live and useful; three of five criteria unmet.
-
-MET. `curl https://timesheets.exe.xyz/shifts/` -> 200 (web/app/shifts/page.tsx).
-AC1: joined names, not ids. AC4: colour coding, and never colour ALONE — an auto-closed shift is
-also labelled in words. Worker/building/period filters work. Frame: docs/media/admin-shifts.png.
-
-NOT MET, and it is one defect wearing three hats — the screen pulls the WHOLE table:
-  web/app/shifts/page.tsx:54  "Filtering and sorting happen in the browser over the single
-                               UNBOUNDED /admin/data"
-- AC3 no pagination. Every shift ever recorded is fetched, parsed and held in the browser on
-  every visit. Fine at 5 rows (production has 5). At 20 cleaners x ~1 shift/day this is ~7000
-  rows/year in memory and growing without bound.
-- AC2 filters are React state, NOT in the URL. A filtered view cannot be linked or bookmarked,
-  and the back button does not restore it.
-- AC5 sort is fixed at start_time DESC (page.tsx:242). No column is sortable.
-
-CONSEQUENCE if never done: the screen gets slower every month and eventually stops loading; the
-office cannot send anyone a link to a specific view. Nothing is lost or mispaid. Not urgent while
-the table is small, but it is on the payroll path, so it should not be left until it breaks.
-LOW-MEDIUM effort: server-side LIMIT/OFFSET on /admin/data plus URL search params.
+AUDIT 2026-08-12. Shipped: joined human-readable names and colour coding (web/app/shifts/page.tsx, 36.6K). NOT shipped: AC#2 (URL-persisted filters) and AC#5 (sorting) — the file contains no useSearchParams and no sort handlers. WARNING on AC#3 (server-side pagination): the code has since deliberately decided AGAINST it. web/app/shifts/page.tsx:54-60 argues the unbounded client-side fetch is intentional because 'a server-bounded fetch would destroy the only fact that tells an empty FILTER apart from an empty DATABASE'. Do not implement AC#3 without superseding that reasoning first — it is a real argument, not an oversight.
 <!-- SECTION:NOTES:END -->

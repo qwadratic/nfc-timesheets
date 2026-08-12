@@ -4,13 +4,13 @@ title: APNs prerequisites documentation
 status: To Do
 assignee: []
 created_date: '2026-07-28 13:51'
-updated_date: '2026-08-04 16:51'
+updated_date: '2026-08-12 05:05'
 labels:
   - docs
   - research
-milestone: m-4
+milestone: m-6
 dependencies: []
-priority: high
+priority: low
 ordinal: 26000
 ---
 

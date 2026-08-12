@@ -4,8 +4,9 @@ title: Cryptographic proof-of-physical-presence for NFC clock-in
 status: To Do
 assignee: []
 created_date: '2026-07-28 16:00'
-updated_date: '2026-08-04 16:51'
+updated_date: '2026-08-12 05:05'
 labels: []
+milestone: m-6
 dependencies: []
 priority: low
 ordinal: 30000

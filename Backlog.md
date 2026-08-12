@@ -1,4 +1,29 @@
-# NFC TimeSheets — Iteration 3A Backlog
+> # ⛔ FROZEN 2026-07-28 — DO NOT BUILD FROM THIS FILE
+>
+> This is a historical snapshot of iteration 3A. The canonical backlog is **`backlog/tasks/`**
+> (53 tasks) — read it with `backlog task list --plain`.
+>
+> A 2026-08-12 audit found this file contradicts five accepted decisions in fourteen places.
+> An agent handed this document would build a PIN login, a mobile blocker, a PM2 unit, and
+> hardware-UID tag matching — all four of which were deliberately removed. Specifically:
+>
+> | Here it says | Reality |
+> |---|---|
+> | TASK-101, TASK-103: PM2, `pm2 status`, `pm2 startup` | systemd unit `nfc-api` (decision-18) |
+> | TASK-103, TASK-402: `X-Admin-Pin`, "single admin PIN" | email + password, PIN removed entirely (decision-20) |
+> | TASK-410: mobile blocker below 1024px | panel works on a phone; blocker deleted (decision-29) |
+> | TASK-303, TASK-405, TASK-406: `manualFinish` flag | flag is GONE — two columns, `auto_closed` + `corrected_at` (decision-10) |
+> | TASK-201, TASK-203, TASK-408: hardware tag UID | location UUID in the NDEF URI, UID never read (decision-5, decision-21) |
+> | TASK-502: "Android: research only, no implementation" | Android client built, signed, field-tested (decision-26) |
+>
+> It also has no task for Sign in with Apple (decision-22), enrolment codes (decision-26),
+> Sentry (decision-23), branding-as-configuration (decision-24), or the clients / portal /
+> P&L / inventory work that has since shipped.
+>
+> Kept because the dependency graph at the bottom is still a useful record of how 3A was
+> sequenced.
+
+# NFC TimeSheets — Iteration 3A Backlog (FROZEN)
 
 **Goal**: Working demo → deployable pilot for a real cleaning crew in Vienna.  
 **Focus**: Background NFC, Postgres, web admin (desktop), hourly rates, payroll view.  

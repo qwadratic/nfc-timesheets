@@ -4,11 +4,12 @@ title: Prove the Android app on physical hardware - NFC has never once run
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:57'
-updated_date: '2026-08-04 17:58'
+updated_date: '2026-08-12 05:05'
 labels:
   - android
   - nfc
   - risk
+milestone: m-5
 dependencies: []
 priority: high
 ordinal: 42000

@@ -4,8 +4,13 @@ title: >-
   Contract history makes revenue period-correct; labour stays valued at current
   rates until a worker_rates table is accepted
 date: '2026-08-03 15:30'
-status: proposed
+status: superseded
+superseded_by: decision-30
 ---
+
+> **SUPERSEDED by decision-30 (2026-08-12).** The four questions this record set as a gate
+> are answered there, and worker rate history is now accepted. The reasoning below for why it
+> was deferred in the first place remains correct and worth reading.
 ## Context
 
 Migration 005 adds `location_contracts`: a building's price is now period-scoped

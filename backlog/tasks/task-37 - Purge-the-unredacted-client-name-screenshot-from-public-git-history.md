@@ -4,12 +4,14 @@ title: Purge the unredacted client-name screenshot from public git history
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:44'
+updated_date: '2026-08-12 05:05'
 labels:
   - privacy
   - security
   - repo
+milestone: m-6
 dependencies: []
-priority: high
+priority: low
 ordinal: 37000
 ---
 

@@ -4,13 +4,15 @@ title: 'Feedback screen: let a worker tell the director something is wrong'
 status: To Do
 assignee: []
 created_date: '2026-08-11 19:12'
+updated_date: '2026-08-12 05:05'
 labels:
   - ios
   - android
   - server
   - web
+milestone: m-5
 dependencies: []
-priority: medium
+priority: high
 ordinal: 47000
 ---
 

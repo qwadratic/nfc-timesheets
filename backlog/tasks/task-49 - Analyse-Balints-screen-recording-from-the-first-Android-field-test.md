@@ -4,12 +4,14 @@ title: Analyse Balint's screen recording from the first Android field test
 status: To Do
 assignee: []
 created_date: '2026-08-11 19:12'
+updated_date: '2026-08-12 05:05'
 labels:
   - android
   - research
   - evidence
+milestone: m-5
 dependencies: []
-priority: high
+priority: medium
 ordinal: 49000
 ---
 

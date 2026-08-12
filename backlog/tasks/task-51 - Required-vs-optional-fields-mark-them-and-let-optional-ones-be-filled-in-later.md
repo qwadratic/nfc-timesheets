@@ -6,13 +6,15 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-11 23:02'
+updated_date: '2026-08-12 05:05'
 labels:
   - web
   - admin
   - ux
   - server
+milestone: m-6
 dependencies: []
-priority: high
+priority: low
 ordinal: 51000
 ---
 

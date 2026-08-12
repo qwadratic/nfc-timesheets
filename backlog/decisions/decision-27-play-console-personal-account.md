@@ -1,8 +1,13 @@
+---
+id: decision-27
+title: Google Play account is PERSONAL, and Android ships on the internal testing track
+status: accepted
+date: '2026-08-03'
+supersedes: nothing
+---
+
 # decision-27: Google Play account is PERSONAL, and Android ships on the internal testing track
 
-status: accepted
-date: 2026-08-03
-supersedes: nothing
 relates to: decision-24 (operator identity is configuration), decision-26 (enrolment codes)
 
 ## Decision

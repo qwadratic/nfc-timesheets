@@ -1,15 +1,18 @@
 ---
 id: TASK-38
 title: Offsite destination for the nightly pg_dump
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-04 17:45'
+updated_date: '2026-08-12 05:06'
 labels:
   - ops
   - backup
   - payroll
+  - merged
+milestone: m-5
 dependencies: []
-priority: medium
+priority: high
 ordinal: 38000
 ---
 
@@ -34,30 +37,5 @@ The owner has marked this LOW priority - filed as such, deliberately not escalat
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-TRIAGE 2026-08-04 (agent 2) — OPEN. Payroll-affecting. Verified read-only on the live VM.
-
-THE BACKUP HALF WORKS. nfc-backup.timer is active and last ran 2026-08-04 00:12 UTC. Four dumps exist:
-  /var/backups/nfc/nfc-20260728-153045.sql.gz
-  /var/backups/nfc/nfc-20260803T122719Z.sql.gz
-  /var/backups/nfc/nfc-20260803T202438Z.sql.gz
-  /var/backups/nfc/nfc-20260804T001253Z.sql.gz
-systemd unit: nfc-backup.service -> ExecStart=/srv/nfc/ops/backup/pg-backup.sh, User=postgres.
-
-THE OFFSITE HALF DOES NOT EXIST, and I confirmed the dumps share a filesystem with the database:
-  df -h /var/backups      -> /dev/root  25G  21% /
-  df -h /var/lib/postgresql -> /dev/root  25G  21% /
-Same device. The backup is a copy of the data sitting next to the data.
-
-WHAT BREAKS IF NEVER DONE: the VM's disk is the single point of failure for ALL payroll history.
-Lose it and you lose the hours people are owed AND every dump that could have restored them.
-Austrian record-keeping expects those records to exist next year (server/db/README.md:181,
-decision-16: 'That is not optional for payroll data').
-
-MITIGATING, WHICH IS WHY LOW IS DEFENSIBLE TODAY: production currently holds 5 shifts, 2 workers
-and 1 location. There is very little to lose yet. The cost of losing it grows every week the
-crew actually uses the app - this gets more expensive to defer, not less.
-
-ponytail: rclone to any B2/S3 bucket is ~3 lines and the example is already in the script.
-Ceiling: no versioning or retention policy. Upgrade path: bucket lifecycle rules + a restore
-drill on a schedule.
+MERGED INTO task-57 (2026-08-12 audit). task-57 covers this task's offsite destination PLUS the two gaps it missed: the restore has never actually been executed, and ops/systemd/nfc-backup.service has no EnvironmentFile, so the offsite work as documented aborts on first run under set -u. Do the work on task-57.
 <!-- SECTION:NOTES:END -->
