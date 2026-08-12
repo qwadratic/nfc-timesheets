@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   fetchMaterialSnapshot,
@@ -15,6 +16,7 @@ import {
   type MaterialStatus,
   patchMaterialRequest,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import type { ErrorKey } from '@/lib/locale'
 import { isAcknowledged, isOpen, isUnpriced, nextStatuses, stageOf } from '@/lib/materials'
 import { centsToPlainEuros, parseEuroToCents } from '@/lib/money'
@@ -89,6 +91,7 @@ function draftOf(request: MaterialRequestRow): Draft {
 
 export default function MaterialRequestsPage() {
   const t = useTranslations('materials')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const router = useRouter()
@@ -336,27 +339,29 @@ export default function MaterialRequestsPage() {
   const locations: Location[] = snapshot?.locations ?? []
   const inventory: InventoryItem[] = snapshot?.inventory ?? []
 
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(snapshot, loadError)
+
   return (
     <>
       <h1>{t('heading')}</h1>
-      <p className="lede">{t('intro')}</p>
+      <p className="page-question">{t('question')}</p>
 
-      {/* Standing facts, not transient status. Both of these are things a director would
-          otherwise reasonably assume the opposite of. */}
-      <div className="callout">
-        <h2>{t('standingHeading')}</h2>
-        <ul>
-          <li>{t('notePolling')}</li>
-          <li>{t('noteAttribution')}</li>
-          <li>{t('noteUnpriced')}</li>
-        </ul>
-      </div>
-
-      {loadError !== null ? (
-        <p className="form-error" role="alert">
-          {tError(loadError)}
-        </p>
-      ) : null}
+      {/* Standing facts, not transient status — and therefore worth reading ONCE rather
+          than above the queue on every visit. Both are things a director would otherwise
+          reasonably assume the opposite of. */}
+      <details className="disclosure">
+        <summary>{tUi('howThisWorks')}</summary>
+        <div className="disclosure-body">
+          <p className="lede">{t('intro')}</p>
+          <h2>{t('standingHeading')}</h2>
+          <ul className="triage-list">
+            <li>{t('notePolling')}</li>
+            <li>{t('noteAttribution')}</li>
+            <li>{t('noteUnpriced')}</li>
+          </ul>
+        </div>
+      </details>
 
       {/* Permanent live region: a text change inside an existing region is announced far
           more reliably than a node that appears and disappears. */}
@@ -494,8 +499,17 @@ export default function MaterialRequestsPage() {
       <section aria-labelledby="materials-queue-heading">
         <h2 id="materials-queue-heading">{t('queueHeading')}</h2>
 
-        {snapshot === null ? (
-          <p role="status">{t('loading')}</p>
+        {/* Error BEATS loading (lib/load.ts, UX-AUDIT finding 1). */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' || snapshot === null ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : (
           <>
             <p className="page-summary" role="status">

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   type AnalyticsBuilding,
   type AnalyticsReport,
@@ -14,6 +15,7 @@ import {
   TREND_MONTHS_DEFAULT,
   TREND_MONTHS_MAX,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import { type ErrorKey, htmlLang, isLocale } from '@/lib/locale'
 import {
   failureOf,
@@ -28,6 +30,7 @@ import {
   VIENNA_CENTRE,
 } from '@/lib/map'
 import { LOGIN_PATH } from '@/lib/nav'
+import { shiftsHref } from '@/lib/params'
 import { isPeriod, PAYROLL_PERIODS, type Period, periodRange } from '@/lib/period'
 import { formatDuration } from '@/lib/shifts'
 
@@ -66,6 +69,7 @@ const TREND_CHOICES = [3, 6, 12, TREND_MONTHS_MAX] as const
 
 export default function AnalyticsPage() {
   const t = useTranslations('analytics')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const locale = useLocale()
   const router = useRouter()
@@ -167,6 +171,9 @@ export default function AnalyticsPage() {
   )
 
   const buildings = useMemo(() => report?.buildings ?? [], [report])
+
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(report, loadError)
   const pinned = useMemo(() => buildings.filter(isPinned), [buildings])
   const unpinned = useMemo(() => buildings.filter((b) => !isPinned(b)), [buildings])
 
@@ -334,7 +341,14 @@ export default function AnalyticsPage() {
   return (
     <>
       <h1>{t('heading')}</h1>
-      <p className="lede">{t('intro')}</p>
+      <p className="page-question">{t('question')}</p>
+
+      <details className="disclosure">
+        <summary>{tUi('howThisWorks')}</summary>
+        <div className="disclosure-body">
+          <p className="lede">{t('intro')}</p>
+        </div>
+      </details>
 
       <section aria-labelledby="analytics-controls-heading">
         <h2 id="analytics-controls-heading">{t('controlsHeading')}</h2>
@@ -391,12 +405,6 @@ export default function AnalyticsPage() {
           <li>{t('noteMapEquivalent')}</li>
         </ul>
       </div>
-
-      {loadError !== null ? (
-        <p className="form-error" role="alert">
-          {tError(loadError)}
-        </p>
-      ) : null}
 
       <p className={notice?.ok === false ? 'form-error' : 'form-status'} role="status">
         {notice === null ? '' : notice.text}
@@ -576,15 +584,23 @@ export default function AnalyticsPage() {
       <section aria-labelledby="analytics-table-heading">
         <h2 id="analytics-table-heading">{t('tableHeading')}</h2>
 
-        {report === null ? (
-          <p role="status">{t('loading')}</p>
+        {/* Error BEATS loading (lib/load.ts, UX-AUDIT finding 1). */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' || report === null ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : buildings.length === 0 ? (
-          <div className="notice">
-            <p>{t('emptyBody')}</p>
+          <DataState kind="empty" headline={t('emptyBody')}>
             <p>
               <Link href={BUILDINGS_PATH}>{t('emptyLink')}</Link>
             </p>
-          </div>
+          </DataState>
         ) : (
           <>
             <p className="page-summary" role="status">
@@ -633,8 +649,23 @@ export default function AnalyticsPage() {
                         </span>
                       ) : null}
                     </th>
-                    <td className="col-numeric">{formatDuration(building.actual_minutes)}</td>
-                    <td className="col-numeric">
+                    <td className="col-numeric col-hours">
+                      {formatDuration(building.actual_minutes)}
+                      {/* The shifts this figure is made of, for this building, over exactly
+                          this period — absolute, so the link keeps reproducing it. */}
+                      <Link
+                        className="cell-link"
+                        href={shiftsHref({
+                          location: building.location_id,
+                          range: report.range,
+                          period: 'all',
+                        })}
+                      >
+                        {t('linkShifts')}
+                        <span className="visually-hidden">{building.name}</span>
+                      </Link>
+                    </td>
+                    <td className="col-numeric col-hours">
                       {building.target_minutes === null ? (
                         <span className="cell-muted">{t('targetUnknown')}</span>
                       ) : (

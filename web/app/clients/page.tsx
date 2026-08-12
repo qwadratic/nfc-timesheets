@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   type Client,
@@ -15,6 +16,7 @@ import {
   saveClient,
   saveContact,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import type { ErrorKey } from '@/lib/locale'
 import { LOGIN_PATH } from '@/lib/nav'
 
@@ -64,6 +66,7 @@ type ErrorMessage =
 
 export default function ClientsPage() {
   const t = useTranslations('clients')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const router = useRouter()
 
@@ -81,6 +84,9 @@ export default function ClientsPage() {
 
   // null = still loading. Empty lists = loaded and genuinely empty, the first-run state.
   const [snapshot, setSnapshot] = useState<ClientsSnapshot | null>(null)
+  /** The two create/edit disclosures. Controlled, so „Bearbeiten" can open the right one. */
+  const [clientFormOpen, setClientFormOpen] = useState(false)
+  const [contactFormOpen, setContactFormOpen] = useState(false)
   const [loadError, setLoadError] = useState<ErrorKey | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -260,7 +266,10 @@ export default function ClientsPage() {
     setClientDraft({ id: client.id, name: client.name, active: client.active })
     setClientError(null)
     setClientSaved(false)
-    clientNameRef.current?.focus()
+    // The form is folded away now (UX-AUDIT finding 9), so „Bearbeiten" has to open it
+    // before focusing it — otherwise focus lands on an input nobody can see.
+    setClientFormOpen(true)
+    window.requestAnimationFrame(() => clientNameRef.current?.focus())
   }
 
   function editContact(contact: Contact) {
@@ -275,97 +284,121 @@ export default function ClientsPage() {
     setContactErrors({})
     setContactError(null)
     setContactSaved(false)
-    contactNameRef.current?.focus()
+    setContactFormOpen(true)
+    window.requestAnimationFrame(() => contactNameRef.current?.focus())
   }
 
   function clientName(id: number): string {
     return clients.find((client) => client.id === id)?.name ?? t('unknownClient')
   }
 
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(snapshot, loadError)
+
   return (
     <>
       <h1>{t('heading')}</h1>
+      <p className="page-question">{t('question')}</p>
       <p className="lede">{t('intro')}</p>
       <p>
         <Link href="/locations/">{t('buildingsLink')}</Link>
       </p>
 
-      {loadError !== null ? (
-        <p className="form-error" role="alert">
-          {tError(loadError)}
-        </p>
+      {/* One error region for the whole screen: both lists come from ONE request, so two
+          error blocks would be the same failure reported twice. Error beats loading. */}
+      {view.state === 'error' ? (
+        <DataState
+          kind="error"
+          headline={t('errorHeading')}
+          detail={tError(view.key)}
+          retryLabel={tUi('retry')}
+          onRetry={() => void load()}
+        />
       ) : null}
 
       <section aria-labelledby={clientFormHeadingId}>
-        <h2 id={clientFormHeadingId}>
-          {clientDraft.id === undefined ? t('clientCreateHeading') : t('clientEditHeading')}
-        </h2>
+        <details
+          className="disclosure"
+          open={clientFormOpen}
+          onToggle={(event) => setClientFormOpen(event.currentTarget.open)}
+        >
+          <summary>
+            {clientDraft.id === undefined ? t('createDisclosure') : t('clientEditHeading')}
+          </summary>
+          <div className="disclosure-body">
+            <h2 id={clientFormHeadingId}>
+              {clientDraft.id === undefined ? t('clientCreateHeading') : t('clientEditHeading')}
+            </h2>
 
-        <form className="worker-form" onSubmit={onSubmitClient} noValidate>
-          {/* Permanent live regions: a text change inside an existing region is announced
+            <form className="worker-form" onSubmit={onSubmitClient} noValidate>
+              {/* Permanent live regions: a text change inside an existing region is announced
               far more reliably than a node that appears and disappears. */}
-          <p className="form-error" role="alert">
-            {clientError === null ? '' : t(clientError)}
-          </p>
-          <p className="form-status" role="status">
-            {clientSaved ? t('clientSaved') : ''}
-          </p>
+              <p className="form-error" role="alert">
+                {clientError === null ? '' : t(clientError)}
+              </p>
+              <p className="form-status" role="status">
+                {clientSaved ? t('clientSaved') : ''}
+              </p>
 
-          <div className="field">
-            <label htmlFor={clientNameId}>{t('fieldClientName')}</label>
-            <input
-              id={clientNameId}
-              ref={clientNameRef}
-              type="text"
-              value={clientDraft.name}
-              onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })}
-              maxLength={160}
-              autoComplete="off"
-              aria-describedby={`${clientNameId}-error`}
-              aria-invalid={clientError === 'errorNameRequired'}
-              disabled={busy}
-            />
-            <p className="field-error" id={`${clientNameId}-error`} role="alert">
-              {clientError === 'errorNameRequired' ? t('errorNameRequired') : ''}
-            </p>
-          </div>
+              <div className="field">
+                <label htmlFor={clientNameId}>{t('fieldClientName')}</label>
+                <input
+                  id={clientNameId}
+                  ref={clientNameRef}
+                  type="text"
+                  value={clientDraft.name}
+                  onChange={(event) => setClientDraft({ ...clientDraft, name: event.target.value })}
+                  maxLength={160}
+                  autoComplete="off"
+                  aria-describedby={`${clientNameId}-error`}
+                  aria-invalid={clientError === 'errorNameRequired'}
+                  disabled={busy}
+                />
+                <p className="field-error" id={`${clientNameId}-error`} role="alert">
+                  {clientError === 'errorNameRequired' ? t('errorNameRequired') : ''}
+                </p>
+              </div>
 
-          <div className="field field-check">
-            <input
-              id={clientActiveId}
-              type="checkbox"
-              checked={clientDraft.active}
-              onChange={(event) => setClientDraft({ ...clientDraft, active: event.target.checked })}
-              disabled={busy}
-            />
-            <label htmlFor={clientActiveId}>{t('fieldClientActive')}</label>
-          </div>
+              <div className="field field-check">
+                <input
+                  id={clientActiveId}
+                  type="checkbox"
+                  checked={clientDraft.active}
+                  onChange={(event) =>
+                    setClientDraft({ ...clientDraft, active: event.target.checked })
+                  }
+                  disabled={busy}
+                />
+                <label htmlFor={clientActiveId}>{t('fieldClientActive')}</label>
+              </div>
 
-          <div className="form-actions">
-            <button type="submit" className="button-primary" disabled={busy}>
-              {busy
-                ? t('submitting')
-                : clientDraft.id === undefined
-                  ? t('clientSubmitCreate')
-                  : t('submitSave')}
-            </button>
-            {clientDraft.id === undefined ? null : (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => setClientDraft(EMPTY_CLIENT)}
-              >
-                {t('cancel')}
-              </button>
-            )}
+              <div className="form-actions">
+                <button type="submit" className="button-primary" disabled={busy}>
+                  {busy
+                    ? t('submitting')
+                    : clientDraft.id === undefined
+                      ? t('clientSubmitCreate')
+                      : t('submitSave')}
+                </button>
+                {clientDraft.id === undefined ? null : (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setClientDraft(EMPTY_CLIENT)}
+                  >
+                    {t('cancel')}
+                  </button>
+                )}
+              </div>
+            </form>
           </div>
-        </form>
+        </details>
 
         <h3>{t('clientListHeading')}</h3>
-        {snapshot === null ? (
-          <p role="status">{t('loading')}</p>
+        {view.state === 'error' ? null : view.state === 'loading' ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : clients.length === 0 ? (
-          <p>{t('clientEmptyBody')}</p>
+          <DataState kind="empty" headline={t('clientEmptyBody')} />
         ) : (
           <table className="data-table" aria-busy={busy}>
             <caption className="visually-hidden">{t('clientTableCaption')}</caption>
@@ -432,139 +465,156 @@ export default function ClientsPage() {
       </section>
 
       <section aria-labelledby={contactFormHeadingId}>
-        <h2 id={contactFormHeadingId}>
-          {contactDraft.id === undefined ? t('contactCreateHeading') : t('contactEditHeading')}
-        </h2>
-        <p>{t('contactIntro')}</p>
+        <details
+          className="disclosure"
+          open={contactFormOpen}
+          onToggle={(event) => setContactFormOpen(event.currentTarget.open)}
+        >
+          <summary>
+            {contactDraft.id === undefined ? t('createContactDisclosure') : t('contactEditHeading')}
+          </summary>
+          <div className="disclosure-body">
+            <h2 id={contactFormHeadingId}>
+              {contactDraft.id === undefined ? t('contactCreateHeading') : t('contactEditHeading')}
+            </h2>
+            <p>{t('contactIntro')}</p>
 
-        <form className="worker-form" onSubmit={onSubmitContact} noValidate>
-          <p className="form-error" role="alert">
-            {contactError === null ? '' : t(contactError)}
-          </p>
-          <p className="form-status" role="status">
-            {contactSaved ? t('contactSaved') : ''}
-          </p>
+            <form className="worker-form" onSubmit={onSubmitContact} noValidate>
+              <p className="form-error" role="alert">
+                {contactError === null ? '' : t(contactError)}
+              </p>
+              <p className="form-status" role="status">
+                {contactSaved ? t('contactSaved') : ''}
+              </p>
 
-          <div className="field">
-            <label htmlFor={contactClientId}>{t('fieldContactClient')}</label>
-            <select
-              id={contactClientId}
-              value={contactDraft.clientChoice}
-              onChange={(event) =>
-                setContactDraft({ ...contactDraft, clientChoice: event.target.value })
-              }
-              aria-describedby={`${contactClientId}-error`}
-              aria-invalid={contactErrors.client !== undefined}
-              disabled={busy}
-            >
-              <option value="">{t('pickClient')}</option>
-              {clients.map((client) => (
-                <option key={client.id} value={String(client.id)}>
-                  {client.active ? client.name : t('optionInactive', { name: client.name })}
-                </option>
-              ))}
-            </select>
-            <p className="field-error" id={`${contactClientId}-error`} role="alert">
-              {contactErrors.client === undefined ? '' : t(contactErrors.client)}
-            </p>
+              <div className="field">
+                <label htmlFor={contactClientId}>{t('fieldContactClient')}</label>
+                <select
+                  id={contactClientId}
+                  value={contactDraft.clientChoice}
+                  onChange={(event) =>
+                    setContactDraft({ ...contactDraft, clientChoice: event.target.value })
+                  }
+                  aria-describedby={`${contactClientId}-error`}
+                  aria-invalid={contactErrors.client !== undefined}
+                  disabled={busy}
+                >
+                  <option value="">{t('pickClient')}</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={String(client.id)}>
+                      {client.active ? client.name : t('optionInactive', { name: client.name })}
+                    </option>
+                  ))}
+                </select>
+                <p className="field-error" id={`${contactClientId}-error`} role="alert">
+                  {contactErrors.client === undefined ? '' : t(contactErrors.client)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={contactNameId}>{t('fieldContactName')}</label>
+                <input
+                  id={contactNameId}
+                  ref={contactNameRef}
+                  type="text"
+                  value={contactDraft.name}
+                  onChange={(event) =>
+                    setContactDraft({ ...contactDraft, name: event.target.value })
+                  }
+                  maxLength={160}
+                  autoComplete="off"
+                  aria-describedby={`${contactNameId}-error`}
+                  aria-invalid={contactErrors.name !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-error" id={`${contactNameId}-error`} role="alert">
+                  {contactErrors.name === undefined ? '' : t(contactErrors.name)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={contactEmailId}>{t('fieldContactEmail')}</label>
+                <input
+                  id={contactEmailId}
+                  type="email"
+                  value={contactDraft.email}
+                  onChange={(event) =>
+                    setContactDraft({ ...contactDraft, email: event.target.value })
+                  }
+                  maxLength={320}
+                  autoComplete="off"
+                  aria-describedby={`${contactEmailId}-hint ${contactEmailId}-error`}
+                  aria-invalid={contactErrors.email !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={`${contactEmailId}-hint`}>
+                  {t('contactEmailHint')}
+                </p>
+                <p className="field-error" id={`${contactEmailId}-error`} role="alert">
+                  {contactErrors.email === undefined ? '' : t(contactErrors.email)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={contactPhoneId}>{t('fieldContactPhone')}</label>
+                <input
+                  id={contactPhoneId}
+                  type="tel"
+                  value={contactDraft.phone}
+                  onChange={(event) =>
+                    setContactDraft({ ...contactDraft, phone: event.target.value })
+                  }
+                  maxLength={40}
+                  autoComplete="off"
+                  aria-describedby={`${contactPhoneId}-error`}
+                  aria-invalid={contactErrors.phone !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-error" id={`${contactPhoneId}-error`} role="alert">
+                  {contactErrors.phone === undefined ? '' : t(contactErrors.phone)}
+                </p>
+              </div>
+
+              <div className="field field-check">
+                <input
+                  id={contactActiveId}
+                  type="checkbox"
+                  checked={contactDraft.active}
+                  onChange={(event) =>
+                    setContactDraft({ ...contactDraft, active: event.target.checked })
+                  }
+                  disabled={busy}
+                />
+                <label htmlFor={contactActiveId}>{t('fieldContactActive')}</label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="button-primary" disabled={busy}>
+                  {busy
+                    ? t('submitting')
+                    : contactDraft.id === undefined
+                      ? t('contactSubmitCreate')
+                      : t('submitSave')}
+                </button>
+                {contactDraft.id === undefined ? null : (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setContactDraft(EMPTY_CONTACT)}
+                  >
+                    {t('cancel')}
+                  </button>
+                )}
+              </div>
+            </form>
           </div>
-
-          <div className="field">
-            <label htmlFor={contactNameId}>{t('fieldContactName')}</label>
-            <input
-              id={contactNameId}
-              ref={contactNameRef}
-              type="text"
-              value={contactDraft.name}
-              onChange={(event) => setContactDraft({ ...contactDraft, name: event.target.value })}
-              maxLength={160}
-              autoComplete="off"
-              aria-describedby={`${contactNameId}-error`}
-              aria-invalid={contactErrors.name !== undefined}
-              disabled={busy}
-            />
-            <p className="field-error" id={`${contactNameId}-error`} role="alert">
-              {contactErrors.name === undefined ? '' : t(contactErrors.name)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={contactEmailId}>{t('fieldContactEmail')}</label>
-            <input
-              id={contactEmailId}
-              type="email"
-              value={contactDraft.email}
-              onChange={(event) => setContactDraft({ ...contactDraft, email: event.target.value })}
-              maxLength={320}
-              autoComplete="off"
-              aria-describedby={`${contactEmailId}-hint ${contactEmailId}-error`}
-              aria-invalid={contactErrors.email !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={`${contactEmailId}-hint`}>
-              {t('contactEmailHint')}
-            </p>
-            <p className="field-error" id={`${contactEmailId}-error`} role="alert">
-              {contactErrors.email === undefined ? '' : t(contactErrors.email)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={contactPhoneId}>{t('fieldContactPhone')}</label>
-            <input
-              id={contactPhoneId}
-              type="tel"
-              value={contactDraft.phone}
-              onChange={(event) => setContactDraft({ ...contactDraft, phone: event.target.value })}
-              maxLength={40}
-              autoComplete="off"
-              aria-describedby={`${contactPhoneId}-error`}
-              aria-invalid={contactErrors.phone !== undefined}
-              disabled={busy}
-            />
-            <p className="field-error" id={`${contactPhoneId}-error`} role="alert">
-              {contactErrors.phone === undefined ? '' : t(contactErrors.phone)}
-            </p>
-          </div>
-
-          <div className="field field-check">
-            <input
-              id={contactActiveId}
-              type="checkbox"
-              checked={contactDraft.active}
-              onChange={(event) =>
-                setContactDraft({ ...contactDraft, active: event.target.checked })
-              }
-              disabled={busy}
-            />
-            <label htmlFor={contactActiveId}>{t('fieldContactActive')}</label>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="button-primary" disabled={busy}>
-              {busy
-                ? t('submitting')
-                : contactDraft.id === undefined
-                  ? t('contactSubmitCreate')
-                  : t('submitSave')}
-            </button>
-            {contactDraft.id === undefined ? null : (
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() => setContactDraft(EMPTY_CONTACT)}
-              >
-                {t('cancel')}
-              </button>
-            )}
-          </div>
-        </form>
+        </details>
 
         <h3>{t('contactListHeading')}</h3>
-        {snapshot === null ? (
-          <p role="status">{t('loading')}</p>
+        {view.state === 'error' ? null : view.state === 'loading' ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : contacts.length === 0 ? (
-          <p>{t('contactEmptyBody')}</p>
+          <DataState kind="empty" headline={t('contactEmptyBody')} />
         ) : (
           <table className="data-table" aria-busy={busy}>
             <caption className="visually-hidden">{t('contactTableCaption')}</caption>

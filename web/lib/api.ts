@@ -543,7 +543,16 @@ export type HoursRow = {
 }
 
 /** `ShiftSnapshot` plus the aggregate. Same route, same round trip. */
-export type AdminSnapshot = ShiftSnapshot & { hours: HoursRow[] }
+/**
+ * `GET /admin/data` in full. `material_requests` was always in the response body and simply
+ * unmodelled here — which is why nothing on the dashboard could count the queue a worker is
+ * standing in a building waiting on. decision-23 forbids push and SMS, so the panel is the
+ * only channel that queue has.
+ */
+export type AdminSnapshot = ShiftSnapshot & {
+  hours: HoursRow[]
+  material_requests: MaterialRequestRow[]
+}
 
 /**
  * Everything the dashboard renders, in one request, asking for the server's maximum page

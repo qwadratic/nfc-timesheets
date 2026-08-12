@@ -4,10 +4,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import { type AdminSnapshot, ApiError, fetchPayrollSnapshot } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import { type ErrorKey, htmlLang, isLocale } from '@/lib/locale'
 import { centsToPlainEuros } from '@/lib/money'
 import { LOGIN_PATH } from '@/lib/nav'
+import { shiftsHref } from '@/lib/params'
 import {
   coverageOf,
   msToHours,
@@ -49,8 +52,6 @@ import { toBusinessInput } from '@/lib/shifts'
  * retroactively changes what last month appears to have cost.
  */
 
-const SHIFTS_PATH = '/shifts/'
-
 /**
  * `YYYY-MM-DD` for the export filename, in VIENNA time and not the browser's.
  *
@@ -64,6 +65,7 @@ function businessDate(iso: string): string {
 
 export default function PayrollPage() {
   const t = useTranslations('payroll')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const locale = useLocale()
@@ -113,23 +115,28 @@ export default function PayrollPage() {
     [router],
   )
 
-  useEffect(() => {
-    const controller = new AbortController()
-    // The payload IS the period. Clear it first, or the old period's rows stay on screen
-    // under the new period's heading while the request is in flight.
-    setSnapshot(null)
-    void (async () => {
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      // The payload IS the period. Clear it first, or the old period's rows stay on screen
+      // under the new period's heading while the request is in flight.
+      setSnapshot(null)
+      setLoadError(null)
       try {
-        setSnapshot(await fetchPayrollSnapshot(range, controller.signal))
-        setLoadError(null)
+        setSnapshot(await fetchPayrollSnapshot(range, signal))
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === 'AbortError') return
         if (handleAuthLoss(cause)) return
         setLoadError(cause instanceof ApiError ? cause.messageKey : 'server')
       }
-    })()
+    },
+    [handleAuthLoss, range],
+  )
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void load(controller.signal)
     return () => controller.abort()
-  }, [handleAuthLoss, range])
+  }, [load])
 
   // No client-side period filter: the server already applied one, and a second opinion here
   // is precisely the disagreement this screen exists to have eliminated.
@@ -138,6 +145,9 @@ export default function PayrollPage() {
   const incomplete = coverage !== null && periodExceedsCoverage(range, coverage)
   const reconciliation =
     snapshot === null ? null : reconcile(snapshot.workers, snapshot.shifts, snapshot.hours)
+
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(snapshot, loadError)
 
   // Explicit map, not a template-literal key: messages are typed (global.d.ts), and a
   // computed key would defeat the check that catches a typo at build time.
@@ -239,7 +249,17 @@ export default function PayrollPage() {
   return (
     <>
       <h1>{t('heading')}</h1>
-      <p className="lede">{t('intro')}</p>
+      <p className="page-question">{t('question')}</p>
+
+      {/* The standing explanation of where these numbers come from is worth reading once.
+          What is NOT behind a disclosure: the caveat block below, because every line in it
+          is about THIS period's number and is only true today. */}
+      <details className="disclosure">
+        <summary>{tUi('howThisWorks')}</summary>
+        <div className="disclosure-body">
+          <p className="lede">{t('intro')}</p>
+        </div>
+      </details>
 
       <section aria-labelledby="payroll-period-heading">
         <h2 id="payroll-period-heading">{t('periodHeading')}</h2>
@@ -271,14 +291,22 @@ export default function PayrollPage() {
       <section aria-labelledby="payroll-result-heading">
         <h2 id="payroll-result-heading">{t('resultHeading')}</h2>
 
-        {loadError !== null ? (
-          <p className="form-error" role="alert">
-            {tError(loadError)}
-          </p>
-        ) : null}
-
-        {snapshot === null || totals === null || coverage === null || reconciliation === null ? (
-          <p role="status">{t('loading')}</p>
+        {/* Mutually exclusive, error first. A failed payroll fetch used to render a red line
+            and then „Wird geladen …" that never resolved (UX-AUDIT finding 1) — on the one
+            screen where the reader is waiting for a number to pay people. */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' ||
+          totals === null ||
+          coverage === null ||
+          reconciliation === null ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : (
           <>
             {/* One permanent live region: the summary is re-announced when the period changes. */}
@@ -298,13 +326,17 @@ export default function PayrollPage() {
                 {totals.unresolvedShifts > 0 ? (
                   <li>
                     {t('caveatUnresolved', { count: totals.unresolvedShifts })}{' '}
-                    <Link href={SHIFTS_PATH}>{t('caveatUnresolvedLink')}</Link>
+                    <Link href={shiftsHref({ state: 'unresolved', range, period: 'all' })}>
+                      {t('caveatUnresolvedLink')}
+                    </Link>
                   </li>
                 ) : null}
                 {totals.openShifts > 0 ? (
                   <li>
                     {t('caveatOpen', { count: totals.openShifts })}{' '}
-                    <Link href={SHIFTS_PATH}>{t('caveatOpenLink')}</Link>
+                    <Link href={shiftsHref({ state: 'open', period: 'all' })}>
+                      {t('caveatOpenLink')}
+                    </Link>
                   </li>
                 ) : null}
                 {totals.unresolvedShifts === 0 && totals.openShifts === 0 ? (
@@ -315,13 +347,13 @@ export default function PayrollPage() {
                 {incomplete && coverage.earliestStart !== null ? (
                   <li>
                     {t('caveatTruncated', {
-                      limit: snapshot.shift_limit,
+                      limit: view.data.shift_limit,
                       earliest: monthDayFormat.format(new Date(coverage.earliestStart)),
                     })}
                   </li>
                 ) : null}
                 {reconciliation.missingCents !== 0 ? (
-                  <li>
+                  <li className="num">
                     {t('caveatReconcile', {
                       server: money(reconciliation.serverCents),
                       visible: money(reconciliation.visibleCents),
@@ -336,7 +368,7 @@ export default function PayrollPage() {
                 {totals.manualShifts > 0 ? (
                   <li>
                     {t('caveatManual', { count: totals.manualShifts })}{' '}
-                    <Link href={SHIFTS_PATH}>{t('caveatManualLink')}</Link>
+                    <Link href={shiftsHref({ range, period: 'all' })}>{t('caveatManualLink')}</Link>
                   </li>
                 ) : null}
                 {totals.orphanShifts > 0 ? <li>{t('caveatOrphan')}</li> : null}
@@ -349,35 +381,33 @@ export default function PayrollPage() {
               /* Empty is not an error. But it is ambiguous, and the ambiguous reading is the
                  expensive one, so the screen says which: nothing in THIS period, and here is
                  when something was last recorded, and here is one click to that period. */
-              <div className="notice">
-                <p>{t('emptyBody')}</p>
-                {latestStart === null ? (
-                  <p>{t('emptyNeverRecorded')}</p>
-                ) : (
-                  <>
-                    <p>
-                      {t('emptyLatestRecorded', {
+              <DataState
+                kind={latestStart === null ? 'empty' : 'filtered'}
+                headline={t('emptyBody')}
+                detail={
+                  latestStart === null
+                    ? t('emptyNeverRecorded')
+                    : t('emptyLatestRecorded', {
                         date: monthDayFormat.format(new Date(latestStart)),
-                      })}
-                    </p>
-                    {latestPeriod === null || latestPeriod === period ? null : (
-                      <p className="form-actions">
-                        <button
-                          type="button"
-                          className="button-primary"
-                          onClick={() => {
-                            setPeriod(latestPeriod)
-                            setExported(false)
-                            setExportFailed(false)
-                          }}
-                        >
-                          {t('emptyJump', { period: periodLabel[latestPeriod] })}
-                        </button>
-                      </p>
-                    )}
-                  </>
+                      })
+                }
+              >
+                {latestStart === null || latestPeriod === null || latestPeriod === period ? null : (
+                  <p className="button-row">
+                    <button
+                      type="button"
+                      className="button-primary"
+                      onClick={() => {
+                        setPeriod(latestPeriod)
+                        setExported(false)
+                        setExportFailed(false)
+                      }}
+                    >
+                      {t('emptyJump', { period: periodLabel[latestPeriod] })}
+                    </button>
+                  </p>
                 )}
-              </div>
+              </DataState>
             ) : (
               <>
                 <table className="data-table">
@@ -387,13 +417,13 @@ export default function PayrollPage() {
                   <thead>
                     <tr>
                       <th scope="col">{t('colWorker')}</th>
-                      <th scope="col" className="col-numeric">
+                      <th scope="col" className="col-numeric col-hours">
                         {t('colHours')}
                       </th>
-                      <th scope="col" className="col-numeric">
+                      <th scope="col" className="col-numeric col-money">
                         {t('colRate')}
                       </th>
-                      <th scope="col" className="col-numeric">
+                      <th scope="col" className="col-numeric col-money">
                         {t('colAmount')}
                       </th>
                       <th scope="col">{t('colExcluded')}</th>
@@ -402,10 +432,29 @@ export default function PayrollPage() {
                   <tbody>
                     {totals.lines.map((line) => (
                       <tr key={line.worker.id}>
-                        <th scope="row">{line.worker.name}</th>
-                        <td className="col-numeric">{hours(line.payableMs)}</td>
-                        <td className="col-numeric">{money(line.worker.hourly_rate_cents)}</td>
-                        <td className="col-numeric">{money(line.payCents)}</td>
+                        <th scope="row">
+                          {line.worker.name}
+                          {/* „Diese Stunden nachrechnen": the shifts BEHIND this number, with
+                              the period frozen as an ABSOLUTE range. A named period would
+                              re-resolve tomorrow and stop reproducing the figure the
+                              director is standing there defending (IA-AND-JTBD §3.1). */}
+                          <Link
+                            className="cell-link"
+                            href={shiftsHref({
+                              worker: line.worker.id,
+                              range,
+                              period: 'all',
+                            })}
+                          >
+                            {t('linkShifts')}
+                            <span className="visually-hidden">{line.worker.name}</span>
+                          </Link>
+                        </th>
+                        <td className="col-numeric col-hours">{hours(line.payableMs)}</td>
+                        <td className="col-numeric col-money">
+                          {money(line.worker.hourly_rate_cents)}
+                        </td>
+                        <td className="col-numeric col-money">{money(line.payCents)}</td>
                         <td>
                           {line.unresolvedShifts === 0 && line.openShifts === 0 ? (
                             <span className="cell-muted">{t('excludedNone')}</span>
@@ -428,9 +477,9 @@ export default function PayrollPage() {
                   <tfoot>
                     <tr>
                       <th scope="row">{t('totalLabel')}</th>
-                      <td className="col-numeric">{hours(totals.payableMs)}</td>
-                      <td className="col-numeric" />
-                      <td className="col-numeric">{money(totals.payCents)}</td>
+                      <td className="col-numeric col-hours">{hours(totals.payableMs)}</td>
+                      <td className="col-numeric col-money" />
+                      <td className="col-numeric col-money">{money(totals.payCents)}</td>
                       <td />
                     </tr>
                   </tfoot>

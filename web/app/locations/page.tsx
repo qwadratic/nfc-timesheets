@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   type BuildingsSnapshot,
@@ -18,9 +19,11 @@ import {
   saveContact,
   saveLocation,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import type { ErrorKey } from '@/lib/locale'
 import { centsToPlainEuros, parseEuroToCents } from '@/lib/money'
 import { LOGIN_PATH } from '@/lib/nav'
+import { shiftsHref } from '@/lib/params'
 import { businessMidnight, type PeriodRange, withinRange } from '@/lib/period'
 import { clientPortalUrl } from '@/lib/portal'
 import {
@@ -213,6 +216,7 @@ function timeInMonth(shifts: readonly Shift[], range: PeriodRange): Map<string, 
 
 export default function LocationsPage() {
   const t = useTranslations('locations')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const router = useRouter()
@@ -244,6 +248,8 @@ export default function LocationsPage() {
 
   // null = still loading. Empty lists = loaded and genuinely empty, the first-run state.
   const [snapshot, setSnapshot] = useState<BuildingsSnapshot | null>(null)
+  /** The create/edit disclosure. Controlled, so „Bearbeiten" can open it. */
+  const [formOpen, setFormOpen] = useState(false)
   const [loadError, setLoadError] = useState<ErrorKey | null>(null)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -332,7 +338,10 @@ export default function LocationsPage() {
     setFieldErrors({})
     setFormError(null)
     setSaved(false)
-    nameRef.current?.focus()
+    // The form is folded away below the list now (UX-AUDIT finding 9), so „Bearbeiten" has
+    // to open it — otherwise this focuses an input nobody can see.
+    setFormOpen(true)
+    window.requestAnimationFrame(() => nameRef.current?.focus())
   }
 
   function cancelEdit() {
@@ -665,271 +674,14 @@ export default function LocationsPage() {
       : ''
   const truncated = snapshot !== null && snapshot.shifts.length >= snapshot.shift_limit
 
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(snapshot, loadError)
+
   return (
     <>
       <h1>{t('heading')}</h1>
+      <p className="page-question">{t('question')}</p>
       <p className="lede">{t('intro')}</p>
-
-      <section aria-labelledby={formHeadingId}>
-        <h2 id={formHeadingId}>{editing ? t('editHeading') : t('createHeading')}</h2>
-
-        <form className="worker-form" onSubmit={onSubmit} noValidate>
-          {/* Permanent live regions: a text change inside an existing region is announced
-              far more reliably than a node that appears and disappears. */}
-          <p className="form-error" id={errorId} role="alert">
-            {formErrorText}
-          </p>
-          <p className="form-status" id={statusId} role="status">
-            {saved ? t('saved') : ''}
-          </p>
-
-          <div className="field">
-            <label htmlFor={nameId}>{t('fieldName')}</label>
-            <input
-              id={nameId}
-              ref={nameRef}
-              type="text"
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              maxLength={160}
-              autoComplete="off"
-              aria-describedby={`${nameId}-error`}
-              aria-invalid={fieldErrors.name !== undefined}
-              disabled={busy}
-            />
-            <p className="field-error" id={`${nameId}-error`} role="alert">
-              {fieldErrors.name === undefined ? '' : t(fieldErrors.name)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={slugId}>{t('fieldSlug')}</label>
-            <input
-              id={slugId}
-              type="text"
-              value={draft.slug}
-              onChange={(event) => setDraft({ ...draft, slug: event.target.value })}
-              maxLength={64}
-              autoComplete="off"
-              spellCheck={false}
-              aria-describedby={`${slugHintId} ${slugId}-error`}
-              aria-invalid={fieldErrors.slug !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={slugHintId}>
-              {t('slugHint')}
-            </p>
-            <p className="field-error" id={`${slugId}-error`} role="alert">
-              {fieldErrors.slug === undefined ? '' : t(fieldErrors.slug)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={addressId}>{t('fieldAddress')}</label>
-            <input
-              id={addressId}
-              type="text"
-              value={draft.address}
-              onChange={(event) => setDraft({ ...draft, address: event.target.value })}
-              maxLength={300}
-              autoComplete="off"
-              aria-describedby={addressHintId}
-              disabled={busy}
-            />
-            <p className="field-hint" id={addressHintId}>
-              {t('addressHint')}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={clientId}>{t('fieldClient')}</label>
-            <select
-              id={clientId}
-              value={draft.clientChoice}
-              onChange={(event) => chooseClient(event.target.value)}
-              aria-describedby={clientHintId}
-              disabled={busy}
-            >
-              <option value={NONE}>{t('clientNone')}</option>
-              {clients.map((client) => (
-                <option key={client.id} value={String(client.id)}>
-                  {client.active ? client.name : t('optionInactive', { name: client.name })}
-                </option>
-              ))}
-              <option value={NEW}>{t('clientNew')}</option>
-            </select>
-            <p className="field-hint" id={clientHintId}>
-              {t('clientHint')}
-            </p>
-          </div>
-
-          {draft.clientChoice === NEW ? (
-            <div className="field">
-              <label htmlFor={newClientId}>{t('fieldNewClient')}</label>
-              <input
-                id={newClientId}
-                type="text"
-                value={draft.newClientName}
-                onChange={(event) => setDraft({ ...draft, newClientName: event.target.value })}
-                maxLength={160}
-                autoComplete="off"
-                aria-describedby={`${newClientId}-error`}
-                aria-invalid={fieldErrors.newClientName !== undefined}
-                disabled={busy}
-              />
-              <p className="field-error" id={`${newClientId}-error`} role="alert">
-                {fieldErrors.newClientName === undefined ? '' : t(fieldErrors.newClientName)}
-              </p>
-            </div>
-          ) : null}
-
-          <div className="field">
-            <label htmlFor={contactId}>{t('fieldContact')}</label>
-            <select
-              id={contactId}
-              value={draft.contactChoice}
-              onChange={(event) => setDraft({ ...draft, contactChoice: event.target.value })}
-              aria-describedby={`${contactHintId} ${contactId}-error`}
-              aria-invalid={fieldErrors.contact !== undefined}
-              disabled={busy || draft.clientChoice === NONE}
-            >
-              <option value={NONE}>{t('contactNone')}</option>
-              {contactsForClient.map((contact) => (
-                <option key={contact.id} value={String(contact.id)}>
-                  {contact.active ? contact.name : t('optionInactive', { name: contact.name })}
-                </option>
-              ))}
-              <option value={NEW}>{t('contactNew')}</option>
-            </select>
-            <p className="field-hint" id={contactHintId}>
-              {draft.clientChoice === NONE ? t('contactNeedsClientHint') : t('contactHint')}
-            </p>
-            <p className="field-error" id={`${contactId}-error`} role="alert">
-              {fieldErrors.contact === undefined ? '' : t(fieldErrors.contact)}
-            </p>
-          </div>
-
-          {draft.contactChoice === NEW ? (
-            <>
-              <div className="field">
-                <label htmlFor={newContactId}>{t('fieldNewContact')}</label>
-                <input
-                  id={newContactId}
-                  type="text"
-                  value={draft.newContactName}
-                  onChange={(event) => setDraft({ ...draft, newContactName: event.target.value })}
-                  maxLength={160}
-                  autoComplete="off"
-                  aria-describedby={`${newContactId}-error`}
-                  aria-invalid={fieldErrors.newContactName !== undefined}
-                  disabled={busy}
-                />
-                <p className="field-error" id={`${newContactId}-error`} role="alert">
-                  {fieldErrors.newContactName === undefined ? '' : t(fieldErrors.newContactName)}
-                </p>
-              </div>
-
-              <div className="field">
-                <label htmlFor={newContactEmailId}>{t('fieldNewContactEmail')}</label>
-                <input
-                  id={newContactEmailId}
-                  type="email"
-                  value={draft.newContactEmail}
-                  onChange={(event) => setDraft({ ...draft, newContactEmail: event.target.value })}
-                  maxLength={320}
-                  autoComplete="off"
-                  aria-describedby={`${newContactEmailId}-error`}
-                  aria-invalid={fieldErrors.newContactEmail !== undefined}
-                  disabled={busy}
-                />
-                <p className="field-error" id={`${newContactEmailId}-error`} role="alert">
-                  {fieldErrors.newContactEmail === undefined ? '' : t(fieldErrors.newContactEmail)}
-                </p>
-              </div>
-
-              <div className="field">
-                <label htmlFor={newContactPhoneId}>{t('fieldNewContactPhone')}</label>
-                <input
-                  id={newContactPhoneId}
-                  type="tel"
-                  value={draft.newContactPhone}
-                  onChange={(event) => setDraft({ ...draft, newContactPhone: event.target.value })}
-                  maxLength={40}
-                  autoComplete="off"
-                  aria-describedby={`${newContactPhoneId}-error`}
-                  aria-invalid={fieldErrors.newContactPhone !== undefined}
-                  disabled={busy}
-                />
-                <p className="field-error" id={`${newContactPhoneId}-error`} role="alert">
-                  {fieldErrors.newContactPhone === undefined ? '' : t(fieldErrors.newContactPhone)}
-                </p>
-              </div>
-            </>
-          ) : null}
-
-          <div className="field">
-            <label htmlFor={monthlyId}>{t('fieldMonthly')}</label>
-            <input
-              id={monthlyId}
-              type="text"
-              inputMode="decimal"
-              value={draft.monthly}
-              onChange={(event) => setDraft({ ...draft, monthly: event.target.value })}
-              aria-describedby={`${monthlyHintId} ${monthlyId}-error`}
-              aria-invalid={fieldErrors.monthly !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={monthlyHintId}>
-              {t('monthlyHint')}
-            </p>
-            <p className="field-error" id={`${monthlyId}-error`} role="alert">
-              {fieldErrors.monthly === undefined ? '' : t(fieldErrors.monthly)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={targetId}>{t('fieldTarget')}</label>
-            <input
-              id={targetId}
-              type="text"
-              inputMode="numeric"
-              value={draft.targetHours}
-              onChange={(event) => setDraft({ ...draft, targetHours: event.target.value })}
-              aria-describedby={`${targetHintId} ${targetId}-error`}
-              aria-invalid={fieldErrors.targetHours !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={targetHintId}>
-              {t('targetHint')} {storedTargetNote}
-            </p>
-            <p className="field-error" id={`${targetId}-error`} role="alert">
-              {fieldErrors.targetHours === undefined ? '' : t(fieldErrors.targetHours)}
-            </p>
-          </div>
-
-          <div className="field field-check">
-            <input
-              id={activeId}
-              type="checkbox"
-              checked={draft.active}
-              onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
-              disabled={busy}
-            />
-            <label htmlFor={activeId}>{t('fieldActive')}</label>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="button-primary" disabled={busy}>
-              {busy ? t('submitting') : editing ? t('submitSave') : t('submitCreate')}
-            </button>
-            {editing ? (
-              <button type="button" className="button-secondary" onClick={cancelEdit}>
-                {t('cancel')}
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </section>
 
       <section aria-labelledby="locations-list-heading">
         <h2 id="locations-list-heading">{t('listHeading')}</h2>
@@ -937,12 +689,6 @@ export default function LocationsPage() {
         <p>
           <Link href="/clients/">{t('clientsLink')}</Link>
         </p>
-
-        {loadError !== null ? (
-          <p className="form-error" role="alert">
-            {tError(loadError)}
-          </p>
-        ) : null}
 
         {/* The month the time column reports on. Native control: no dependency, keyboard
             reachable, and it already speaks the browser's locale. */}
@@ -1033,10 +779,19 @@ export default function LocationsPage() {
           )}
         </div>
 
-        {snapshot === null ? (
-          <p role="status">{t('loading')}</p>
+        {/* Error BEATS loading (lib/load.ts, UX-AUDIT finding 1). */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : locations.length === 0 ? (
-          <p>{t('emptyBody')}</p>
+          <DataState kind="empty" headline={t('emptyBody')} />
         ) : (
           <table className="data-table" aria-busy={busy}>
             <caption className="visually-hidden">{t('tableCaption')}</caption>
@@ -1125,7 +880,20 @@ export default function LocationsPage() {
                     </td>
                     <td>{shareCell(location, contact)}</td>
                     {/* Text, not a colour: the status has to survive greyscale and a screen reader. */}
-                    <td>{location.active ? t('statusActive') : t('statusInactive')}</td>
+                    <td>
+                      {location.active ? t('statusActive') : t('statusInactive')}
+                      {/* Carries the building into the shift log with its filter already
+                          applied, rather than dropping the reader on an unfiltered one. */}
+                      <Link
+                        className="cell-link"
+                        href={shiftsHref({ location: location.id, period: 'last30Days' })}
+                      >
+                        {t('linkShifts')}
+                        <span className="visually-hidden">
+                          {t('forLocation', { name: location.name })}
+                        </span>
+                      </Link>
+                    </td>
                     <td className="cell-actions">
                       <button
                         type="button"
@@ -1154,6 +922,290 @@ export default function LocationsPage() {
             </tbody>
           </table>
         )}
+      </section>
+
+      {/* UX-AUDIT finding 9: the create/edit form used to sit ABOVE the list of buildings,
+          so the tags and portal links this screen exists for started below the fold. */}
+      <section aria-labelledby={formHeadingId}>
+        <details
+          className="disclosure"
+          open={formOpen}
+          onToggle={(event) => setFormOpen(event.currentTarget.open)}
+        >
+          <summary>{editing ? t('editHeading') : t('createDisclosure')}</summary>
+          <div className="disclosure-body">
+            <h2 id={formHeadingId}>{editing ? t('editHeading') : t('createHeading')}</h2>
+
+            <form className="worker-form" onSubmit={onSubmit} noValidate>
+              {/* Permanent live regions: a text change inside an existing region is announced
+              far more reliably than a node that appears and disappears. */}
+              <p className="form-error" id={errorId} role="alert">
+                {formErrorText}
+              </p>
+              <p className="form-status" id={statusId} role="status">
+                {saved ? t('saved') : ''}
+              </p>
+
+              <div className="field">
+                <label htmlFor={nameId}>{t('fieldName')}</label>
+                <input
+                  id={nameId}
+                  ref={nameRef}
+                  type="text"
+                  value={draft.name}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  maxLength={160}
+                  autoComplete="off"
+                  aria-describedby={`${nameId}-error`}
+                  aria-invalid={fieldErrors.name !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-error" id={`${nameId}-error`} role="alert">
+                  {fieldErrors.name === undefined ? '' : t(fieldErrors.name)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={slugId}>{t('fieldSlug')}</label>
+                <input
+                  id={slugId}
+                  type="text"
+                  value={draft.slug}
+                  onChange={(event) => setDraft({ ...draft, slug: event.target.value })}
+                  maxLength={64}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby={`${slugHintId} ${slugId}-error`}
+                  aria-invalid={fieldErrors.slug !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={slugHintId}>
+                  {t('slugHint')}
+                </p>
+                <p className="field-error" id={`${slugId}-error`} role="alert">
+                  {fieldErrors.slug === undefined ? '' : t(fieldErrors.slug)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={addressId}>{t('fieldAddress')}</label>
+                <input
+                  id={addressId}
+                  type="text"
+                  value={draft.address}
+                  onChange={(event) => setDraft({ ...draft, address: event.target.value })}
+                  maxLength={300}
+                  autoComplete="off"
+                  aria-describedby={addressHintId}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={addressHintId}>
+                  {t('addressHint')}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={clientId}>{t('fieldClient')}</label>
+                <select
+                  id={clientId}
+                  value={draft.clientChoice}
+                  onChange={(event) => chooseClient(event.target.value)}
+                  aria-describedby={clientHintId}
+                  disabled={busy}
+                >
+                  <option value={NONE}>{t('clientNone')}</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={String(client.id)}>
+                      {client.active ? client.name : t('optionInactive', { name: client.name })}
+                    </option>
+                  ))}
+                  <option value={NEW}>{t('clientNew')}</option>
+                </select>
+                <p className="field-hint" id={clientHintId}>
+                  {t('clientHint')}
+                </p>
+              </div>
+
+              {draft.clientChoice === NEW ? (
+                <div className="field">
+                  <label htmlFor={newClientId}>{t('fieldNewClient')}</label>
+                  <input
+                    id={newClientId}
+                    type="text"
+                    value={draft.newClientName}
+                    onChange={(event) => setDraft({ ...draft, newClientName: event.target.value })}
+                    maxLength={160}
+                    autoComplete="off"
+                    aria-describedby={`${newClientId}-error`}
+                    aria-invalid={fieldErrors.newClientName !== undefined}
+                    disabled={busy}
+                  />
+                  <p className="field-error" id={`${newClientId}-error`} role="alert">
+                    {fieldErrors.newClientName === undefined ? '' : t(fieldErrors.newClientName)}
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="field">
+                <label htmlFor={contactId}>{t('fieldContact')}</label>
+                <select
+                  id={contactId}
+                  value={draft.contactChoice}
+                  onChange={(event) => setDraft({ ...draft, contactChoice: event.target.value })}
+                  aria-describedby={`${contactHintId} ${contactId}-error`}
+                  aria-invalid={fieldErrors.contact !== undefined}
+                  disabled={busy || draft.clientChoice === NONE}
+                >
+                  <option value={NONE}>{t('contactNone')}</option>
+                  {contactsForClient.map((contact) => (
+                    <option key={contact.id} value={String(contact.id)}>
+                      {contact.active ? contact.name : t('optionInactive', { name: contact.name })}
+                    </option>
+                  ))}
+                  <option value={NEW}>{t('contactNew')}</option>
+                </select>
+                <p className="field-hint" id={contactHintId}>
+                  {draft.clientChoice === NONE ? t('contactNeedsClientHint') : t('contactHint')}
+                </p>
+                <p className="field-error" id={`${contactId}-error`} role="alert">
+                  {fieldErrors.contact === undefined ? '' : t(fieldErrors.contact)}
+                </p>
+              </div>
+
+              {draft.contactChoice === NEW ? (
+                <>
+                  <div className="field">
+                    <label htmlFor={newContactId}>{t('fieldNewContact')}</label>
+                    <input
+                      id={newContactId}
+                      type="text"
+                      value={draft.newContactName}
+                      onChange={(event) =>
+                        setDraft({ ...draft, newContactName: event.target.value })
+                      }
+                      maxLength={160}
+                      autoComplete="off"
+                      aria-describedby={`${newContactId}-error`}
+                      aria-invalid={fieldErrors.newContactName !== undefined}
+                      disabled={busy}
+                    />
+                    <p className="field-error" id={`${newContactId}-error`} role="alert">
+                      {fieldErrors.newContactName === undefined
+                        ? ''
+                        : t(fieldErrors.newContactName)}
+                    </p>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={newContactEmailId}>{t('fieldNewContactEmail')}</label>
+                    <input
+                      id={newContactEmailId}
+                      type="email"
+                      value={draft.newContactEmail}
+                      onChange={(event) =>
+                        setDraft({ ...draft, newContactEmail: event.target.value })
+                      }
+                      maxLength={320}
+                      autoComplete="off"
+                      aria-describedby={`${newContactEmailId}-error`}
+                      aria-invalid={fieldErrors.newContactEmail !== undefined}
+                      disabled={busy}
+                    />
+                    <p className="field-error" id={`${newContactEmailId}-error`} role="alert">
+                      {fieldErrors.newContactEmail === undefined
+                        ? ''
+                        : t(fieldErrors.newContactEmail)}
+                    </p>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor={newContactPhoneId}>{t('fieldNewContactPhone')}</label>
+                    <input
+                      id={newContactPhoneId}
+                      type="tel"
+                      value={draft.newContactPhone}
+                      onChange={(event) =>
+                        setDraft({ ...draft, newContactPhone: event.target.value })
+                      }
+                      maxLength={40}
+                      autoComplete="off"
+                      aria-describedby={`${newContactPhoneId}-error`}
+                      aria-invalid={fieldErrors.newContactPhone !== undefined}
+                      disabled={busy}
+                    />
+                    <p className="field-error" id={`${newContactPhoneId}-error`} role="alert">
+                      {fieldErrors.newContactPhone === undefined
+                        ? ''
+                        : t(fieldErrors.newContactPhone)}
+                    </p>
+                  </div>
+                </>
+              ) : null}
+
+              <div className="field">
+                <label htmlFor={monthlyId}>{t('fieldMonthly')}</label>
+                <input
+                  id={monthlyId}
+                  type="text"
+                  inputMode="decimal"
+                  value={draft.monthly}
+                  onChange={(event) => setDraft({ ...draft, monthly: event.target.value })}
+                  aria-describedby={`${monthlyHintId} ${monthlyId}-error`}
+                  aria-invalid={fieldErrors.monthly !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={monthlyHintId}>
+                  {t('monthlyHint')}
+                </p>
+                <p className="field-error" id={`${monthlyId}-error`} role="alert">
+                  {fieldErrors.monthly === undefined ? '' : t(fieldErrors.monthly)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={targetId}>{t('fieldTarget')}</label>
+                <input
+                  id={targetId}
+                  type="text"
+                  inputMode="numeric"
+                  value={draft.targetHours}
+                  onChange={(event) => setDraft({ ...draft, targetHours: event.target.value })}
+                  aria-describedby={`${targetHintId} ${targetId}-error`}
+                  aria-invalid={fieldErrors.targetHours !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={targetHintId}>
+                  {t('targetHint')} {storedTargetNote}
+                </p>
+                <p className="field-error" id={`${targetId}-error`} role="alert">
+                  {fieldErrors.targetHours === undefined ? '' : t(fieldErrors.targetHours)}
+                </p>
+              </div>
+
+              <div className="field field-check">
+                <input
+                  id={activeId}
+                  type="checkbox"
+                  checked={draft.active}
+                  onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                  disabled={busy}
+                />
+                <label htmlFor={activeId}>{t('fieldActive')}</label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="button-primary" disabled={busy}>
+                  {busy ? t('submitting') : editing ? t('submitSave') : t('submitCreate')}
+                </button>
+                {editing ? (
+                  <button type="button" className="button-secondary" onClick={cancelEdit}>
+                    {t('cancel')}
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          </div>
+        </details>
       </section>
     </>
   )

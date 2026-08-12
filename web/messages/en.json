@@ -67,7 +67,18 @@
     "recentScope": "The {count} most recent completed shifts, with no period filter. This is not a total and nothing has been added up.",
     "recentLink": "See all shifts",
     "colWhen": "Start",
-    "colDuration": "Duration (h:mm)"
+    "colDuration": "Duration (h:mm)",
+    "question": "Is there anything I need to do right now?",
+    "emptyDatabaseHeading": "There is nothing in this database yet.",
+    "emptyDatabaseBody": "No workers, no buildings and no shifts have been recorded. That is not a fault — it is the state before the first step. Nothing is missing.",
+    "emptyDatabaseWorkers": "Add the first worker",
+    "emptyDatabaseLocations": "Add the first building",
+    "errorHeading": "This overview could not be loaded.",
+    "loadingHeading": "Loading data…",
+    "openShiftsLink": "View open shifts",
+    "materialsSome": "{count, plural, one {One material request is waiting for your decision.} other {# material requests are waiting for your decision.}}",
+    "materialsNone": "No material request is waiting for a decision.",
+    "materialsLink": "Open material requests"
   },
   "payroll": {
     "heading": "Payroll",
@@ -120,7 +131,11 @@
     "csvRateCents": "Hourly rate (cents)",
     "csvAmountCents": "Amount (cents)",
     "csvAmountEuro": "Amount (EUR)",
-    "csvManualShifts": "Entered by hand (shifts)"
+    "csvManualShifts": "Entered by hand (shifts)",
+    "question": "What am I paying whom for this period?",
+    "errorHeading": "Payroll could not be loaded.",
+    "loadingHeading": "Loading payroll data…",
+    "linkShifts": "Check these hours"
   },
   "login": {
     "heading": "Sign in",
@@ -130,7 +145,8 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "failed": "Email address or password is incorrect.",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "question": "Who are you?"
   },
   "workers": {
     "heading": "Workers",
@@ -193,7 +209,12 @@
     "codeCopyFailed": "Could not copy the enrolment code. Select it above and copy it manually.",
     "codeIssueFailed": "The enrolment code could not be created. Please try again.",
     "codeRevoked": "{name}’s enrolment code has been blocked and no longer works.",
-    "codeRevokeFailed": "The enrolment code could not be blocked. Please try again."
+    "codeRevokeFailed": "The enrolment code could not be blocked. Please try again.",
+    "question": "Who may clock in for me — and at what hourly rate?",
+    "errorHeading": "The worker list could not be loaded.",
+    "loadingHeading": "Loading workers…",
+    "createDisclosure": "Add a worker",
+    "linkShifts": "Shifts for this person"
   },
   "locations": {
     "heading": "Locations",
@@ -300,7 +321,12 @@
     "edit": "Edit",
     "deactivate": "Deactivate",
     "activate": "Reactivate",
-    "forLocation": " for {name}"
+    "forLocation": " for {name}",
+    "question": "What is agreed for this building — and does its tag work?",
+    "errorHeading": "The building list could not be loaded.",
+    "loadingHeading": "Loading buildings…",
+    "createDisclosure": "Add a building",
+    "linkShifts": "Shifts in this building"
   },
   "clients": {
     "heading": "Clients",
@@ -359,7 +385,12 @@
     "errorClientRequired": "Choose the company this person works for.",
     "errorEmailShape": "That is not a valid email address.",
     "errorPhoneShape": "Use digits, spaces and + ( ) / - only.",
-    "errorRejected": "The server rejected these details. Please check the fields and try again."
+    "errorRejected": "The server rejected these details. Please check the fields and try again.",
+    "question": "Who owns my buildings, and whom do I call there?",
+    "errorHeading": "The client list could not be loaded.",
+    "loadingHeading": "Loading clients…",
+    "createDisclosure": "Add a client",
+    "createContactDisclosure": "Add a contact"
   },
   "shifts": {
     "heading": "Shifts",
@@ -397,7 +428,7 @@
     "errorOverlapUnknown": "This worker already has another shift covering part of this time, and it is not on this screen. Choose a longer period above to find it.",
     "errorCreateRejected": "The server rejected this shift. Check the worker, the building and the times, then try again.",
     "correctHeading": "Correct a shift",
-    "correctIdle": "Choose “Correct” on a row below to change its times, its worker or its building.",
+    "correctIdle": "Choose “Correct” on a row in the shift log above to change its times, its worker or its building.",
     "correctFor": "Correcting the shift of {worker} at {location}.",
     "correctUnresolvedNotice": "This shift was closed by the 8-hour timer. Saving marks it confirmed and puts its hours into payroll — including if you leave the end time exactly as it is. Correct the end time first if it is wrong.",
     "fieldStart": "Start",
@@ -445,7 +476,14 @@
     "endMissing": "No end yet",
     "durationRunning": "Still running",
     "correct": "Correct",
-    "forShift": " the shift of {worker} on {date}"
+    "forShift": " the shift of {worker} on {date}",
+    "question": "What hours are on the books — and are they right?",
+    "errorHeading": "The shift log could not be loaded.",
+    "loadingHeading": "Loading shifts…",
+    "createDisclosure": "Enter a shift by hand",
+    "correctDisclosure": "Correct a shift",
+    "filterState": "Status",
+    "stateAll": "All states"
   },
   "inventory": {
     "heading": "Products & Equipment",
@@ -484,7 +522,11 @@
     "edit": "Edit",
     "deactivate": "No longer used",
     "activate": "Use again",
-    "forItem": " for {name}"
+    "forItem": " for {name}",
+    "question": "What does the stuff my people ask for cost?",
+    "errorHeading": "The catalogue could not be loaded.",
+    "loadingHeading": "Loading catalogue…",
+    "createDisclosure": "Add a product or piece of equipment"
   },
   "materials": {
     "heading": "Material requests",
@@ -567,7 +609,10 @@
     "submitting": "Saving…",
     "cancel": "Cancel",
     "errorRejected": "The server refused these details. Please check the fields and try again.",
-    "errorMoved": "This request has moved on since the page was loaded. The list has been reloaded — please look again."
+    "errorMoved": "This request has moved on since the page was loaded. The list has been reloaded — please look again.",
+    "question": "Is somebody in a building waiting on a decision from me right now?",
+    "errorHeading": "Material requests could not be loaded.",
+    "loadingHeading": "Loading material requests…"
   },
   "pl": {
     "heading": "Profit and loss",
@@ -651,7 +696,11 @@
     "whyOpen": "{shifts, plural, one {# shift at this building is still running and is not counted.} other {# shifts at this building are still running and are not counted.}}",
     "shareUnknown": "not calculable",
     "flaggedContractLink": "Check the contract",
-    "flaggedShiftsLink": "Check the shifts"
+    "flaggedShiftsLink": "Check the shifts",
+    "question": "Am I making money on this building?",
+    "errorHeading": "The report could not be loaded.",
+    "loadingHeading": "Loading report…",
+    "linkShifts": "Check the labour"
   },
   "contracts": {
     "heading": "Contract management",
@@ -722,7 +771,10 @@
     "created": "{building} is priced from {from}.",
     "deleted": "The current contract period for {building} was removed. The price before it applies again.",
     "errorNotCurrent": "Only the current period can be undone. An earlier one has already been used to value a month somebody has seen.",
-    "errorRejected": "The server refused these values. Please check the fields and try again."
+    "errorRejected": "The server refused these values. Please check the fields and try again.",
+    "question": "What was agreed for this building, and when?",
+    "errorHeading": "Contract data could not be loaded.",
+    "loadingHeading": "Loading contract data…"
   },
   "analytics": {
     "heading": "Building analytics",
@@ -816,7 +868,11 @@
     "trendDown": "{delta} less than the month before",
     "trendFlat": "Unchanged from the month before",
     "openDetails": "Details",
-    "forBuilding": " for {name}"
+    "forBuilding": " for {name}",
+    "question": "Are we spending more time on this building than agreed?",
+    "errorHeading": "The building report could not be loaded.",
+    "loadingHeading": "Loading building report…",
+    "linkShifts": "Shifts in this building"
   },
   "portal": {
     "heading": "Cleaning record",
@@ -854,5 +910,18 @@
     "request": "The request could not be processed.",
     "server": "The server had a problem. Please try again later.",
     "badResponse": "The server sent an unexpected response."
+  },
+  "ui": {
+    "retry": "Try again",
+    "howThisWorks": "How this page works",
+    "paramInvalid": "The link carried an invalid value for “{params}”. The default view is shown instead.",
+    "paramUnknownWorker": "The filter from that link (worker “{value}”) is unknown or no longer active. All entries are shown — nothing is missing.",
+    "paramUnknownLocation": "The filter from that link (building “{value}”) is unknown or no longer active. All entries are shown — nothing is missing.",
+    "filteredHeading": "Filtered by a link",
+    "filteredWorker": "Worker: {name}",
+    "filteredLocation": "Building: {name}",
+    "filteredState": "Status: {state}",
+    "filteredRange": "Period: {from} to {to}",
+    "filterRemove": "Remove filter"
   }
 }

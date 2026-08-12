@@ -1,8 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   type FreshEnrolmentCode,
@@ -13,9 +15,11 @@ import {
   type Worker,
 } from '@/lib/api'
 import { codeStateOf } from '@/lib/enrolment'
+import { loadOf } from '@/lib/load'
 import type { ErrorKey } from '@/lib/locale'
 import { centsToPlainEuros, parseEuroToCents } from '@/lib/money'
 import { LOGIN_PATH } from '@/lib/nav'
+import { shiftsHref } from '@/lib/params'
 import { BUSINESS_TIME_ZONE } from '@/lib/shifts'
 
 /**
@@ -89,6 +93,7 @@ type FieldErrors = {
 
 export default function WorkersPage() {
   const t = useTranslations('workers')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const router = useRouter()
@@ -113,6 +118,8 @@ export default function WorkersPage() {
   // null = still loading. [] = loaded and genuinely empty, which is the first-run state.
   const [workers, setWorkers] = useState<Worker[] | null>(null)
   const [loadError, setLoadError] = useState<ErrorKey | null>(null)
+  /** The create/edit disclosure. Controlled, so „Bearbeiten" can open it. */
+  const [formOpen, setFormOpen] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<ErrorMessage | null>(null)
@@ -174,7 +181,11 @@ export default function WorkersPage() {
     setFieldErrors({})
     setFormError(null)
     setSaved(false)
-    nameRef.current?.focus()
+    // The form now lives BELOW the list and is folded away by default (UX-AUDIT finding 9),
+    // so „Bearbeiten" has to open it — otherwise the button focuses an input nobody can see.
+    setFormOpen(true)
+    // Focus after the browser has laid the newly opened <details> out.
+    window.requestAnimationFrame(() => nameRef.current?.focus())
   }
 
   function cancelEdit() {
@@ -324,6 +335,9 @@ export default function WorkersPage() {
   }
 
   const editing = draft.id !== undefined
+
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(workers, loadError)
   const formErrorText = formError === null ? '' : t(formError)
 
   // Vienna, explicitly — not the browser's zone. A code expiring "at 15:32" has to mean the
@@ -353,137 +367,11 @@ export default function WorkersPage() {
   return (
     <>
       <h1>{t('heading')}</h1>
+      <p className="page-question">{t('question')}</p>
       <p className="lede">{t('intro')}</p>
-
-      <section aria-labelledby={formHeadingId}>
-        <h2 id={formHeadingId}>{editing ? t('editHeading') : t('createHeading')}</h2>
-
-        <form className="worker-form" onSubmit={onSubmit} noValidate>
-          {/* Permanent live regions: a text change inside an existing region is announced
-              far more reliably than a node that appears and disappears. */}
-          <p className="form-error" id={errorId} role="alert">
-            {formErrorText}
-          </p>
-          <p className="form-status" id={statusId} role="status">
-            {saved ? t('saved') : ''}
-          </p>
-
-          <div className="field">
-            <label htmlFor={nameId}>{t('fieldName')}</label>
-            <input
-              id={nameId}
-              ref={nameRef}
-              type="text"
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              maxLength={120}
-              autoComplete="off"
-              aria-describedby={`${nameId}-error`}
-              aria-invalid={fieldErrors.name !== undefined}
-              disabled={busy}
-            />
-            <p className="field-error" id={`${nameId}-error`} role="alert">
-              {fieldErrors.name === undefined ? '' : t(fieldErrors.name)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={emailId}>{t('fieldEmail')}</label>
-            <input
-              id={emailId}
-              type="email"
-              value={draft.email}
-              onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-              maxLength={320}
-              autoComplete="off"
-              aria-describedby={`${emailHintId} ${emailId}-error`}
-              aria-invalid={fieldErrors.email !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={emailHintId}>
-              {t('emailHint')}
-            </p>
-            <p className="field-error" id={`${emailId}-error`} role="alert">
-              {fieldErrors.email === undefined ? '' : t(fieldErrors.email)}
-            </p>
-          </div>
-
-          {/* The phone number is NOT a login. A director who assumes it is would enrol the
-              whole crew with numbers and nobody could sign in, so both fields carry the
-              distinction in their label AND in their hint. */}
-          <div className="field">
-            <label htmlFor={phoneId}>{t('fieldPhone')}</label>
-            <input
-              id={phoneId}
-              type="tel"
-              value={draft.phone}
-              onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
-              maxLength={40}
-              autoComplete="off"
-              aria-describedby={`${phoneHintId} ${phoneId}-error`}
-              aria-invalid={fieldErrors.phone !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={phoneHintId}>
-              {t('phoneHint')}
-            </p>
-            <p className="field-error" id={`${phoneId}-error`} role="alert">
-              {fieldErrors.phone === undefined ? '' : t(fieldErrors.phone)}
-            </p>
-          </div>
-
-          <div className="field">
-            <label htmlFor={rateId}>{t('fieldRate')}</label>
-            <input
-              id={rateId}
-              type="text"
-              inputMode="decimal"
-              value={draft.rate}
-              onChange={(event) => setDraft({ ...draft, rate: event.target.value })}
-              aria-describedby={`${rateHintId} ${rateId}-error`}
-              aria-invalid={fieldErrors.rate !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={rateHintId}>
-              {t('rateHint')}
-            </p>
-            <p className="field-error" id={`${rateId}-error`} role="alert">
-              {fieldErrors.rate === undefined ? '' : t(fieldErrors.rate)}
-            </p>
-          </div>
-
-          <div className="field field-check">
-            <input
-              id={activeId}
-              type="checkbox"
-              checked={draft.active}
-              onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
-              disabled={busy}
-            />
-            <label htmlFor={activeId}>{t('fieldActive')}</label>
-          </div>
-
-          <div className="form-actions">
-            <button type="submit" className="button-primary" disabled={busy}>
-              {busy ? t('submitting') : editing ? t('submitSave') : t('submitCreate')}
-            </button>
-            {editing ? (
-              <button type="button" className="button-secondary" onClick={cancelEdit}>
-                {t('cancel')}
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </section>
 
       <section aria-labelledby="workers-list-heading">
         <h2 id="workers-list-heading">{t('listHeading')}</h2>
-
-        {loadError !== null ? (
-          <p className="form-error" role="alert">
-            {tError(loadError)}
-          </p>
-        ) : null}
 
         {/* THE WARNING COMES FIRST. "Shown only once" is useless underneath a code that has
             already scrolled past, so it stands here permanently, above the buttons that
@@ -531,10 +419,20 @@ export default function WorkersPage() {
           </section>
         )}
 
-        {workers === null ? (
-          <p role="status">{t('loading')}</p>
-        ) : workers.length === 0 ? (
-          <p>{t('emptyBody')}</p>
+        {/* Error BEATS loading, and they are branches of ONE value (lib/load.ts): a 500 used
+            to render a red line above „Wird geladen …" that stayed forever. */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
+        ) : view.data.length === 0 ? (
+          <DataState kind="empty" headline={t('emptyBody')} />
         ) : (
           <table className="data-table" aria-busy={busy}>
             <caption className="visually-hidden">{t('tableCaption')}</caption>
@@ -550,17 +448,32 @@ export default function WorkersPage() {
               </tr>
             </thead>
             <tbody>
-              {workers.map((worker) => (
+              {view.data.map((worker) => (
                 <tr key={worker.id} className={worker.active ? undefined : 'row-inactive'}>
-                  <th scope="row">{worker.name}</th>
-                  <td>
+                  <th scope="row">
+                    {worker.name}
+                    {/* On the row header, not in the status cell: on a phone the header IS
+                        the card's title, so the link belongs to the person rather than to a
+                        column that happens to sit beside them. A real <a href>, so ⌘-click
+                        still opens two screens side by side (IA-AND-JTBD §3.4 rule 4). */}
+                    <Link
+                      className="cell-link"
+                      href={shiftsHref({ worker: worker.id, period: 'last30Days' })}
+                    >
+                      {t('linkShifts')}
+                      <span className="visually-hidden">
+                        {t('forWorker', { name: worker.name })}
+                      </span>
+                    </Link>
+                  </th>
+                  <td className="cell-name">
                     {worker.email === null ? (
                       <span className="cell-muted">{t('noEmail')}</span>
                     ) : (
                       worker.email
                     )}
                   </td>
-                  <td>
+                  <td className="cell-name">
                     {worker.phone === null ? (
                       <span className="cell-muted">{t('noPhone')}</span>
                     ) : (
@@ -637,6 +550,139 @@ export default function WorkersPage() {
             </tbody>
           </table>
         )}
+      </section>
+
+      {/* UX-AUDIT finding 9: the create/edit form used to sit ABOVE the list, so the people
+          this screen is about started below the fold. It is opened a handful of times a
+          month; the list is why the screen gets opened. */}
+      <section aria-labelledby={formHeadingId}>
+        <details
+          className="disclosure"
+          open={formOpen}
+          onToggle={(event) => setFormOpen(event.currentTarget.open)}
+        >
+          <summary>{editing ? t('editHeading') : t('createDisclosure')}</summary>
+          <div className="disclosure-body">
+            <h2 id={formHeadingId}>{editing ? t('editHeading') : t('createHeading')}</h2>
+
+            <form className="worker-form" onSubmit={onSubmit} noValidate>
+              {/* Permanent live regions: a text change inside an existing region is announced
+              far more reliably than a node that appears and disappears. */}
+              <p className="form-error" id={errorId} role="alert">
+                {formErrorText}
+              </p>
+              <p className="form-status" id={statusId} role="status">
+                {saved ? t('saved') : ''}
+              </p>
+
+              <div className="field">
+                <label htmlFor={nameId}>{t('fieldName')}</label>
+                <input
+                  id={nameId}
+                  ref={nameRef}
+                  type="text"
+                  value={draft.name}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  maxLength={120}
+                  autoComplete="off"
+                  aria-describedby={`${nameId}-error`}
+                  aria-invalid={fieldErrors.name !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-error" id={`${nameId}-error`} role="alert">
+                  {fieldErrors.name === undefined ? '' : t(fieldErrors.name)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={emailId}>{t('fieldEmail')}</label>
+                <input
+                  id={emailId}
+                  type="email"
+                  value={draft.email}
+                  onChange={(event) => setDraft({ ...draft, email: event.target.value })}
+                  maxLength={320}
+                  autoComplete="off"
+                  aria-describedby={`${emailHintId} ${emailId}-error`}
+                  aria-invalid={fieldErrors.email !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={emailHintId}>
+                  {t('emailHint')}
+                </p>
+                <p className="field-error" id={`${emailId}-error`} role="alert">
+                  {fieldErrors.email === undefined ? '' : t(fieldErrors.email)}
+                </p>
+              </div>
+
+              {/* The phone number is NOT a login. A director who assumes it is would enrol the
+              whole crew with numbers and nobody could sign in, so both fields carry the
+              distinction in their label AND in their hint. */}
+              <div className="field">
+                <label htmlFor={phoneId}>{t('fieldPhone')}</label>
+                <input
+                  id={phoneId}
+                  type="tel"
+                  value={draft.phone}
+                  onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
+                  maxLength={40}
+                  autoComplete="off"
+                  aria-describedby={`${phoneHintId} ${phoneId}-error`}
+                  aria-invalid={fieldErrors.phone !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={phoneHintId}>
+                  {t('phoneHint')}
+                </p>
+                <p className="field-error" id={`${phoneId}-error`} role="alert">
+                  {fieldErrors.phone === undefined ? '' : t(fieldErrors.phone)}
+                </p>
+              </div>
+
+              <div className="field">
+                <label htmlFor={rateId}>{t('fieldRate')}</label>
+                <input
+                  id={rateId}
+                  type="text"
+                  inputMode="decimal"
+                  value={draft.rate}
+                  onChange={(event) => setDraft({ ...draft, rate: event.target.value })}
+                  aria-describedby={`${rateHintId} ${rateId}-error`}
+                  aria-invalid={fieldErrors.rate !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={rateHintId}>
+                  {t('rateHint')}
+                </p>
+                <p className="field-error" id={`${rateId}-error`} role="alert">
+                  {fieldErrors.rate === undefined ? '' : t(fieldErrors.rate)}
+                </p>
+              </div>
+
+              <div className="field field-check">
+                <input
+                  id={activeId}
+                  type="checkbox"
+                  checked={draft.active}
+                  onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                  disabled={busy}
+                />
+                <label htmlFor={activeId}>{t('fieldActive')}</label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" className="button-primary" disabled={busy}>
+                  {busy ? t('submitting') : editing ? t('submitSave') : t('submitCreate')}
+                </button>
+                {editing ? (
+                  <button type="button" className="button-secondary" onClick={cancelEdit}>
+                    {t('cancel')}
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          </div>
+        </details>
       </section>
     </>
   )

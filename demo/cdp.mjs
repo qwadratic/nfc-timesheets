@@ -104,6 +104,28 @@ export async function attach(port) {
     on,
     close: () => ws.close(),
 
+    /**
+     * Force an exact CSS viewport, and prove it took.
+     *
+     * `--window-size` IS NOT A VIEWPORT. Chrome clamps a window to a platform minimum, so
+     * `--window-size=390,844` opened at 500x757 and every „phone“ frame in the first cut of
+     * the UX walkthrough was a 500 px layout wearing a caption that said 390. The layout was
+     * still the phone one (500 < the 767 px breakpoint), which is exactly why nobody would
+     * have caught it by looking. So the width is overridden here and then READ BACK.
+     */
+    async setViewport(width, height, { deviceScaleFactor = 1, mobile = false } = {}) {
+      await send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor,
+        mobile,
+      });
+      const got = await this.eval("[innerWidth, innerHeight]");
+      if (got[0] !== width || got[1] !== height) {
+        throw new Error(`asked for a ${width}x${height} viewport and got ${got[0]}x${got[1]}`);
+      }
+    },
+
     /** Navigate and wait for the load event AND for React to have painted something. */
     async goto(url, { settle = 900 } = {}) {
       const loaded = new Promise((res) => on("Page.loadEventFired", res));
@@ -197,13 +219,22 @@ export async function attach(port) {
 }
 
 /**
- * Records frames while `drive` runs, then hands them to ffmpeg.
+ * Start capturing frames from `page` into `dir`. Returns a handle whose `stop()` writes
+ * them out for the concat demuxer.
  *
  * Screencast frames arrive only when something changes, so a still page emits nothing.
  * Each frame is written with the wall-clock ms it arrived and the concat demuxer is given
  * real durations — otherwise a 20-second walkthrough plays back as a 2-second flicker.
+ *
+ * `stop({ t0, t1 })` is what makes TWO simultaneous captures composable. A screencast's
+ * first frame does not arrive at the instant it was asked for, and the two pages do not
+ * agree on when that is; without a shared origin the phone pane in the composite runs a
+ * fraction of a second ahead of the desktop one and a caption describes the wrong pane.
+ * Given `t0` the first frame is held from the shared origin, and given `t1` the last frame
+ * is held to the shared end, so both files cover exactly the same wall-clock window. Both
+ * are HELD FRAMES — a still picture, never a speed change.
  */
-export async function record(page, dir, drive) {
+export function startRecording(page, dir) {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
 
@@ -217,24 +248,80 @@ export async function record(page, dir, drive) {
     }
   });
 
-  await page.send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1 });
+  const ready = page.send("Page.startScreencast", {
+    format: "jpeg",
+    quality: 92,
+    everyNthFrame: 1,
+  });
   const started = Date.now();
+
+  return {
+    started,
+    ready,
+    async stop({ t0 = null, t1 = null, fps = null } = {}) {
+      await page.send("Page.stopScreencast");
+      if (frames.length === 0) throw new Error(`no frames captured into ${dir}`);
+
+      const name = (i) => `f${String(i).padStart(5, "0")}.jpg`;
+      frames.forEach((f, i) => writeFileSync(`${dir}/${name(i)}`, Buffer.from(f.data, "base64")));
+
+      const lines = [];
+      if (fps === null) {
+        // Variable cadence: one entry per captured frame, lasting until the next arrives.
+        const lead = t0 === null ? 0 : (frames[0].at - t0) / 1000;
+        if (lead > 0.02) lines.push(`file '${name(0)}'`, `duration ${lead.toFixed(3)}`);
+        frames.forEach((f, i) => {
+          const last = i === frames.length - 1;
+          const next = last ? (t1 ?? f.at + 500) : frames[i + 1].at;
+          lines.push(`file '${name(i)}'`, `duration ${Math.max(0.02, (next - f.at) / 1000).toFixed(3)}`);
+        });
+      } else {
+        // FIXED cadence, and the reason it exists: the concat demuxer will not honour a
+        // duration below its own default frame time (0.04 s), so a burst of frames 5 ms
+        // apart is silently STRETCHED. On a 290 s capture that added 18 s, it added a
+        // different amount to each of the two panes, and it moved every caption off the
+        // screen it describes. Sampling the capture onto the output's own grid removes the
+        // clamp entirely: each entry is 1/fps, which is above the floor, so the file is
+        // exactly (t1 - t0) long and two captures of the same window are frame-aligned.
+        if (t0 === null || t1 === null) throw new Error("fixed cadence needs both t0 and t1");
+        const step = 1000 / fps;
+        const ticks = Math.round((t1 - t0) / step);
+        let j = 0;
+        for (let i = 0; i < ticks; i++) {
+          const at = t0 + i * step;
+          while (j + 1 < frames.length && frames[j + 1].at <= at) j++;
+          // Before the first frame arrived there is nothing to show but the first frame,
+          // held. That is a still picture and is stated in backlog/docs/DEMO.md.
+          lines.push(`file '${name(j)}'`, `duration ${(step / 1000).toFixed(3)}`);
+        }
+        lines.push(`file '${name(j)}'`);
+      }
+      // The concat demuxer ignores the last duration unless the last file is repeated.
+      if (fps === null) lines.push(`file '${name(frames.length - 1)}'`);
+      writeFileSync(`${dir}/frames.txt`, `${lines.join("\n")}\n`);
+      // The arrival times, kept next to the frames, so a timeline can be re-laid-out later
+      // without spending another take on the device.
+      writeFileSync(
+        `${dir}/frames.json`,
+        JSON.stringify({ t0, t1, fps, at: frames.map((f) => f.at) }),
+      );
+
+      return {
+        dir,
+        frames: frames.length,
+        seconds: (Date.now() - started) / 1000,
+        firstFrameAt: frames[0].at,
+        lastFrameAt: frames[frames.length - 1].at,
+      };
+    },
+  };
+}
+
+/** Record one page for the duration of `drive`. The single-page case of `startRecording`. */
+export async function record(page, dir, drive) {
+  const rec = startRecording(page, dir);
+  await rec.ready;
   await drive();
   await sleep(400);
-  await page.send("Page.stopScreencast");
-
-  if (frames.length === 0) throw new Error("no frames captured");
-
-  const lines = [];
-  frames.forEach((f, i) => {
-    const name = `f${String(i).padStart(5, "0")}.jpg`;
-    writeFileSync(`${dir}/${name}`, Buffer.from(f.data, "base64"));
-    const next = frames[i + 1]?.at ?? f.at + 500;
-    lines.push(`file '${name}'`, `duration ${Math.max(0.02, (next - f.at) / 1000).toFixed(3)}`);
-  });
-  // The concat demuxer ignores the last duration unless the last file is repeated.
-  lines.push(`file 'f${String(frames.length - 1).padStart(5, "0")}.jpg'`);
-  writeFileSync(`${dir}/frames.txt`, `${lines.join("\n")}\n`);
-
-  return { dir, frames: frames.length, seconds: (Date.now() - started) / 1000 };
+  return rec.stop();
 }

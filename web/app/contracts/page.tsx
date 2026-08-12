@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   type ClientsSnapshot,
@@ -14,6 +15,7 @@ import {
   fetchClientsSnapshot,
   fetchContracts,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import { type ErrorKey, htmlLang, isLocale } from '@/lib/locale'
 import { parseEuroToCents } from '@/lib/money'
 import { LOGIN_PATH } from '@/lib/nav'
@@ -94,6 +96,7 @@ type FieldErrors = { validFrom?: ErrorMessage; monthly?: ErrorMessage; targetHou
 
 export default function ContractsPage() {
   const t = useTranslations('contracts')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const locale = useLocale()
@@ -316,30 +319,31 @@ export default function ContractsPage() {
   const dayBefore = (date: string) =>
     dayFormat.format(new Date(new Date(`${date}T12:00:00Z`).getTime() - 86_400_000))
 
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(snapshot, loadError)
+
   return (
     <>
       <h1>{t('heading')}</h1>
-      <p className="lede">{t('intro')}</p>
+      <p className="page-question">{t('question')}</p>
 
-      <div className="callout">
-        <h2>{t('standingHeading')}</h2>
-        <ul>
-          {/* decision-28, permanently on screen. Half the point of this page is revenue
+      <details className="disclosure">
+        <summary>{tUi('howThisWorks')}</summary>
+        <div className="disclosure-body">
+          <p className="lede">{t('intro')}</p>
+          <h2>{t('standingHeading')}</h2>
+          <ul className="triage-list">
+            {/* decision-28, permanently on screen. Half the point of this page is revenue
               history; the other half is that labour history still does not exist. */}
-          <li>{t('noteRevenueHistory')}</li>
-          <li>{t('noteLabourNoHistory')}</li>
-          <li>{t('noteDates')}</li>
-          <li>
-            {t('noteMirror')} <Link href={BUILDINGS_PATH}>{t('noteMirrorLink')}</Link>
-          </li>
-        </ul>
-      </div>
-
-      {loadError !== null ? (
-        <p className="form-error" role="alert">
-          {tError(loadError)}
-        </p>
-      ) : null}
+            <li>{t('noteRevenueHistory')}</li>
+            <li>{t('noteLabourNoHistory')}</li>
+            <li>{t('noteDates')}</li>
+            <li>
+              {t('noteMirror')} <Link href={BUILDINGS_PATH}>{t('noteMirrorLink')}</Link>
+            </li>
+          </ul>
+        </div>
+      </details>
 
       <p className={notice?.ok === false ? 'form-error' : 'form-status'} role="status">
         {notice === null ? '' : notice.text}
@@ -348,15 +352,23 @@ export default function ContractsPage() {
       <section aria-labelledby="contracts-buildings-heading">
         <h2 id="contracts-buildings-heading">{t('buildingsHeading')}</h2>
 
-        {snapshot === null ? (
-          <p role="status">{t('loading')}</p>
+        {/* Error BEATS loading (lib/load.ts, UX-AUDIT finding 1). */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : locations.length === 0 ? (
-          <div className="notice">
-            <p>{t('noBuildings')}</p>
+          <DataState kind="empty" headline={t('noBuildings')}>
             <p>
               <Link href={BUILDINGS_PATH}>{t('noBuildingsLink')}</Link>
             </p>
-          </div>
+          </DataState>
         ) : (
           <>
             {/* A select AND the table below it: the table is how a director spots the

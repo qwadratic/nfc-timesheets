@@ -594,6 +594,110 @@ check('lib/map.ts: a pin needs BOTH coordinates, and a failure has a name', () =
   assert.equal(mapWithKey.failureOf(undefined), 'auth')
 })
 
+// --- 8. lib/params.ts: the URL contract -------------------------------------------------
+//
+// Under `output: 'export'` a query string is the entire deep-link vocabulary of this panel,
+// so a filter arriving from a link is UNTRUSTED INPUT that lands directly in what the
+// director reads as the truth. The rule that matters most is G4: a well-formed id matching
+// no row must show EVERYTHING plus a banner, never an empty table — an empty table is
+// indistinguishable from data loss, and one was already read that way once.
+
+const { parseShiftsParams, shiftsHref, isUuid, isRowId, isInstant, MAX_PARAM_LENGTH } =
+  await import(pathToFileURL(join(ROOT, 'lib/params.ts')).href)
+
+const UUID_A = 'c3c37d4a-ca0a-42c5-b248-9704b9907ec7'
+
+check('lib/params.ts: a malformed value falls back AND is reported (G3), never silently', () => {
+  const bad = parseShiftsParams('?worker=abc&location=nope&state=purple&period=someday')
+  assert.equal(bad.worker, 'all')
+  assert.equal(bad.location, 'all')
+  assert.equal(bad.state, 'all')
+  assert.equal(bad.period, 'last30Days')
+  // Every one of them is NAMED. A silent fallback shows a different screen than the link
+  // asked for and gives the reader no way to know.
+  assert.deepEqual([...bad.invalid].sort(), ['location', 'period', 'state', 'worker'])
+
+  const good = parseShiftsParams(`?worker=12&location=${UUID_A}&state=unresolved&period=lastMonth`)
+  assert.deepEqual(good, {
+    worker: '12',
+    location: UUID_A,
+    state: 'unresolved',
+    period: 'lastMonth',
+    range: null,
+    invalid: [],
+  })
+})
+
+check('lib/params.ts: an unknown param NAME is ignored, not an error (G2)', () => {
+  // A chat unfurl, an ad tracker and a browser history restore all replay the URL.
+  const parsed = parseShiftsParams('?fbclid=xyz&utm_source=mail&worker=3')
+  assert.equal(parsed.worker, '3')
+  assert.deepEqual([...parsed.invalid], [])
+})
+
+check('lib/params.ts: an absolute range BEATS a named period, and half a range is invalid', () => {
+  // §3.1 — a money link must keep reproducing its own number. `lastMonth` re-resolves
+  // tomorrow; a frozen pair does not.
+  const both = parseShiftsParams(
+    '?period=lastMonth&from=2026-06-30T22:00:00.000Z&to=2026-07-31T22:00:00.000Z',
+  )
+  assert.equal(both.period, null, 'the named period must be dropped, not merged')
+  assert.deepEqual(both.range, {
+    from: '2026-06-30T22:00:00.000Z',
+    to: '2026-07-31T22:00:00.000Z',
+  })
+
+  // G9: one end alone is malformed. A half-specified pay period is how a month-end number
+  // goes wrong quietly.
+  const half = parseShiftsParams('?from=2026-06-30T22:00:00.000Z')
+  assert.equal(half.range, null)
+  assert.deepEqual([...half.invalid], ['from'])
+
+  // Backwards is not a range either.
+  const backwards = parseShiftsParams('?from=2026-07-31T22:00:00.000Z&to=2026-06-30T22:00:00.000Z')
+  assert.equal(backwards.range, null)
+  assert.deepEqual([...backwards.invalid].sort(), ['from', 'to'])
+})
+
+check('lib/params.ts: G5 length cap, and the id shapes it rests on', () => {
+  assert.equal(MAX_PARAM_LENGTH, 64)
+  const long = 'a'.repeat(MAX_PARAM_LENGTH + 1)
+  assert.deepEqual([...parseShiftsParams(`?worker=${long}`).invalid], ['worker'])
+
+  assert.equal(isUuid(UUID_A), true)
+  assert.equal(isUuid(UUID_A.toUpperCase()), false, 'G8: ids are canonical lowercase')
+  assert.equal(isUuid('hoiv'), false, 'decision-21: the slug is never an id in a URL')
+  assert.equal(isRowId('12'), true)
+  assert.equal(isRowId('0'), false)
+  assert.equal(isRowId('-1'), false)
+  assert.equal(isRowId('012'), false)
+  assert.equal(isRowId('1e3'), false)
+  assert.equal(isInstant('2026-07-31T22:00:00.000Z'), true)
+  assert.equal(isInstant('2026-07-31'), false, 'a date is not an instant')
+  assert.equal(isInstant('2026'), false, 'Date.parse accepts this; the contract does not')
+})
+
+check('lib/params.ts: shiftsHref round-trips through parseShiftsParams', () => {
+  // The link builder and the link reader are the two halves of every cross-link on the
+  // board. If they ever disagree, every „Schichten dieser Person" silently becomes an
+  // unfiltered shift log — a broken link that returns HTTP 200.
+  const range = { from: '2026-06-30T22:00:00.000Z', to: '2026-07-31T22:00:00.000Z' }
+  const href = shiftsHref({ worker: 7, location: UUID_A, state: 'unresolved', range })
+  const parsed = parseShiftsParams(href.slice(href.indexOf('?')))
+  assert.equal(parsed.worker, '7')
+  assert.equal(parsed.location, UUID_A)
+  assert.equal(parsed.state, 'unresolved')
+  assert.deepEqual(parsed.range, range)
+  assert.deepEqual([...parsed.invalid], [])
+
+  // A named period is only emitted when there is no absolute range to emit.
+  assert.equal(shiftsHref({ range, period: 'lastMonth' }).includes('period='), false)
+  assert.equal(shiftsHref({ period: 'lastMonth' }), '/shifts/?period=lastMonth')
+  assert.equal(shiftsHref({}), '/shifts/')
+  // `state=all` is the default and is not worth a query parameter.
+  assert.equal(shiftsHref({ state: 'all' }), '/shifts/')
+})
+
 // --- report -----------------------------------------------------------------------------
 
 if (failures.length > 0) {

@@ -67,7 +67,18 @@
     "recentScope": "Die {count} zuletzt abgeschlossenen Schichten, ohne Zeitraumfilter. Das ist keine Summe – hier wird nichts zusammengezählt.",
     "recentLink": "Alle Schichten ansehen",
     "colWhen": "Beginn",
-    "colDuration": "Dauer (Std:Min)"
+    "colDuration": "Dauer (Std:Min)",
+    "question": "Muss ich gerade etwas tun?",
+    "emptyDatabaseHeading": "In dieser Datenbank steht noch nichts.",
+    "emptyDatabaseBody": "Es sind weder Mitarbeiter noch Objekte noch Schichten erfasst. Das ist kein Fehler – es ist der Zustand vor dem ersten Schritt. Es fehlt nichts.",
+    "emptyDatabaseWorkers": "Ersten Mitarbeiter anlegen",
+    "emptyDatabaseLocations": "Erstes Objekt anlegen",
+    "errorHeading": "Diese Übersicht konnte nicht geladen werden.",
+    "loadingHeading": "Daten werden geladen …",
+    "openShiftsLink": "Offene Schichten ansehen",
+    "materialsSome": "{count, plural, one {Eine Materialanforderung wartet auf Ihre Entscheidung.} other {# Materialanforderungen warten auf Ihre Entscheidung.}}",
+    "materialsNone": "Keine Materialanforderung wartet auf eine Entscheidung.",
+    "materialsLink": "Materialanforderungen öffnen"
   },
   "payroll": {
     "heading": "Lohnabrechnung",
@@ -120,7 +131,11 @@
     "csvRateCents": "Stundensatz (Cent)",
     "csvAmountCents": "Betrag (Cent)",
     "csvAmountEuro": "Betrag (EUR)",
-    "csvManualShifts": "Von Hand erfasst (Schichten)"
+    "csvManualShifts": "Von Hand erfasst (Schichten)",
+    "question": "Was zahle ich wem für diesen Zeitraum?",
+    "errorHeading": "Die Lohnabrechnung konnte nicht geladen werden.",
+    "loadingHeading": "Lohndaten werden geladen …",
+    "linkShifts": "Diese Stunden nachrechnen"
   },
   "login": {
     "heading": "Anmelden",
@@ -130,7 +145,8 @@
     "submit": "Anmelden",
     "submitting": "Anmeldung läuft…",
     "failed": "E-Mail-Adresse oder Passwort stimmt nicht. Bitte noch einmal versuchen.",
-    "logout": "Abmelden"
+    "logout": "Abmelden",
+    "question": "Wer sind Sie?"
   },
   "workers": {
     "heading": "Mitarbeiter",
@@ -193,7 +209,12 @@
     "codeCopyFailed": "Zugangscode konnte nicht kopiert werden. Den Code oben markieren und manuell kopieren.",
     "codeIssueFailed": "Der Zugangscode konnte nicht erstellt werden. Bitte erneut versuchen.",
     "codeRevoked": "Der Zugangscode von {name} wurde gesperrt und funktioniert nicht mehr.",
-    "codeRevokeFailed": "Der Zugangscode konnte nicht gesperrt werden. Bitte erneut versuchen."
+    "codeRevokeFailed": "Der Zugangscode konnte nicht gesperrt werden. Bitte erneut versuchen.",
+    "question": "Wer darf für mich stempeln – und zu welchem Stundensatz?",
+    "errorHeading": "Die Mitarbeiterliste konnte nicht geladen werden.",
+    "loadingHeading": "Mitarbeiter werden geladen …",
+    "createDisclosure": "Mitarbeiter anlegen",
+    "linkShifts": "Schichten dieser Person"
   },
   "locations": {
     "heading": "Objekte",
@@ -300,7 +321,12 @@
     "edit": "Bearbeiten",
     "deactivate": "Deaktivieren",
     "activate": "Wieder aktivieren",
-    "forLocation": " von {name}"
+    "forLocation": " von {name}",
+    "question": "Was ist für dieses Objekt vereinbart – und funktioniert sein Tag?",
+    "errorHeading": "Die Objektliste konnte nicht geladen werden.",
+    "loadingHeading": "Objekte werden geladen …",
+    "createDisclosure": "Objekt anlegen",
+    "linkShifts": "Schichten in diesem Objekt"
   },
   "clients": {
     "heading": "Kunden",
@@ -359,7 +385,12 @@
     "errorClientRequired": "Bitte den Kunden auswählen, für den diese Person arbeitet.",
     "errorEmailShape": "Das ist keine gültige E-Mail-Adresse.",
     "errorPhoneShape": "Nur Ziffern, Leerzeichen und + ( ) / - verwenden.",
-    "errorRejected": "Der Server hat diese Angaben abgelehnt. Bitte die Felder prüfen und erneut versuchen."
+    "errorRejected": "Der Server hat diese Angaben abgelehnt. Bitte die Felder prüfen und erneut versuchen.",
+    "question": "Wem gehören meine Objekte, und wen rufe ich dort an?",
+    "errorHeading": "Die Kundenliste konnte nicht geladen werden.",
+    "loadingHeading": "Kunden werden geladen …",
+    "createDisclosure": "Kunde anlegen",
+    "createContactDisclosure": "Ansprechpartner anlegen"
   },
   "shifts": {
     "heading": "Schichten",
@@ -397,7 +428,7 @@
     "errorOverlapUnknown": "Für diesen Mitarbeiter existiert bereits eine andere Schicht in diesem Zeitraum, die hier nicht angezeigt wird. Oben einen längeren Zeitraum wählen, um sie zu finden.",
     "errorCreateRejected": "Der Server hat diese Schicht abgelehnt. Bitte Mitarbeiter, Objekt und Zeiten prüfen und erneut versuchen.",
     "correctHeading": "Schicht korrigieren",
-    "correctIdle": "Unten in einer Zeile auf „Korrigieren“ klicken, um Zeiten, Mitarbeiter oder Objekt zu ändern.",
+    "correctIdle": "Im Schichtprotokoll oben in einer Zeile auf „Korrigieren“ klicken, um Zeiten, Mitarbeiter oder Objekt zu ändern.",
     "correctFor": "Korrektur der Schicht von {worker} in {location}.",
     "correctUnresolvedNotice": "Diese Schicht wurde vom 8-Stunden-Timer beendet. Beim Speichern gilt sie als bestätigt und ihre Stunden fließen in die Lohnabrechnung ein – auch dann, wenn die Endzeit unverändert bleibt. Falls die Endzeit falsch ist, zuerst korrigieren.",
     "fieldStart": "Beginn",
@@ -445,7 +476,14 @@
     "endMissing": "Noch kein Ende",
     "durationRunning": "Läuft noch",
     "correct": "Korrigieren",
-    "forShift": " der Schicht von {worker} am {date}"
+    "forShift": " der Schicht von {worker} am {date}",
+    "question": "Welche Stunden stehen im Buch – und stimmen sie?",
+    "errorHeading": "Das Schichtbuch konnte nicht geladen werden.",
+    "loadingHeading": "Schichten werden geladen …",
+    "createDisclosure": "Schicht von Hand erfassen",
+    "correctDisclosure": "Schicht korrigieren",
+    "filterState": "Status",
+    "stateAll": "Alle Zustände"
   },
   "inventory": {
     "heading": "Produkte & Geräte",
@@ -484,7 +522,11 @@
     "edit": "Bearbeiten",
     "deactivate": "Nicht mehr im Einsatz",
     "activate": "Wieder verwenden",
-    "forItem": " für {name}"
+    "forItem": " für {name}",
+    "question": "Was kostet das, was meine Leute anfordern?",
+    "errorHeading": "Der Katalog konnte nicht geladen werden.",
+    "loadingHeading": "Katalog wird geladen …",
+    "createDisclosure": "Produkt oder Gerät anlegen"
   },
   "materials": {
     "heading": "Materialanforderungen",
@@ -567,7 +609,10 @@
     "submitting": "Wird gespeichert …",
     "cancel": "Abbrechen",
     "errorRejected": "Der Server hat diese Angaben abgelehnt. Bitte die Felder prüfen und erneut versuchen.",
-    "errorMoved": "Diese Anforderung wurde inzwischen weiterbewegt. Die Liste wurde neu geladen – bitte noch einmal ansehen."
+    "errorMoved": "Diese Anforderung wurde inzwischen weiterbewegt. Die Liste wurde neu geladen – bitte noch einmal ansehen.",
+    "question": "Wartet gerade jemand in einem Haus auf eine Entscheidung von mir?",
+    "errorHeading": "Die Materialanforderungen konnten nicht geladen werden.",
+    "loadingHeading": "Materialanforderungen werden geladen …"
   },
   "pl": {
     "heading": "Gewinn & Verlust",
@@ -651,7 +696,11 @@
     "whyOpen": "{shifts, plural, one {# Schicht in diesem Objekt läuft noch und wird nicht gezählt.} other {# Schichten in diesem Objekt laufen noch und werden nicht gezählt.}}",
     "shareUnknown": "nicht berechenbar",
     "flaggedContractLink": "Vertrag prüfen",
-    "flaggedShiftsLink": "Schichten prüfen"
+    "flaggedShiftsLink": "Schichten prüfen",
+    "question": "Verdiene ich an diesem Objekt Geld?",
+    "errorHeading": "Die Auswertung konnte nicht geladen werden.",
+    "loadingHeading": "Auswertung wird geladen …",
+    "linkShifts": "Arbeit nachrechnen"
   },
   "contracts": {
     "heading": "Vertragsverwaltung",
@@ -722,7 +771,10 @@
     "created": "{building} ist ab {from} bepreist.",
     "deleted": "Die aktuelle Vertragsperiode von {building} wurde entfernt. Es gilt wieder der Preis davor.",
     "errorNotCurrent": "Nur die aktuelle Periode kann rückgängig gemacht werden. Eine frühere wurde bereits verwendet, um einen Monat zu bewerten, den jemand gesehen hat.",
-    "errorRejected": "Der Server hat diese Angaben abgelehnt. Bitte die Felder prüfen und erneut versuchen."
+    "errorRejected": "Der Server hat diese Angaben abgelehnt. Bitte die Felder prüfen und erneut versuchen.",
+    "question": "Was war für dieses Objekt wann vereinbart?",
+    "errorHeading": "Die Vertragsdaten konnten nicht geladen werden.",
+    "loadingHeading": "Vertragsdaten werden geladen …"
   },
   "analytics": {
     "heading": "Objektauswertung",
@@ -816,7 +868,11 @@
     "trendDown": "{delta} weniger als im Monat davor",
     "trendFlat": "Unverändert gegenüber dem Monat davor",
     "openDetails": "Details",
-    "forBuilding": " von {name}"
+    "forBuilding": " von {name}",
+    "question": "Brauchen wir für dieses Objekt mehr Zeit als vereinbart?",
+    "errorHeading": "Die Objektauswertung konnte nicht geladen werden.",
+    "loadingHeading": "Objektauswertung wird geladen …",
+    "linkShifts": "Schichten in diesem Objekt"
   },
   "portal": {
     "heading": "Reinigungsnachweis",
@@ -854,5 +910,18 @@
     "request": "Das konnte so nicht verarbeitet werden. Bitte prüfen Sie Ihre Eingaben und versuchen Sie es noch einmal.",
     "server": "Das hat gerade nicht funktioniert. Bitte versuchen Sie es in einigen Minuten noch einmal.",
     "badResponse": "Die Antwort vom Server war unerwartet. Bitte laden Sie die Seite neu und versuchen Sie es noch einmal."
+  },
+  "ui": {
+    "retry": "Erneut versuchen",
+    "howThisWorks": "Wie diese Seite funktioniert",
+    "paramInvalid": "Der Link enthielt einen ungültigen Wert für „{params}“. Es wird die Standardansicht gezeigt.",
+    "paramUnknownWorker": "Der Filter aus dem Link (Mitarbeiter „{value}“) ist unbekannt oder nicht mehr aktiv. Es werden daher alle Einträge gezeigt – es fehlt nichts.",
+    "paramUnknownLocation": "Der Filter aus dem Link (Objekt „{value}“) ist unbekannt oder nicht mehr aktiv. Es werden daher alle Einträge gezeigt – es fehlt nichts.",
+    "filteredHeading": "Aus einem Link gefiltert",
+    "filteredWorker": "Mitarbeiter: {name}",
+    "filteredLocation": "Objekt: {name}",
+    "filteredState": "Status: {state}",
+    "filteredRange": "Zeitraum: {from} bis {to}",
+    "filterRemove": "Filter entfernen"
   }
 }

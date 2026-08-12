@@ -55,6 +55,7 @@ export default function LoginPage() {
   return (
     <div className="auth-card">
       <h1>{t('heading')}</h1>
+      <p className="page-question">{t('question')}</p>
       <p className="lede">{t('intro')}</p>
 
       <form className="auth-form" onSubmit={onSubmit}>

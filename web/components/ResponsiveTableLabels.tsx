@@ -22,7 +22,10 @@ export function ResponsiveTableLabels() {
           (th.textContent ?? '').trim(),
         )
         if (headings.length === 0) continue
-        for (const row of table.querySelectorAll('tbody tr')) {
+        // `tfoot` as well as `tbody`. The totals row is the LAST thing a director reads
+        // before paying people, and on a phone it rendered as four bare numbers with no
+        // headings at all (UX-AUDIT finding 7) because this loop only walked `tbody`.
+        for (const row of table.querySelectorAll('tbody tr, tfoot tr')) {
           // ALL cells, in document order — not just the `td`s. Rows here lead with a `<th>`
           // row header (the worker, the building), so counting only `td`s shifts every label
           // one column left and a card confidently captions a timestamp as "Objekt". A card
@@ -34,9 +37,13 @@ export function ResponsiveTableLabels() {
             const heading = headings[i]
             // Only label real data cells, and only when there is something to say. The row
             // header already reads as the card's title, and an empty heading (an actions
-            // column) would otherwise print a stray label on every card.
-            if (cell.tagName === 'TD' && heading) cell.setAttribute('data-label', heading)
-            else cell.removeAttribute('data-label')
+            // column) would otherwise print a stray label on every card. An EMPTY cell is
+            // skipped too: `SATZ` with nothing after it is a card promising a number that
+            // is not there, which is the totals row's spacer column on /payroll/.
+            const hasValue = (cell.textContent ?? '').trim() !== ''
+            if (cell.tagName === 'TD' && heading && hasValue) {
+              cell.setAttribute('data-label', heading)
+            } else cell.removeAttribute('data-label')
           })
         }
       }

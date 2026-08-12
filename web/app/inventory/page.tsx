@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   fetchInventory,
@@ -12,6 +13,7 @@ import {
   isInventoryKind,
   saveInventoryItem,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import type { ErrorKey } from '@/lib/locale'
 import { centsToPlainEuros, parseEuroToCents } from '@/lib/money'
 import { LOGIN_PATH } from '@/lib/nav'
@@ -58,6 +60,7 @@ type FieldErrors = { name?: ErrorMessage; cost?: ErrorMessage }
 
 export default function InventoryPage() {
   const t = useTranslations('inventory')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const router = useRouter()
@@ -75,6 +78,8 @@ export default function InventoryPage() {
 
   // null = still loading. [] = loaded and genuinely empty, which is the first-run state.
   const [items, setItems] = useState<InventoryItem[] | null>(null)
+  /** The create/edit disclosure. Controlled, so „Bearbeiten" can open it. */
+  const [formOpen, setFormOpen] = useState(false)
   const [loadError, setLoadError] = useState<ErrorKey | null>(null)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -119,7 +124,9 @@ export default function InventoryPage() {
     setFieldErrors({})
     setFormError(null)
     setSaved(false)
-    nameRef.current?.focus()
+    // The form is folded away now, so „Bearbeiten" has to open it before focusing it.
+    setFormOpen(true)
+    window.requestAnimationFrame(() => nameRef.current?.focus())
   }
 
   function cancelEdit() {
@@ -216,124 +223,144 @@ export default function InventoryPage() {
   const editing = draft.id !== undefined
   const formErrorText = formError === null ? '' : t(formError)
 
+  // `null` is not a state (lib/load.ts).
+  const view = loadOf(items, loadError)
+
   return (
     <>
       <h1>{t('heading')}</h1>
+      <p className="page-question">{t('question')}</p>
       <p className="lede">{t('intro')}</p>
 
       <section aria-labelledby={formHeadingId}>
-        <h2 id={formHeadingId}>{editing ? t('editHeading') : t('createHeading')}</h2>
+        {/* UX-AUDIT finding 9: a create form used a handful of times a month must not sit
+          above the list the screen exists for. Native <details> — no JS, no dependency,
+          keyboard and screen reader support for free. Controlled, so „Bearbeiten" can
+          open it. */}
+        <details
+          className="disclosure"
+          open={formOpen}
+          onToggle={(event) => setFormOpen(event.currentTarget.open)}
+        >
+          <summary>{editing ? t('editHeading') : t('createDisclosure')}</summary>
+          <div className="disclosure-body">
+            <h2 id={formHeadingId}>{editing ? t('editHeading') : t('createHeading')}</h2>
 
-        <form className="worker-form" onSubmit={onSubmit} noValidate>
-          {/* Permanent live regions: a text change inside an existing region is announced
+            <form className="worker-form" onSubmit={onSubmit} noValidate>
+              {/* Permanent live regions: a text change inside an existing region is announced
               far more reliably than a node that appears and disappears. */}
-          <p className="form-error" id={errorId} role="alert">
-            {formErrorText}
-          </p>
-          <p className="form-status" id={statusId} role="status">
-            {saved ? t('saved') : ''}
-          </p>
+              <p className="form-error" id={errorId} role="alert">
+                {formErrorText}
+              </p>
+              <p className="form-status" id={statusId} role="status">
+                {saved ? t('saved') : ''}
+              </p>
 
-          <div className="field">
-            <label htmlFor={nameId}>{t('fieldName')}</label>
-            <input
-              id={nameId}
-              ref={nameRef}
-              type="text"
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              maxLength={160}
-              autoComplete="off"
-              aria-describedby={`${nameId}-error`}
-              aria-invalid={fieldErrors.name !== undefined}
-              disabled={busy}
-            />
-            <p className="field-error" id={`${nameId}-error`} role="alert">
-              {fieldErrors.name === undefined ? '' : t(fieldErrors.name)}
-            </p>
-          </div>
+              <div className="field">
+                <label htmlFor={nameId}>{t('fieldName')}</label>
+                <input
+                  id={nameId}
+                  ref={nameRef}
+                  type="text"
+                  value={draft.name}
+                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  maxLength={160}
+                  autoComplete="off"
+                  aria-describedby={`${nameId}-error`}
+                  aria-invalid={fieldErrors.name !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-error" id={`${nameId}-error`} role="alert">
+                  {fieldErrors.name === undefined ? '' : t(fieldErrors.name)}
+                </p>
+              </div>
 
-          <div className="field">
-            <label htmlFor={kindId}>{t('fieldKind')}</label>
-            <select
-              id={kindId}
-              value={draft.kind}
-              onChange={(event) => {
-                if (isInventoryKind(event.target.value)) {
-                  setDraft({ ...draft, kind: event.target.value })
-                }
-              }}
-              aria-describedby={kindHintId}
-              disabled={busy}
-            >
-              {INVENTORY_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {kindLabel[kind]}
-                </option>
-              ))}
-            </select>
-            <p className="field-hint" id={kindHintId}>
-              {t('kindHint')}
-            </p>
-          </div>
+              <div className="field">
+                <label htmlFor={kindId}>{t('fieldKind')}</label>
+                <select
+                  id={kindId}
+                  value={draft.kind}
+                  onChange={(event) => {
+                    if (isInventoryKind(event.target.value)) {
+                      setDraft({ ...draft, kind: event.target.value })
+                    }
+                  }}
+                  aria-describedby={kindHintId}
+                  disabled={busy}
+                >
+                  {INVENTORY_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {kindLabel[kind]}
+                    </option>
+                  ))}
+                </select>
+                <p className="field-hint" id={kindHintId}>
+                  {t('kindHint')}
+                </p>
+              </div>
 
-          <div className="field">
-            <label htmlFor={costId}>{t('fieldCost')}</label>
-            <input
-              id={costId}
-              type="text"
-              inputMode="decimal"
-              value={draft.cost}
-              onChange={(event) => setDraft({ ...draft, cost: event.target.value })}
-              aria-describedby={`${costHintId} ${costId}-error`}
-              aria-invalid={fieldErrors.cost !== undefined}
-              disabled={busy}
-            />
-            <p className="field-hint" id={costHintId}>
-              {t('costHint')}
-            </p>
-            <p className="field-error" id={`${costId}-error`} role="alert">
-              {fieldErrors.cost === undefined ? '' : t(fieldErrors.cost)}
-            </p>
-          </div>
+              <div className="field">
+                <label htmlFor={costId}>{t('fieldCost')}</label>
+                <input
+                  id={costId}
+                  type="text"
+                  inputMode="decimal"
+                  value={draft.cost}
+                  onChange={(event) => setDraft({ ...draft, cost: event.target.value })}
+                  aria-describedby={`${costHintId} ${costId}-error`}
+                  aria-invalid={fieldErrors.cost !== undefined}
+                  disabled={busy}
+                />
+                <p className="field-hint" id={costHintId}>
+                  {t('costHint')}
+                </p>
+                <p className="field-error" id={`${costId}-error`} role="alert">
+                  {fieldErrors.cost === undefined ? '' : t(fieldErrors.cost)}
+                </p>
+              </div>
 
-          <div className="field field-check">
-            <input
-              id={activeId}
-              type="checkbox"
-              checked={draft.active}
-              onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
-              disabled={busy}
-            />
-            <label htmlFor={activeId}>{t('fieldActive')}</label>
-          </div>
+              <div className="field field-check">
+                <input
+                  id={activeId}
+                  type="checkbox"
+                  checked={draft.active}
+                  onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                  disabled={busy}
+                />
+                <label htmlFor={activeId}>{t('fieldActive')}</label>
+              </div>
 
-          <div className="form-actions">
-            <button type="submit" className="button-primary" disabled={busy}>
-              {busy ? t('submitting') : editing ? t('submitSave') : t('submitCreate')}
-            </button>
-            {editing ? (
-              <button type="button" className="button-secondary" onClick={cancelEdit}>
-                {t('cancel')}
-              </button>
-            ) : null}
+              <div className="form-actions">
+                <button type="submit" className="button-primary" disabled={busy}>
+                  {busy ? t('submitting') : editing ? t('submitSave') : t('submitCreate')}
+                </button>
+                {editing ? (
+                  <button type="button" className="button-secondary" onClick={cancelEdit}>
+                    {t('cancel')}
+                  </button>
+                ) : null}
+              </div>
+            </form>
           </div>
-        </form>
+        </details>
       </section>
 
       <section aria-labelledby="inventory-list-heading">
         <h2 id="inventory-list-heading">{t('listHeading')}</h2>
 
-        {loadError !== null ? (
-          <p className="form-error" role="alert">
-            {tError(loadError)}
-          </p>
-        ) : null}
-
-        {items === null ? (
-          <p role="status">{t('loading')}</p>
-        ) : items.length === 0 ? (
-          <p>{t('emptyBody')}</p>
+        {/* Error BEATS loading (lib/load.ts, UX-AUDIT finding 1). */}
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' ? (
+          <DataState kind="loading" headline={t('loadingHeading')} />
+        ) : view.data.length === 0 ? (
+          <DataState kind="empty" headline={t('emptyBody')} />
         ) : (
           <table className="data-table" aria-busy={busy}>
             <caption className="visually-hidden">{t('tableCaption')}</caption>
@@ -347,7 +374,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {view.data.map((item) => (
                 <tr key={item.id} className={item.active ? undefined : 'row-inactive'}>
                   <th scope="row">{item.name}</th>
                   <td>{kindLabel[item.kind]}</td>

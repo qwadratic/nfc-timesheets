@@ -38,6 +38,23 @@ must_refuse() {
   fi
 }
 
+# Assert the REFUSAL MESSAGE rather than merely a non-zero exit.
+#
+# Defined up here, next to must_refuse, because it is pure shell and the recorder checks at
+# the bottom of this file need it too. That is not tidiness: with the loopback guard deleted,
+# `DEMO_BASE=https://timesheets.exe.xyz node demo/record-admin-ux.mjs` STILL exits non-zero,
+# because it reaches the live host and is turned away by a 401 at `/admin/login`. `if cmd`
+# called that a pass — for a run that had already sent the demo credentials to production.
+# Measured, not assumed: the mutation is in the header of demo/record-admin-ux.mjs.
+refuses_with() {
+  desc=$1; want=$2; shift 2
+  out=$("$@" 2>&1 </dev/null || true)
+  case "$out" in
+    *"$want"*) ok "$desc" ;;
+    *) fail "$desc (no refusal: $(printf '%s' "$out" | head -1))" ;;
+  esac
+}
+
 # 1 + 2 need a database that is NOT called nfc_demo.
 if ! pg_isready -q 2>/dev/null; then
   echo "check-guards: no Postgres reachable — SKIP (database guards untested)"
@@ -76,15 +93,7 @@ else
   # dials timesheets.exe.xyz:5432 and the connection dies. `if cmd` therefore reported ok
   # for a build that had ALREADY left the machine; the test passed because the network was
   # unreachable, not because anything refused. Matching the wording is what makes these
-  # fail when the guard is removed.
-  refuses_with() {
-    desc=$1; want=$2; shift 2
-    out=$("$@" 2>&1 </dev/null || true)
-    case "$out" in
-      *"$want"*) ok "$desc" ;;
-      *) fail "$desc (no refusal: $(printf '%s' "$out" | head -1))" ;;
-    esac
-  }
+  # fail when the guard is removed. (refuses_with is defined at the top of this file.)
 
   refuses_with "demo/make-admin.mjs refuses a ?host= that overrides the URL host" \
     "refusing DATABASE_URL ?host=" \
@@ -93,6 +102,44 @@ else
   refuses_with "demo/make-admin.mjs refuses a non-loopback \$PGHOST" \
     'refusing $PGHOST=' \
     env DATABASE_URL=postgres:///nfc_demo PGHOST=timesheets.exe.xyz node demo/make-admin.mjs
+
+  # demo/simulate.mjs TRUNCATEs and then writes five figures' worth of shift rows. Same
+  # four vectors, and the same reason for asserting the MESSAGE on the last two: with the
+  # guard deleted, simulate still exits non-zero against `?host=timesheets.exe.xyz` --
+  # because the connection to the live host dies, not because anything refused. Verified
+  # by deleting the call: the failure became "Connection terminated unexpectedly", i.e.
+  # the process had already dialled production. `if cmd` would have called that a pass.
+  refuses_with "demo/simulate.mjs refuses a database that is not nfc_demo" \
+    'refusing database' \
+    env DATABASE_URL="postgres:///$DB" node demo/simulate.mjs
+
+  if [ "$(psql -tAc 'SELECT count(*) FROM shifts' -d "$DB")" = "0" ]; then
+    ok "demo/simulate.mjs wrote nothing before refusing"
+  else
+    fail "demo/simulate.mjs wrote rows before refusing"
+  fi
+
+  refuses_with "demo/simulate.mjs refuses a non-loopback database host" \
+    'refusing a database on' \
+    env DATABASE_URL=postgres://timesheets.exe.xyz/nfc_demo node demo/simulate.mjs
+
+  refuses_with "demo/simulate.mjs refuses a ?host= that overrides the URL host" \
+    "refusing DATABASE_URL ?host=" \
+    env DATABASE_URL='postgres://127.0.0.1/nfc_demo?host=timesheets.exe.xyz' node demo/simulate.mjs
+
+  refuses_with "demo/simulate.mjs refuses a non-loopback \$PGHOST" \
+    'refusing $PGHOST=' \
+    env DATABASE_URL=postgres:///nfc_demo PGHOST=timesheets.exe.xyz node demo/simulate.mjs
+
+  # The arithmetic the simulation's findings rest on: Vienna wall time across both DST
+  # transitions, the payroll month boundary, contract date bounds, and rate-at-an-instant.
+  # It touches no database, and it is here rather than in a separate file because a check
+  # that is not in the one script anybody runs is a check nobody runs.
+  if DATABASE_URL=postgres:///nfc_demo node demo/simulate.mjs --self-check >/dev/null 2>&1; then
+    ok "demo/simulate.mjs --self-check passes"
+  else
+    fail "demo/simulate.mjs --self-check FAILED (run it to see which assertion)"
+  fi
 
   # demo-server.mjs accepts FORGED Apple identity tokens (that is the point of it - a
   # simulator has no Apple ID). The only thing keeping that off a real database is this
@@ -117,25 +164,32 @@ must_refuse "demo/demo-server.mjs refuses a non-loopback \$PGHOST" \
 must_refuse "demo/demo-server.mjs refuses to listen on a non-loopback address" \
   env DATABASE_URL=postgres:///nfc_demo APP_KEY=x PORT=0 node demo/demo-server.mjs --host 0.0.0.0
 
-# 3, 4, 5: the three scripts that could be pointed at the live host.
-# (must_refuse is defined near the top of this file.)
-if DEMO_BASE=https://timesheets.exe.xyz node demo/record-admin.mjs >/dev/null 2>&1; then
-  fail "demo/record-admin.mjs accepted a non-loopback target"
-else
-  ok "demo/record-admin.mjs refuses a non-loopback target"
-fi
+# 3, 4, 5, 6: the four scripts that could be pointed at the live host. All of them match the
+# WORDING, for the reason spelled out above refuses_with: every one of these processes has a
+# second, accidental way to exit non-zero against timesheets.exe.xyz, and every one of those
+# ways happens AFTER the request has left the machine.
+refuses_with "demo/record-admin.mjs refuses a non-loopback target" \
+  'refusing to record against' \
+  env DEMO_BASE=https://timesheets.exe.xyz node demo/record-admin.mjs
 
-if DEMO_API=https://timesheets.exe.xyz node demo/record-android.mjs >/dev/null 2>&1; then
-  fail "demo/record-android.mjs accepted a non-loopback target"
-else
-  ok "demo/record-android.mjs refuses a non-loopback target"
-fi
+refuses_with "demo/record-admin-ux.mjs refuses a non-loopback target" \
+  'refusing to record against' \
+  env DEMO_BASE=https://timesheets.exe.xyz node demo/record-admin-ux.mjs
 
-if DEMO_API=https://timesheets.exe.xyz node demo/record-ios.mjs >/dev/null 2>&1; then
-  fail "demo/record-ios.mjs accepted a non-loopback target"
-else
-  ok "demo/record-ios.mjs refuses a non-loopback target"
-fi
+# The UX walkthrough opens a WORKER session and clocks somebody in (the mocked tap), so it is
+# the one recorder here that WRITES. Its refusal is checked on the compose path too, where
+# there is no browser and no database to fail first and hide a missing guard.
+refuses_with "demo/record-admin-ux.mjs refuses a non-loopback target on the compose path" \
+  'refusing to record against' \
+  env DEMO_BASE=http://timesheets.exe.xyz:8082 node demo/record-admin-ux.mjs --compose-only
+
+refuses_with "demo/record-android.mjs refuses a non-loopback target" \
+  'DEMO_API must be loopback' \
+  env DEMO_API=https://timesheets.exe.xyz node demo/record-android.mjs
+
+refuses_with "demo/record-ios.mjs refuses a non-loopback target" \
+  'DEMO_API must be loopback' \
+  env DEMO_API=https://timesheets.exe.xyz node demo/record-ios.mjs
 
 # BOTH tls-front checks go through must_refuse and not through `if cmd`. This is the one
 # process here that LISTENS when its guard is missing: with the check written the plain

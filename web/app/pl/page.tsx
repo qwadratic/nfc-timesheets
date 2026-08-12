@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useLocale, useTranslations } from 'next-intl'
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import {
   ApiError,
   clearSetting,
@@ -14,8 +15,10 @@ import {
   type PlReport,
   saveSetting,
 } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import { type ErrorKey, htmlLang, isLocale } from '@/lib/locale'
 import { LOGIN_PATH } from '@/lib/nav'
+import { shiftsHref } from '@/lib/params'
 import { isPeriod, PAYROLL_PERIODS, type Period, periodRange } from '@/lib/period'
 import {
   bpToPlainPercent,
@@ -61,6 +64,7 @@ const SHIFTS_PATH = '/shifts/'
 
 export default function PlPage() {
   const t = useTranslations('pl')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const locale = useLocale()
@@ -213,6 +217,10 @@ export default function PlPage() {
         })
 
   const totals = report === null ? null : plTotals(report.buildings)
+
+  // `null` is not a state (lib/load.ts): error beats loading, so a failed report can no
+  // longer sit under a red line saying it is still loading (UX-AUDIT finding 1).
+  const view = loadOf(report, loadError)
   const flagged = report === null ? [] : report.buildings.filter((b) => b.below_baseline === true)
   // Hoisted out of the JSX: narrowing `report.baseline_margin_bp` inside a `.map()` callback
   // is lost, and the alternative would be a non-null assertion on the one number the whole
@@ -287,7 +295,14 @@ export default function PlPage() {
   return (
     <>
       <h1>{t('heading')}</h1>
-      <p className="lede">{t('intro')}</p>
+      <p className="page-question">{t('question')}</p>
+
+      <details className="disclosure">
+        <summary>{tUi('howThisWorks')}</summary>
+        <div className="disclosure-body">
+          <p className="lede">{t('intro')}</p>
+        </div>
+      </details>
 
       <section aria-labelledby="pl-period-heading">
         <h2 id="pl-period-heading">{t('periodHeading')}</h2>
@@ -377,14 +392,18 @@ export default function PlPage() {
       <section aria-labelledby="pl-result-heading">
         <h2 id="pl-result-heading">{t('resultHeading')}</h2>
 
-        {loadError !== null ? (
-          <p className="form-error" role="alert">
-            {tError(loadError)}
-          </p>
-        ) : null}
-
-        {report === null || totals === null ? (
-          <p role="status">{t('loading')}</p>
+        {view.state === 'error' ? (
+          <DataState
+            kind="error"
+            headline={t('errorHeading')}
+            detail={tError(view.key)}
+            retryLabel={tUi('retry')}
+            onRetry={() => void load()}
+          />
+        ) : view.state === 'loading' || report === null || totals === null ? (
+          /* `report === null` is redundant with `view.state` and is there so TypeScript
+             narrows the branch below; lib/load.ts is the single source of the ORDER. */
+          <DataState kind="loading" headline={t('loadingHeading')} />
         ) : (
           <>
             <p className="page-summary" role="status">
@@ -531,6 +550,19 @@ export default function PlPage() {
                               hours: formatDuration(building.labour_minutes),
                             })}
                           </span>
+                          {/* The shifts BEHIND this labour figure, for this building, with
+                              the period frozen as an absolute range (IA-AND-JTBD §3.1). */}
+                          <Link
+                            className="cell-link"
+                            href={shiftsHref({
+                              location: building.location_id,
+                              range: report.range,
+                              period: 'all',
+                            })}
+                          >
+                            {t('linkShifts')}
+                            <span className="visually-hidden">{building.name}</span>
+                          </Link>
                         </td>
                         <td className="col-numeric">{money(building.material_cents)}</td>
                         <td className="col-numeric">

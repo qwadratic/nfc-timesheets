@@ -4,9 +4,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useState } from 'react'
+import { DataState } from '@/components/DataState'
 import { type AdminSnapshot, ApiError, fetchAdminSnapshot, type Shift } from '@/lib/api'
+import { loadOf } from '@/lib/load'
 import type { ErrorKey } from '@/lib/locale'
+import { isOpen } from '@/lib/materials'
 import { LOGIN_PATH } from '@/lib/nav'
+import { shiftsHref } from '@/lib/params'
 import {
   BUSINESS_TIME_ZONE,
   blocksPayroll,
@@ -44,9 +48,19 @@ const RECENT_SHIFTS = 10
 const SHIFTS_PATH = '/shifts/'
 const WORKERS_PATH = '/workers/'
 const LOCATIONS_PATH = '/locations/'
+const MATERIALS_PATH = '/material-requests/?status=open'
+
+/**
+ * Every exception link carries the filter that MAKES it that exception (IA-AND-JTBD §3).
+ * Landing on an unfiltered shift log after clicking „Unbestätigte Schichten klären" is a
+ * broken link that happens to return HTTP 200; lib/params.ts validates these on arrival.
+ */
+const UNRESOLVED_HREF = shiftsHref({ state: 'unresolved', period: 'last30Days' })
+const OPEN_HREF = shiftsHref({ state: 'open', period: 'last30Days' })
 
 export default function DashboardPage() {
   const t = useTranslations('home')
+  const tUi = useTranslations('ui')
   const tError = useTranslations('error')
   const format = useFormatter()
   const router = useRouter()
@@ -167,21 +181,63 @@ export default function DashboardPage() {
       timeZone: BUSINESS_TIME_ZONE,
     })
 
-  const problemCount = unresolvedCount + workersWithoutEmail.length + locationsWithoutShifts.length
+  /** Somebody is standing in a building waiting on a decision. decision-23 leaves the
+      panel as the only channel — no push, no SMS — so if it is not on this page nobody
+      finds out. */
+  const openMaterials =
+    snapshot === null ? 0 : snapshot.material_requests.filter((r) => isOpen(r.status)).length
+
+  const problemCount =
+    unresolvedCount + workersWithoutEmail.length + locationsWithoutShifts.length + openMaterials
+
+  /**
+   * NOTHING has been recorded, anywhere. Not „alles in Ordnung" — UX-AUDIT finding 8: an
+   * empty database rendered „Nichts zu tun" plus three vacuous all-clears, every one of
+   * which is TRUE over an empty set and every one of which reads as reassurance. The
+   * emptiness itself is the fact, and the next action is the answer.
+   */
+  const databaseEmpty =
+    snapshot !== null &&
+    snapshot.workers.length === 0 &&
+    snapshot.locations.length === 0 &&
+    snapshot.shifts.length === 0
+
+  // `null` is not a state (lib/load.ts). Error WINS over loading, so a 500 can no longer
+  // render a red line above „Wird geladen …" that never goes away (UX-AUDIT finding 1).
+  const view = loadOf(snapshot, loadError)
 
   return (
     <>
       <h1>{t('heading')}</h1>
+      {/* The one question this screen answers, in the director's own words. */}
+      <p className="page-question">{t('question')}</p>
       <p className="lede">{t('intro')}</p>
 
-      {loadError !== null ? (
-        <p className="form-error" role="alert">
-          {tError(loadError)}
-        </p>
-      ) : null}
-
-      {snapshot === null ? (
-        <p role="status">{t('loading')}</p>
+      {view.state === 'error' ? (
+        <DataState
+          kind="error"
+          headline={t('errorHeading')}
+          detail={tError(view.key)}
+          retryLabel={tUi('retry')}
+          onRetry={() => void load()}
+        />
+      ) : view.state === 'loading' ? (
+        <DataState kind="loading" headline={t('loadingHeading')} />
+      ) : databaseEmpty ? (
+        <DataState
+          kind="empty"
+          headline={t('emptyDatabaseHeading')}
+          detail={t('emptyDatabaseBody')}
+        >
+          <p className="button-row">
+            <Link className="button-primary" href={WORKERS_PATH}>
+              {t('emptyDatabaseWorkers')}
+            </Link>
+            <Link className="button-secondary" href={LOCATIONS_PATH}>
+              {t('emptyDatabaseLocations')}
+            </Link>
+          </p>
+        </DataState>
       ) : (
         <>
           <p className="page-summary" role="status">
@@ -233,6 +289,13 @@ export default function DashboardPage() {
                 }),
               })}
             </p>
+            {openShifts.length === 0 ? null : (
+              <p>
+                {/* Carries `state=open` so the shift log arrives already showing the rows
+                    this sentence is about. */}
+                <Link href={OPEN_HREF}>{t('openShiftsLink')}</Link>
+              </p>
+            )}
             <div className="form-actions">
               <button
                 type="button"
@@ -256,7 +319,7 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     {t('unresolvedSome', { count: unresolvedCount })}{' '}
-                    <Link href={SHIFTS_PATH}>{t('unresolvedLink')}</Link>
+                    <Link href={UNRESOLVED_HREF}>{t('unresolvedLink')}</Link>
                   </>
                 )}
               </li>
@@ -288,11 +351,24 @@ export default function DashboardPage() {
                   </>
                 )}
               </li>
+
+              {/* JTBD 6. decision-23 forbids every push channel, so this queue is invisible
+                  unless the landing page says so — and nothing on it did. */}
+              <li>
+                {openMaterials === 0 ? (
+                  t('materialsNone')
+                ) : (
+                  <>
+                    {t('materialsSome', { count: openMaterials })}{' '}
+                    <Link href={MATERIALS_PATH}>{t('materialsLink')}</Link>
+                  </>
+                )}
+              </li>
             </ul>
             {/* The shift list is capped by the server; do not let a truncated payload be
                 read as "this building has never been cleaned". */}
-            {snapshot.shifts.length >= snapshot.shift_limit ? (
-              <p className="field-hint">{t('truncatedNote', { limit: snapshot.shift_limit })}</p>
+            {view.data.shifts.length >= view.data.shift_limit ? (
+              <p className="field-hint">{t('truncatedNote', { limit: view.data.shift_limit })}</p>
             ) : null}
           </section>
 
