@@ -39,3 +39,31 @@ PRIVACY: the recording is of a real person using a real phone and may show notif
 other apps or his name. It must NOT be committed to the public repo, and anything quoted
 from it in a report goes in redacted. Treat it like the earlier demo footage.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Already downloaded — do NOT fetch it again
+
+The recording is on disk. Downloading it again from Telegram wastes a session round trip and
+risks pulling a different message.
+
+```
+.field-recordings/balint-2026-08-11-first-android-field-test.mp4
+  144.9 s · 9.6 MB · h264 + aac (2ch)
+  Telegram msg id 1736834, chat 6566785488 (Balint, @arvidenchi)
+  sent 2026-08-11T19:10:02Z  =  21:10 Vienna
+```
+
+**THE TIMESTAMP IS THE POINT.** 21:10 Vienna falls between shift 7 opening (21:02) and it
+being closed by hand from the admin panel (21:12). So this recording covers the stuck
+clock-out window itself, not the successful clock-in that preceded it.
+
+`.field-recordings/` is gitignored (`.gitignore:35`) and must stay that way: this is a real
+person's screen. Do not commit it, do not copy it into `docs/media/`, and redact anything
+quoted from it.
+
+AN AUDIO TRACK EXISTS (aac, 2 channels, full 144.8 s) but its CONTENT IS UNVERIFIED — nobody
+has listened to it. It may be silence, ambient noise, or him narrating. Establish which
+before drawing any conclusion from it, and do not report "no voice" merely because a
+loudness probe returned nothing useful on the first attempt.
+
+Only ONE video was found, in the last 60 messages of that chat. If the analysis needs more,
+scan further back rather than assuming this is all of it.

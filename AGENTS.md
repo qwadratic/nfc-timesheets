@@ -107,6 +107,42 @@ Decision checklist (keep updated as decisions are added):
   `worker_rate_changes`). Payroll and the reports resolve the rate from the SAME source.
   Rate changes are "raise" (forward-dated) or "correction" (retroactive, reason required)
   (decision-30, supersedes decision-28)
+- **PROPOSED** — multi-tenancy is a SHARED SCHEMA with `tenant_id`, isolation enforced by
+  Postgres RLS `FORCE` + composite FKs + tenant-scoped uniques, never by predicates in
+  application SQL (the ~110 existing SQL clauses change zero characters). Runtime role
+  `nfc_app` is NOT the table owner; context is `set_config('app.tenant_id', …, true)` inside a
+  transaction via `withTenant()` (`AsyncLocalStorage`, stdlib); `query()` THROWS outside a
+  context. The tenant is never in the URL, a header or a body — it comes from the session row
+  (decision-32, extends decision-22, fires decision-15's tag-domain revisit trigger).
+  Design: `backlog/docs/MULTI-TENANCY.md`
+- **PROPOSED, not yet accepted** — a zone is a `locations` row with `parent_id` (depth capped
+  at ONE). The tag URI, both `TagLink` parsers and `shifts.location_id` are UNCHANGED; a
+  building-level shift means "Gebäude gesamt" and is never a null; there is no zone picker at
+  clock-in; money/contracts/geocoding stay at the building; area is `area_dm2` integer;
+  `auto_closed` fires only ACROSS buildings, decided server-side (decision-33)
+- **PROPOSED** — m²/hour is a planning figure about PLACES, never a rating of people: per zone
+  only, suppressed below n=5, unresolved auto-closed shifts excluded, outlier segments shown
+  as excluded. No per-worker productivity screen (decision-34)
+- **PROPOSED** — in-app tag writing is a server-minted, single-use, single-location token (not
+  a "mode"); Android ships first; the iOS `formats=["TAG"]` entitlement ships in a build of its
+  OWN because 90778 blocked everything last time; capacity is checked before every write and a
+  refusal offers NTAG213 or serial adoption; every write is read back through the production
+  `TagLink` parser; tags are NEVER locked (decision-35)
+- **PROPOSED** — the in-admin chat assistant is a **catalogue of registered capabilities**, not a
+  model with database access. "Is this SQL safe" is undecidable (a `WITH … DELETE … RETURNING`
+  CTE is a statement beginning `WITH` that deletes payroll history), so classification is by
+  capability identity. Reads are bounded by a **`GRANT`, not a regex**: role `nfc_assistant`
+  (NOBYPASSRLS, not the owner, `default_transaction_read_only`, `statement_timeout 3s`) holds
+  `SELECT` on nine `asst_*` views and nothing else. **The assistant has no write path of its own** —
+  an approved proposal calls the same `/admin/*` handler a click calls, so its blast radius is a
+  director's click and not one byte more. Deleting shift history stays impossible for two
+  independent reasons (no such endpoint among the 29 routes; a read-only role). Tier D is refused
+  outright with no approval path. **The model never computes a number, it phrases one SQL
+  computed**, guarded by a numeral-set verifier. The prompt is EGRESS: `scrub.js` reused verbatim
+  plus pseudonymisation, and the provider is an Art 28 sub-processor that blocks production
+  enablement until the DPA exists. Zero model calls on page load. Zero new dependencies
+  (decision-36, extends decision-23's budget and decision-30's audit trail).
+  Design: `backlog/docs/ADMIN-ASSISTANT.md`
 
 Decisions can only be changed by creating a new decision record that supersedes the old one.
 
@@ -129,6 +165,41 @@ them. No hardcoded user-visible strings.
 
 <!-- BACKLOG.MD GUIDELINES START -->
 <CRITICAL_INSTRUCTION>
+
+## Local agent sessions do NOT implement
+
+A local agent session is for **thinking, recording and reviewing** — never for building.
+
+ALLOWED locally, ad hoc:
+- backlog reads and updates: task create/edit/label/move, triage, dependency notes
+- decision records, design docs, research write-ups, reports
+- issue creation, PR review runs, commenting, labelling
+- reading production READ-ONLY to establish facts
+- commits that contain ONLY the above
+
+FORBIDDEN locally:
+- long-running implementation workflows
+- commits that change application behaviour — server routes, web components, iOS/Android
+  source, migrations, ops scripts
+- deploys
+
+THE TEST, applied to the commit and not to the intention: if reverting it would change what
+a user sees or what the server does, it is implementation, and it does not happen here.
+
+WHY: implementation runs are long, expensive and hard to supervise from a laptop. They fan
+out across files that cannot survive concurrent editors, they collide with hand edits, and a
+`git add -A` mid-run has already swept an unrelated agent's half-written work into a commit
+whose message described something else entirely. Documentation work is cheap to review,
+cheap to revert and safe to interleave.
+
+WHEN A REQUEST NEEDS IMPLEMENTATION: do not start it. Write the task with enough precision
+that an executor elsewhere can act without re-deriving the context — the measured current
+state, the constraint that makes it non-obvious, the acceptance evidence, and what must not
+regress. Then say plainly that it is queued, not done. A half-built feature is worse than an
+unstarted one, because it looks finished.
+
+An explicit, specific instruction from the owner to build something right now overrides this.
+Ambiguity does not.
 
 ## Backlog.md Workflow
 

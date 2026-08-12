@@ -22,7 +22,7 @@ the demo API — reproduced here so no row is a fragment:
 psql -q -d nfc_demo -f demo/seed.sql
 DATABASE_URL=postgres:///nfc_demo node demo/make-admin.mjs
 cd server && DATABASE_URL=postgres:///nfc_demo \
-  APP_KEY=tsk_9880d49f83794967790deb8a2c8f3dd46633cc78104c2f65 \
+  APP_KEY="$(sed -n "s/^ts\.appKey=//p" android/branding.properties)" \
   PORT=8082 PUBLIC_DIR=../web/out node server.js &
 cd ..
 ```
@@ -30,6 +30,7 @@ cd ..
 | Artefact | Exact command | Needs | Time |
 |---|---|---|---|
 | `admin-walkthrough.mp4` + the 11 `admin-*.png` | «stack» then `node demo/record-admin.mjs` | Chrome | ~3 min |
+| `admin-ux-walkthrough.mp4` + `admin-phone-*.png` + `admin-linkfilter.png` | «stack» then `node demo/record-admin-ux.mjs` — **full notes in `DEMO-ADMIN-UX.md`** | Chrome | ~7 min |
 | `ios-journey.mp4` + `ios-signin/shift/badge/closed.png` | «stack» then `sh demo/ios-setup.sh` then `node demo/record-ios.mjs` | Xcode, booted simulator | ~2 min |
 | `android-journey.mp4` + `android-signin/shift/notification/closed.png` | «stack» then `node demo/tls-front.mjs &` then `sh demo/android-setup.sh` then `node demo/record-android.mjs` | `JAVA_HOME`, `ANDROID_HOME`, running emulator | ~3 min |
 | `both-devices.mp4` + `before-ios-shift.png` | «stack» then `node demo/record-ios.mjs && node demo/record-android.mjs && node demo/compose-devices.mjs` | both of the above | ~6 min |
@@ -96,17 +97,25 @@ Build the panel and serve it from the API, same origin, exactly as production do
 cd web && NEXT_PUBLIC_API_BASE_URL="" NEXT_PUBLIC_DEFAULT_LOCALE=de pnpm build && cd ..
 
 cd server && DATABASE_URL=postgres:///nfc_demo \
-  APP_KEY=tsk_9880d49f83794967790deb8a2c8f3dd46633cc78104c2f65 \
+  APP_KEY="$(sed -n "s/^ts\.appKey=//p" android/branding.properties)" \
   PORT=8082 PUBLIC_DIR=../web/out node server.js &
 cd ..
 ```
 
 Two notes on those two lines:
 
-- **`APP_KEY` is the value in `android/branding.properties` and `API.swift`**, on purpose.
-  It is committed in cleartext there and is not a secret (it is compiled into every APK).
-  Using it means the shipping app binaries talk to the demo server with **no rebuild and no
-  edit** — which is the only reason the Android clip is of the real app.
+- **`APP_KEY` is read out of `android/branding.properties`**, on purpose, and is deliberately
+  no longer typed out anywhere in this repository except that one file. It is committed in
+  cleartext there and is not a secret (it is compiled into every APK, and `.gitleaks.toml`
+  allowlists the `tsk_` prefix for that reason). Using it means the shipping app binaries talk
+  to the demo server with **no rebuild and no edit** — which is the only reason the Android
+  clip is of the real app.
+
+  It used to be pasted into this document twice, and `psst scan` flagged both lines every time
+  anybody staged this file, because the same string is in the vault under `APP_KEY`. A gate
+  that has to be bypassed to commit a documentation change is a gate that is off, so the value
+  is substituted from its one source instead. `demo/record-admin-ux.mjs` reads the same file
+  the same way.
 - **Port 8082, not 8080.** Nothing sacred about it; 8080 was taken on the machine this was
   written on. If you change it, change `DEMO_BASE` / `DEMO_API` and `tls-front.mjs`'s
   `--upstream` with it.
@@ -503,9 +512,17 @@ two recorders refuse to.
 ## Check
 
 ```sh
-sh demo/check-guards.sh      # 16 checks, ~3 s
+sh demo/check-guards.sh      # 24 checks, ~3 min
 node demo/check-captions.mjs # caption band, ~1 s
+node demo/check-record.mjs   # the two frame cadences + the viewport override, ~8 s (needs «stack»)
 ```
+
+**All five recorder checks now match the refusal WORDING, not the exit code.** They used to be
+plain `if cmd; then fail`, and that was a false pass: with the loopback guard deleted,
+`DEMO_BASE=https://timesheets.exe.xyz node demo/record-admin.mjs` still exits non-zero, because
+it reaches the live host and is refused a session there. The check reported *ok* for a run that
+had already left the machine — the same defect the four database checks below were written
+against. Verified by deleting the guard: 3 FAIL.
 
 `check-guards.sh` runs every refusal for real — the seed and the admin-maker against a
 throwaway database that is *not* `nfc_demo`, and the two recorders plus the TLS front
@@ -548,6 +565,7 @@ both on the boundary frame — two overprinted lines, once in `both-devices.mp4`
 | `demo/burnin.mjs` | the caption band, shared by all four recorders; measures each line and shrinks it rather than letting `drawtext` clip it |
 | `demo/journey.mjs` | the one worker journey, as stages, so the two device clips are the same story told twice |
 | `demo/record-admin.mjs` | the admin walkthrough and its stills; asserts it covered every sidebar screen |
+| `demo/record-admin-ux.mjs` | the UX walkthrough: the panel and the same panel at 390 px, side by side, with a mocked tap in the middle. Gates its own pacing, pane alignment and viewport size — `DEMO-ADMIN-UX.md` |
 | `demo/tls-front.mjs` | throwaway HTTPS in front of the demo API, for the phone. Loopback on both sides |
 | `demo/android-setup.sh` | points the emulator at the demo server; touches nothing on the Mac |
 | `demo/record-android.mjs` | the Android journey, with captions burned in |
@@ -557,3 +575,4 @@ both on the boundary frame — two overprinted lines, once in `both-devices.mp4`
 | `demo/compose-devices.mjs` | the two clips side by side, plus the before / after cards |
 | `demo/check-guards.sh` | proves every refusal still refuses — 16 cases, matched on wording |
 | `demo/check-captions.mjs` | proves no frame carries two captions |
+| `demo/check-record.mjs` | proves `cdp.mjs` still lays a timeline out correctly in both cadences, and that `setViewport` imposes an exact viewport. The way its failures show up otherwise is a three-minute film that plays as a two-second flicker, which is only visible after a full re-record |

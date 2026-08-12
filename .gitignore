@@ -30,3 +30,6 @@ xcuserdata/
 # obsolete: legacy demo video (pre decision-20/22) and GitHub Pages AASA (superseded by decision-4)
 video/
 pages/
+
+# Field recordings from real testers: real screens, real people. Never committed.
+.field-recordings/

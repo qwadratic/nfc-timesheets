@@ -4,7 +4,7 @@ title: 'Sentry is shipped but blind: SENTRY_DSN is unset in production'
 status: To Do
 assignee: []
 created_date: '2026-08-04 17:59'
-updated_date: '2026-08-12 05:05'
+updated_date: '2026-08-12 06:14'
 labels:
   - ops
   - telemetry
@@ -31,7 +31,10 @@ That default is right for a repo. It is wrong for the one machine that runs payr
 - [ ] #3 SENTRY_ENVIRONMENT set so production is distinguishable from a laptop
 - [ ] #4 The DSN is in the psst vault as well as on the VM, so a rebuild does not lose it
 - [ ] #5 Confirm scrubbing still holds with a real DSN: no identityToken, X-App-Key, cookie or password_hash leaves the box
+- [ ] #6 The installed unit is also wrong: it runs `node server.js` with no --import ./instrument.mjs, so a DSN alone still yields zero traces. TASK-112 owns the unit drift and its check - this task is NOT done until that one is
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
