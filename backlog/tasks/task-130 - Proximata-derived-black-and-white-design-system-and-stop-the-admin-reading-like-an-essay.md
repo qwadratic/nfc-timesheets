@@ -101,3 +101,36 @@ Two things to establish before designing, because guessing either wastes the pas
 Where this leaves the earlier instruction: the admin still wants to feel Proximata-made, and
 the cleaning company's own customers should see Schimmer und Glanz. Those are two audiences
 and probably two surfaces - say which is which before writing tokens.
+
+## The real brand was found, and DESIGN.md now exists
+
+`docs/brand/DESIGN.md` is the spec. Assets in `docs/brand/site/`. Do not re-derive any of this.
+
+Company: **Schimmer & Glanz Gebaeudereinigung GmbH**, Vienna. Site schimmer-wien.at (WordPress
++ Astra, live 06/2025), Facebook /Schimmerundglanz/, firmenabc BBXLC, herold DFbhP. Meisterbetrieb.
+Named clients include Rapid and EVN.
+
+MEASURED from the official logo asset, 500x208, counted pixel by pixel:
+
+```
+#000000 · #ACACAC · #FFFFFF        saturation exactly 0.00
+```
+
+**The brand is achromatic.** The sage green in the photo of the office sign was JPEG artefact
+under office lighting - twenty pixels, absent from the vector asset. So there is NO accent
+colour to inherit: every accent is invented by us, which is a licence and a debt.
+
+The website has no design system to extract either - its CSS is `#007cba` (WordPress admin
+blue) plus Astra defaults. Copying it would produce precisely the templated look this task
+exists to avoid.
+
+Direction, decided: flat, dark by default, one hue (190, cyan-teal) expressed as NEON on dark
+`oklch(0.82 0.16 190)` and PASTEL on light `oklch(0.72 0.09 190)`. Same hue, re-tuned per
+theme, because a single fixed accent cannot read correctly in both. OKLCH because it is
+perceptually uniform and hand-tuned HSL is what makes ramps look uneven.
+
+The greyscale test is the acceptance criterion for the five domain states: desaturate the
+screenshot and the table must still be readable. Colour is always the SECOND signal.
+
+STILL BLOCKING: vector artwork. Everything measured so far comes from a 500x208 raster, which
+is fine for tokens and wrong for anything printed or rendered large.
