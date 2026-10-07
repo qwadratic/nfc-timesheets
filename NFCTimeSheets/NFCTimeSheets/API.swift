@@ -206,6 +206,12 @@ struct APIFailure: Error {
             // decision-47 / server/lib/validate.js requireVerifiedPlace. Same wording as
             // Android's err_zone_unverified - one sentence across both phones.
             return String(localized: "This tag hasn't been activated yet. No shift was started. Please contact your administration.")
+        case "tag_unbound":
+            // server/lib/validate.js activePlace: the card was written and reported but nobody
+            // has made it a zone yet. TERMINAL, like Android's err_tag_unbound - the same
+            // sentence on both phones (decision-76 §4). Before this case iOS fell through to
+            // "Rejected by the server (tag_unbound)", which reads as a broken card.
+            return String(localized: "This tag isn't assigned to a building yet. No shift was started. Please contact your administration.")
         case "too_many_attempts":
             return String(localized: "Too many attempts - try again shortly.")
         default:

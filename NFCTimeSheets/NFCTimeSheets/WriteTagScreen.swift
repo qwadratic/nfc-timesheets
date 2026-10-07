@@ -50,7 +50,10 @@ struct WriteTagScreen: View {
     /// error CODE rather than a sentence, because the sentence belongs next to the field.
     private enum ZoneState: Equatable {
         case idle, loading, picking, submitting
-        case created(String)
+        /// The zone's id and whether it has a building are KEPT, not just the sentence:
+        /// the button below needs the id to open that zone's test, and the hint is only true
+        /// for a bound one (decision-76 §3).
+        case created(zoneId: String, bound: Bool, message: String)
         case failed(String)
     }
 
@@ -189,8 +192,22 @@ struct WriteTagScreen: View {
                 .font(.footnote)
                 .accessibilityLabel(zoneText)
             switch zone {
-            case .idle, .loading, .submitting, .created:
+            case .idle, .loading, .submitting:
                 EmptyView()
+            case .created(let zoneId, let bound, _):
+                // WRITING NEVER ACTIVATES A ZONE (decision-47): a zone created with a building
+                // is still not a clock-in target until its card is test-scanned. Android has
+                // said so, with a button straight into that test, since PR 7; without it an
+                // operator walks away believing the door works and the first worker's tap is
+                // refused (decision-76 §3). An unbound zone has nothing to test yet, so its
+                // button leads to the building picker instead.
+                if bound {
+                    Text("The card is written. One test is still needed before anyone can clock in: open the test and hold the same card to the phone again.")
+                        .font(.footnote)
+                }
+                NavigationLink(bound ? "Activate this card" : "Assign a building") {
+                    VerifyZoneScreen(preselectZoneId: zoneId)
+                }
             case .picking, .failed:
                 TextField("Zone name", text: $zoneName)
                     .autocorrectionDisabled()
@@ -322,7 +339,8 @@ struct WriteTagScreen: View {
                 tagId: reportedId,
                 name: zoneName.trimmingCharacters(in: .whitespacesAndNewlines),
                 locationId: pickedLocationId)
-            zone = .created(created.locationId == nil
+            zone = .created(zoneId: created.id, bound: created.locationId != nil,
+                            message: created.locationId == nil
                             ? String(localized: "Zone created: \(created.name). No building yet - bind it in Test a tag.")
                             : String(localized: "Zone created: \(created.name)."))
         } catch let failure as APIFailure {
@@ -341,7 +359,7 @@ struct WriteTagScreen: View {
                 ? String(localized: "Name this door. No buildings loaded - the zone will be created without one.")
                 : String(localized: "Name this door and pick its building, or skip the building for now.")
         case .submitting: return String(localized: "Creating the zone…")
-        case .created(let message): return message
+        case .created(_, _, let message): return message
         case .failed(let code):
             switch code {
             case "duplicate_zone_name": return String(localized: "That building already has a zone with this name.")

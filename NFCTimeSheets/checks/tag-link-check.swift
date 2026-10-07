@@ -108,6 +108,16 @@ check(!APIFailure(status: 422, code: "unknown_worker").isRetryable, "422 termina
 check(APIFailure(status: 422, code: "zone_unverified").isRetryable,
       "422 zone_unverified retryable - a temporary server-config state, not a bad payload")
 
+// 422 tag_unbound (server/lib/validate.js activePlace; decision-76 §4): the card was written
+// and reported but nobody has made it a zone. TERMINAL - no retry can make a card a zone -
+// and it must read as "not assigned yet", never as the generic "Rejected by the server (...)"
+// that made a half-finished card look like a broken one.
+let tagUnbound = APIFailure(status: 422, code: "tag_unbound")
+check(!tagUnbound.isRetryable, "422 tag_unbound is terminal")
+check(tagUnbound.workerMessage == "This tag isn't assigned to a building yet. No shift was started. Please contact your administration.",
+      "422 tag_unbound has its own sentence: \(tagUnbound.workerMessage)")
+check(!tagUnbound.workerMessage.contains("tag_unbound"), "the worker never sees the raw code")
+
 // ContentView.handleTap no longer checks the LOCAL roster cache before recording a tap -
 // that guard refused valid tags on a cold launch, before any roster fetch had finished,
 // and cost the worker paid time at the door. The SERVER is authoritative for whether a

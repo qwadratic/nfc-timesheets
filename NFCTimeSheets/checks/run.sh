@@ -64,6 +64,10 @@ run write-tag-step-check "$SRC/WriteTagStep.swift"
 # SERVER mints, read out of server/lib/enrolment.js rather than copied. Android's
 # core-check.kt has the twin of this; the two must never disagree.
 run enrolment-code-check "$SRC/EnrolmentCode.swift"
+# decision-76: a card that was written and reported but never made a zone is finished from
+# Test a tag, and the scan that found it is also its test scan. Pins the ORDER (resolve, then
+# verify with the id read off the card) and that Skip makes no verify call.
+run finish-card-check   "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/FinishCard.swift"
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

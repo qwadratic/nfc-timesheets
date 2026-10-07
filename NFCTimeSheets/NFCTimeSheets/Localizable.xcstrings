@@ -205,6 +205,16 @@
         }
       }
     },
+    "Activate this card" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte jetzt aktivieren"
+          }
+        }
+      }
+    },
     "Already verified %@." : {
       "localizations" : {
         "de" : {
@@ -261,6 +271,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Etwas anfordern"
+          }
+        }
+      }
+    },
+    "Assign a building" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Objekt zuordnen"
           }
         }
       }
@@ -583,6 +603,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Schicht ohne Tag beenden"
+          }
+        }
+      }
+    },
+    "Finish this card" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte fertigstellen"
           }
         }
       }
@@ -2044,6 +2074,16 @@
         }
       }
     },
+    "The card is written. One test is still needed before anyone can clock in: open the test and hold the same card to the phone again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Karte ist geschrieben. Zum Einstempeln fehlt noch der Test: Öffnen Sie die Prüfung und halten Sie dieselbe Karte erneut ans Telefon."
+          }
+        }
+      }
+    },
     "The clock starts now and this is marked for the office to review. Use the tag when you can." : {
       "localizations" : {
         "de" : {
@@ -2274,12 +2314,12 @@
         }
       }
     },
-    "This card was reported but nobody has claimed it yet. Ask an admin." : {
+    "This card was reported but isn't a zone yet. Use Test any card to finish it." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Karte wurde gemeldet, aber noch niemand hat sie zugeordnet. Fragen Sie eine Verwaltungsperson."
+            "value" : "Diese Karte wurde gemeldet, ist aber noch keine Zone. Schließen Sie sie unter „Beliebige Karte testen“ ab."
           }
         }
       }
@@ -2450,6 +2490,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dieses Tag ist schreibgeschützt gesperrt."
+          }
+        }
+      }
+    },
+    "This tag isn't assigned to a building yet. No shift was started. Please contact your administration." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Tag ist noch keinem Objekt zugeordnet. Es wurde keine Schicht gestartet. Bitte bei der Verwaltung melden."
           }
         }
       }
@@ -2710,6 +2760,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wird geschrieben"
+          }
+        }
+      }
+    },
+    "With a building, this scan also tests the card, so workers can clock in right away." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Objekt gilt dieser Scan zugleich als Test der Karte – Mitarbeiter können danach sofort einstempeln."
           }
         }
       }
