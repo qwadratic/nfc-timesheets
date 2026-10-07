@@ -78,6 +78,12 @@ run worker-scope-check  "$SRC/WorkerScope.swift"
 # Test a tag, and the scan that found it is also its test scan. Pins the ORDER (resolve, then
 # verify with the id read off the card) and that Skip makes no verify call.
 run finish-card-check   "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/FinishCard.swift"
+# decision-80 / TASK-365.5 (iOS P4): the worker's PLANNED assignments are a picture, never an input. The wire
+# (lenient per row, location_id never decoded), Europe/Vienna time with the device zone set to four others,
+# the stale-answer / worker-change / cancel guard, the REAL store with an injected fetch, and the screens read
+# as text: display only (not in refresh, the tap, sync or signals), no surface of their own, both languages,
+# German = Android's verbatim. Reads checks' sources, the catalogue and ../android off disk.
+run schedule-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/ViennaTime.swift" "$SRC/ScheduleStore.swift"
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

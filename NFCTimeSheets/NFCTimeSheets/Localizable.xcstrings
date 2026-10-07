@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ · %@–%@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@–%3$@"
+          }
+        }
+      }
+    },
     "%@ at %@" : {
       "localizations" : {
         "de" : {
@@ -53,6 +63,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ – %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "%@, %@ – %@, %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@ – %3$@, %4$@"
           }
         }
       }
@@ -211,6 +231,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Karte jetzt aktivieren"
+          }
+        }
+      }
+    },
+    "All upcoming assignments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle kommenden Einsätze"
           }
         }
       }
@@ -421,6 +451,16 @@
         }
       }
     },
+    "Close" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        }
+      }
+    },
     "Code not accepted. Ask your admin for a new one." : {
       "localizations" : {
         "de" : {
@@ -473,6 +513,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corrected"
+          }
+        }
+      }
+    },
+    "Could not load assignments without a connection." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze konnten ohne Verbindung nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Could not load assignments." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze konnten nicht geladen werden."
           }
         }
       }
@@ -819,6 +879,16 @@
         }
       }
     },
+    "Loading assignments …" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze werden geladen …"
+          }
+        }
+      }
+    },
     "Loading buildings…" : {
       "localizations" : {
         "de" : {
@@ -945,6 +1015,26 @@
         }
       }
     },
+    "My schedule" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Einsätze"
+          }
+        }
+      }
+    },
+    "Next planned assignment" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächster geplanter Einsatz"
+          }
+        }
+      }
+    },
     "NFC TimeSheets" : {
       "localizations" : {
         "de" : {
@@ -1001,6 +1091,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nächste Seite"
+          }
+        }
+      }
+    },
+    "No assignments planned for the next 31 days." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für die nächsten 31 Tage sind keine Einsätze geplant."
           }
         }
       }
@@ -1327,6 +1427,16 @@
         }
       }
     },
+    "Planned · Clock in separately" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geplant · Arbeitszeit separat erfassen"
+          }
+        }
+      }
+    },
     "Present the card again to overwrite %@." : {
       "localizations" : {
         "de" : {
@@ -1407,6 +1517,16 @@
         }
       }
     },
+    "Refresh assignments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze aktualisieren"
+          }
+        }
+      }
+    },
     "Rejected by the server (%@). Ask your admin." : {
       "localizations" : {
         "de" : {
@@ -1483,6 +1603,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Läuft"
+          }
+        }
+      }
+    },
+    "Show less" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weniger anzeigen"
           }
         }
       }
@@ -2710,6 +2840,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Geprüft. Diese Tür ist jetzt ein gültiges Ziel zum Einstempeln."
+          }
+        }
+      }
+    },
+    "View" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansehen"
           }
         }
       }

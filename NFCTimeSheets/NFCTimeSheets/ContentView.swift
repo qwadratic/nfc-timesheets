@@ -268,6 +268,12 @@ struct LogView: View {
     @State private var scanner = TapScanner()
     @State private var scanError: String?
     @State private var scanning = false
+    /// decision-80: the worker's PLANNED assignments, for the two schedule rows and nothing else.
+    /// Held HERE so the idle list and the running screen show one answer, and so it dies with this
+    /// view: on sign-out, on a 401 and (through `.id(worker.id)` on the TabView) on a change of
+    /// worker. DISPLAY ONLY - nothing on the tap path, in `refresh()`, in the sync pass or in the
+    /// signals reads it, and `loadSchedule()` is its one trigger (see ScheduleStore.swift).
+    @State private var schedule = ScheduleStore()
 
     /// The row a tap toggles and the running screen shows: THIS worker's newest open row. Another
     /// account's forgotten open row is not it (WorkerScope.openShift) - B's first tap must start
@@ -325,6 +331,16 @@ struct LogView: View {
     }
 
     var body: some View {
+        // decision-80: the schedule is asked for every time this tab appears (a return from
+        // another tab, the first appearance). It sits on the NavigationStack and not on the Group
+        // inside it, because that Group swaps between the idle list and the running screen, and
+        // starting or finishing a shift is not a reason to ask again. A return to the foreground
+        // is the other trigger (the scenePhase handler below); a retry is the third.
+        content
+            .onAppear { loadSchedule() }
+    }
+
+    private var content: some View {
         NavigationStack {
             // TWO SHAPES, and which one is on screen is the entire point of this work.
             // Idle: a list of recent shifts with a hint at the bottom. Running: a
@@ -338,7 +354,9 @@ struct LogView: View {
                                 notice: switchNotice,
                                 onDismissNotice: { switchNotice = nil },
                                 onManualStop: manualStop,
-                                onScan: scan)
+                                onScan: scan,
+                                schedule: schedule.state,
+                                onReloadSchedule: loadSchedule)
                 } else {
                     idleList
                 }
@@ -392,8 +410,20 @@ struct LogView: View {
                     await refreshRoster(context: context)
                     armIfStillCurrent()
                 }
+                // decision-80: last, and not awaited - the plan is a picture, never a reason to
+                // hold the arm or the roster pass back.
+                loadSchedule()
             }
         }
+    }
+
+    /// decision-80. Ask the server for THIS worker's plan. Returns at once: the request is its own
+    /// Task inside the store, concurrent with and never inside `refresh()` / the sync pass, and
+    /// nothing on the tap path calls this. The session is asked again after the await, so an
+    /// answer for a worker who has since signed out or been replaced is dropped.
+    private func loadSchedule() {
+        let session = session
+        schedule.load(for: worker.id) { session.worker?.id }
     }
 
     /// The app with no shift running: unchanged from before this screen split.
@@ -407,6 +437,11 @@ struct LogView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+            }
+            // decision-80: the collapsed "Next planned assignment" row. Above Recent, because on this
+            // screen Recent sits above the scan block (Android puts it after the start card).
+            Section {
+                ScheduleSummary(state: schedule.state, retry: loadSchedule)
             }
             Section("Recent") {
                 if recent.isEmpty { Text("No completed shifts yet.").foregroundStyle(.secondary) }

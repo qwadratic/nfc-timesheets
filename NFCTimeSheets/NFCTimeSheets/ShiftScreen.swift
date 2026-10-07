@@ -37,6 +37,12 @@ struct ShiftScreen: View {
     /// It resolves a tag and posts it to TapInbox - the same mailbox the background tap
     /// uses - so this button opens no shift logic of its own.
     let onScan: () -> Void
+    /// decision-80: the worker's PLANNED assignments, for display and nothing else - this screen
+    /// never branches on them, and the tap, the sync and the signals know nothing about them. The
+    /// state and the reload closure come from LogView's ScheduleStore, so the idle list and this
+    /// screen show one answer.
+    let schedule: ScheduleState
+    let onReloadSchedule: () -> Void
 
     @Environment(ShiftSignalCenter.self) private var signals
     @Environment(\.openURL) private var openURL
@@ -83,6 +89,7 @@ struct ShiftScreen: View {
                     if let notice { noticeCard(notice) }
                     if unresolvedCount > 0 { resolverCard }
                     if signals.outOfAppSignalsSilenced { notificationsOffCard }
+                    scheduleCard
                     helpCard
                 }
                 .frame(maxWidth: .infinity)
@@ -277,6 +284,17 @@ struct ShiftScreen: View {
                 if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
             }
             .buttonStyle(.bordered)
+        }
+    }
+
+    /// The collapsed "Next planned assignment" row. The label stays the same even when the first
+    /// assignment is the one being worked (Android: no in-progress state on a plan). The row's
+    /// expanded flag lives in ScheduleSummary's own @State, so the once-a-minute TimelineView
+    /// redraw of this whole screen cannot fold it. THE CARD IS THIS SCREEN'S: ScheduleSummary
+    /// brings no surface of its own.
+    private var scheduleCard: some View {
+        card(icon: "calendar", tint: .secondary) {
+            ScheduleSummary(state: schedule, retry: onReloadSchedule)
         }
     }
 
