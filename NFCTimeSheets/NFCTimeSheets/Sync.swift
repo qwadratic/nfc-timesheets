@@ -49,6 +49,9 @@ func refreshRoster(context: ModelContext) async {
     // hardware-UID rows the old build cached) drop out.
     for site in existing where !wanted.contains(site.locationId) { context.delete(site) }
     try? context.save()
+    // The zones of the same answer (decision-43). Only reached on a SUCCESSFUL fetch (the
+    // guard above returns first), so a phone with no signal keeps the last zones it had.
+    RosterZones.shared.replace(with: roster.zones)
 }
 
 // MARK: - Feature flags

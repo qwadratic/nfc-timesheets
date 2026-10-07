@@ -28,12 +28,19 @@ struct MaterialsView: View {
     /// a request with no building is a perfectly good request.
     @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
     @Query private var sites: [Site]
+    @Environment(RosterZones.self) private var rosterZones
 
     @State private var typed = ""
     @FocusState private var writing: Bool
 
     private var openShift: Shift? { shifts.first(where: \.isOpen) }
-    private var contextLocationId: String? { openShift?.locationId }
+    /// The BUILDING of the open shift, never the zone that was tapped: POST /material-requests
+    /// validates its location against buildings only, so a zone id answers 422 and the row
+    /// stays blocked on the phone for ever. nil (building not cached yet) is a perfectly good
+    /// request, just one without a building (decision-43; see Zones.materialContext).
+    private var contextLocationId: String? {
+        openShift.flatMap { rosterZones.materialContext(of: $0.locationId, sites: sites) }
+    }
     private func siteName(_ id: String) -> String? { sites.first { $0.locationId == id }?.name }
 
     private var canSubmit: Bool { MaterialQueue.normalise(typed) != nil }
@@ -136,7 +143,7 @@ struct MaterialsView: View {
             // APNs certificate and no device-token table, so there is NO PUSH. This app
             // POLLS. Promising a notification to somebody who then does not get one is
             // the difference between a late delivery and a broken product.
-            Text(openShift == nil
+            Text(contextLocationId == nil
                  ? "The office reads these on the web. Open this tab to see when something arrives - your phone will not notify you."
                  : "Sent with the building you're clocked into now, so the office knows where you are. Open this tab to see when something arrives - your phone will not notify you.")
         }

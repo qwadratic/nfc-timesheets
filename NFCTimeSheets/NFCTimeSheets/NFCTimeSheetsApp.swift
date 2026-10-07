@@ -130,6 +130,9 @@ struct NFCTimeSheetsApp: App {
                 // and LogView.refresh) and it can never block a tap - see the header of
                 // ShiftSignalCenter.swift.
                 .environment(ShiftSignalCenter.shared)
+                // Which building each zone belongs to (decision-43). Read for names and for
+                // the same-building rule; never a gate on a tap.
+                .environment(RosterZones.shared)
                 // Cached worker first, server's verdict second. A worker deactivated in
                 // the admin panel is signed out here, on their next launch.
                 //

@@ -220,6 +220,7 @@ struct LogView: View {
     @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
     @Query private var sites: [Site]
     @Environment(ShiftSignalCenter.self) private var signals
+    @Environment(RosterZones.self) private var rosterZones
     @Environment(\.scenePhase) private var scenePhase
     /// "Your open shift at A was finished and one at B was started." A CARD, not an
     /// alert: SwiftUI silently drops one of an alert and a sheet presented together, so
@@ -274,8 +275,11 @@ struct LogView: View {
     }
     /// "Unknown location" until the roster arrives, and that is fine: a missing name is
     /// cosmetic, a missing shift is unpaid work. Nothing branches on this string.
+    ///
+    /// A shift row keeps the id that was TAPPED, which is a zone id for every zone card, so the
+    /// name is the zone's BUILDING (decision-43) - see Zones.buildingName.
     private func siteName(_ id: String) -> String {
-        sites.first { $0.locationId == id }?.name ?? String(localized: "Unknown location")
+        rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
     }
 
     var body: some View {
@@ -339,6 +343,13 @@ struct LogView: View {
                 guard phase == .active else { return }
                 signals.arm(for: currentRunning())
                 Task { await signals.refreshAuthorization() }
+                // A zone created while the app was in the background is not in the cache yet.
+                // Silent on failure, never awaited before the arm above, never a gate on a
+                // tap. Re-armed afterwards so the fixed-text reminders carry the real name.
+                Task {
+                    await refreshRoster(context: context)
+                    signals.arm(for: currentRunning())
+                }
             }
         }
     }
@@ -597,7 +608,11 @@ struct LogView: View {
         if let running = shifts.first(where: \.isOpen) {
             running.endTime = .now
             running.closeSyncedAt = nil
-            if running.locationId != locationId {
+            // BUILDINGS, not raw ids (decision-43): two zones of one building are one place.
+            // Without this a tap-out at the building's second door auto-closes the shift as
+            // "left without tapping out" and opens a new one, flagged for correction.
+            if Zones.buildingIdOf(running.locationId, zones: rosterZones.zones)
+                != Zones.buildingIdOf(locationId, zones: rosterZones.zones) {
                 // The worker left the last building without tapping out and is now at a
                 // new one. Auto-closing is the only non-deadlocking option: the server
                 // allows one open shift per worker, and they cannot walk back to the old
@@ -635,6 +650,15 @@ struct LogView: View {
         // "arm nothing" - never "reject the tap". checks/shift-signal-check.swift pins
         // this ordering by reading this function as text.
         signals.arm(for: currentRunning())
+
+        // A zone created after the last roster fetch is unknown to this phone until the next
+        // one. Its OWN task, started after the save and after the arm, so a slow or dead
+        // network can neither delay the clock-in nor the push below. The reminder ladder is
+        // fixed text, so it is armed once more when the real building name has arrived.
+        Task {
+            await refreshRoster(context: context)
+            signals.arm(for: currentRunning())
+        }
 
         write.data("ts.shift.action", action)
         write.data("ts.shift.client_uuid", touched.clientUuidString)
@@ -824,8 +848,9 @@ struct HistoryView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
     @Query private var sites: [Site]
+    @Environment(RosterZones.self) private var rosterZones
     private func siteName(_ id: String) -> String {
-        sites.first { $0.locationId == id }?.name ?? String(localized: "Unknown location")
+        rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
     }
 
     private var completed: [Shift] { shifts.filter { !$0.isOpen } }

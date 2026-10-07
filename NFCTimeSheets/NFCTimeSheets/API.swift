@@ -257,12 +257,52 @@ struct WireLocation: Codable, Identifiable, Hashable {
     let name: String
 }
 
+/// One zone of GET /roster (decision-43): a door inside a building. `id` is what a zone's
+/// card carries and what a tap posts; `locationId` is the BUILDING it belongs to.
+/// `tagSerial` is only ever present for a VERIFIED zone (server/routes/app.js, decision-47).
+struct WireZone: Codable, Hashable {
+    let id: String
+    let locationId: String
+    let name: String
+    let tagSerial: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case locationId = "location_id"
+        case tagSerial = "tag_serial"
+    }
+}
+
 /// GET /roster. The server also sends a `workers` array; it is deliberately NOT decoded.
 /// The app has no picker to fill any more (decision-22) and does not need a staff list on
 /// every phone - and leaving the field out means the day the server stops sending it, the
 /// location cache keeps decoding instead of the app forgetting every tag it knows.
+///
+/// `zones` IS DECODED LEAST-STRICTLY OF ALL, and that is the same fear stated one field
+/// over: a zone row this build cannot parse, or a server too old to send the key at all, must
+/// never cost the app its LOCATIONS. A missing key is an empty list; one malformed zone drops
+/// that zone and nothing else.
 struct WireRoster: Codable {
     let locations: [WireLocation]
+    let zones: [WireZone]
+
+    enum CodingKeys: String, CodingKey { case locations, zones }
+
+    init(locations: [WireLocation], zones: [WireZone] = []) {
+        self.locations = locations
+        self.zones = zones
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        locations = try container.decode([WireLocation].self, forKey: .locations)
+        zones = ((try? container.decode([LossyZone].self, forKey: .zones)) ?? []).compactMap(\.value)
+    }
+
+    private struct LossyZone: Decodable {
+        let value: WireZone?
+        init(from decoder: Decoder) throws { value = try? WireZone(from: decoder) }
+    }
 }
 
 /// The single shift shape every shift endpoint returns.

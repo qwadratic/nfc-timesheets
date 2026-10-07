@@ -64,6 +64,10 @@ run write-tag-step-check "$SRC/WriteTagStep.swift"
 # SERVER mints, read out of server/lib/enrolment.js rather than copied. Android's
 # core-check.kt has the twin of this; the two must never disagree.
 run enrolment-code-check "$SRC/EnrolmentCode.swift"
+# decision-43: which BUILDING a tapped zone belongs to - the names every list shows, the
+# same-building rule on the tap path, and the building a material request carries. Also pins
+# that a malformed or missing `zones` key in /roster can never cost the app its locations.
+run zones-check         "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/Zones.swift"
 # decision-76: a card that was written and reported but never made a zone is finished from
 # Test a tag, and the scan that found it is also its test scan. Pins the ORDER (resolve, then
 # verify with the id read off the card) and that Skip makes no verify call.

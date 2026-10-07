@@ -177,6 +177,40 @@ check(!handleTap.contains("requestAuthorization"),
 check(!handleTap.contains("try await") || handleTap.range(of: "try await")!.lowerBound > save!.upperBound,
       "nothing that can throw runs before the row is saved")
 
+// THE ROSTER REFRESH AFTER A TAP (decision-43). A zone created after the last roster fetch is
+// unknown until the next one, so the tap path refreshes it - as its OWN un-awaited Task, after
+// the save and after the arm, so a dead network can never delay or fail a clock-in.
+let refreshTask = handleTap.range(of: "await refreshRoster(context: context)")
+check(refreshTask != nil, "handleTap refreshes the roster after a tap so a brand-new zone gets its building name")
+check(refreshTask!.lowerBound > arm!.upperBound,
+      "the roster refresh comes AFTER the signal is armed and the row is saved, never before")
+let beforeRefresh = String(handleTap[..<refreshTask!.lowerBound])
+check(beforeRefresh.components(separatedBy: "Task {").count - 1 >= 1 && beforeRefresh.hasSuffix("") ,
+      "the refresh sits inside its own Task")
+check(!handleTap.contains("try await refreshRoster"), "the refresh is not on a throwing path")
+
+// SAME BUILDING, NOT SAME ID (decision-43): tapping out at a building's second zone must close
+// the shift, not auto-close it as a walk-away and open a new one.
+check(handleTap.contains("Zones.buildingIdOf(running.locationId, zones: rosterZones.zones)"),
+      "the tap compares the running shift's BUILDING, not its raw place id")
+check(!handleTap.contains("running.locationId != locationId"),
+      "...and the raw-id comparison that turned a second door into a switch is gone")
+
+// The foreground handler refreshes too: the app is the only place a zone created while it was
+// away can be learned, and it must re-arm so fixed-text reminders carry the real name.
+let foreground = view.components(separatedBy: ".onChange(of: scenePhase)").last!   // the LogView one: the outer view has its own
+    .components(separatedBy: "\n        }\n    }")[0]
+check(foreground.contains("await refreshRoster(context: context)") && foreground.contains("signals.arm("),
+      "coming back to the foreground refreshes the roster and re-arms")
+
+// MATERIALS: the server validates a request's building against BUILDINGS only, so the context
+// must come from Zones.materialContext, never straight off the shift's (zone) place id.
+let materialsView = try! String(contentsOfFile: "NFCTimeSheets/MaterialsView.swift", encoding: .utf8)
+check(materialsView.contains("rosterZones.materialContext(of:"),
+      "a material request's building is resolved through Zones.materialContext")
+check(!materialsView.contains("private var contextLocationId: String? { openShift?.locationId }"),
+      "...and the old line that sent the zone id (a guaranteed 422) is gone")
+
 // The recovery half of the same wire: adopting a shift the server knows about and this
 // phone does not must arm exactly like a fresh tap does (audit §4).
 let refresh = view.components(separatedBy: "private func refresh() async {")[1]
