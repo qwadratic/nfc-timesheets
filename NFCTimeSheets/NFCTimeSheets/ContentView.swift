@@ -319,7 +319,11 @@ struct LogView: View {
                      startTime: shift.startTime,
                      // decision-10: the server flagged it and no human has fixed it. The
                      // screen must then stop showing a running clock.
-                     serverAutoClosed: shift.autoClosed && shift.correctedAt == nil)
+                     serverAutoClosed: shift.autoClosed && shift.correctedAt == nil,
+                     // PRESENTATION ONLY: the start exists only on this phone until the
+                     // server has acknowledged it (Sync.pushOpen sets openSyncedAt). It picks
+                     // words - the screen's heading and the reminders' text - and nothing else.
+                     pendingConfirmation: shift.openSyncedAt == nil)
     }
     /// "Unknown location" until the roster arrives, and that is fine: a missing name is
     /// cosmetic, a missing shift is unpaid work. Nothing branches on this string.
@@ -355,6 +359,9 @@ struct LogView: View {
                                 onDismissNotice: { switchNotice = nil },
                                 onManualStop: manualStop,
                                 onScan: scan,
+                                syncError: openRow?.syncError,
+                                syncBlocked: openRow?.syncBlocked ?? false,
+                                onRefresh: { Task { await refresh() } },
                                 schedule: schedule.state,
                                 onReloadSchedule: loadSchedule)
                 } else {
@@ -638,7 +645,14 @@ struct LogView: View {
             "ts.location.id": running.locationId,
             "ts.shift.client_uuid": running.clientUuidString,
         ])
-        Task { await syncPending(context: context, workerId: worker.id) }
+        Task {
+            await syncPending(context: context, workerId: worker.id)
+            // Once the push has answered, state the world again. A stop has nothing left to
+            // word differently (the shift is closed, so this arms nothing), but it is the same
+            // rule as a tap's: every push is followed by one arm from the store, so the signals
+            // never disagree with the row the server has just acknowledged.
+            armIfStillCurrent()
+        }
     }
 
     #if DEBUG
@@ -827,6 +841,13 @@ struct LogView: View {
             // http.client span lands inside this transaction because it is scope-bound.
             let push = trace.child("function", "shift.push")
             await syncPending(context: context, workerId: worker.id)
+            // SIGNALS, AGAIN, now that the server has (or has not) answered. iOS freezes a
+            // notification's text when it is scheduled, and the arm above ran while this start
+            // was unacknowledged - so the ladder says "Not confirmed yet" until this re-arm
+            // says otherwise. It follows the push inside this un-awaited Task: it cannot delay
+            // the tap (already saved and armed) or the push (already done), and it is the
+            // session-guarded one, so a sign-out during the request is not undone.
+            armIfStillCurrent()
             if let serverId = touched.serverId { push.data("ts.shift.server_id", serverId) }
             push.data("ts.shift.outcome", outcome(of: touched))
             push.finish()

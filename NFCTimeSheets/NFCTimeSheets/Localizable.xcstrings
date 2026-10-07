@@ -103,6 +103,16 @@
         }
       }
     },
+    "%lld hours and %lld minutes recorded on this phone for %@. Not confirmed by the office yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld Stunden und %2$lld Minuten für %3$@ auf diesem Telefon erfasst. Noch nicht von der Verwaltung bestätigt."
+          }
+        }
+      }
+    },
     "%lld of %lld characters" : {
       "localizations" : {
         "de" : {
@@ -1225,6 +1235,26 @@
         }
       }
     },
+    "Not confirmed yet" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht bestätigt"
+          }
+        }
+      }
+    },
+    "Not confirmed yet: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht bestätigt: %@"
+          }
+        }
+      }
+    },
     "Not verified - see the app for details." : {
       "localizations" : {
         "de" : {
@@ -1517,6 +1547,16 @@
         }
       }
     },
+    "Refresh" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        }
+      }
+    },
     "Refresh assignments" : {
       "localizations" : {
         "de" : {
@@ -1603,6 +1643,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Läuft"
+          }
+        }
+      }
+    },
+    "Saved on this phone · not yet confirmed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Telefon gespeichert · noch nicht bestätigt"
           }
         }
       }
@@ -2724,6 +2774,16 @@
         }
       }
     },
+    "Time recorded on this phone" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokal erfasste Zeit"
+          }
+        }
+      }
+    },
     "TimeSheet" : {
       "localizations" : {
         "de" : {
@@ -3050,6 +3110,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ihre Schicht bei %@ hat 8 Stunden erreicht und wurde automatisch beendet. Öffnen Sie die App und bestätigen Sie, wann Sie tatsächlich fertig waren – sonst wird sie nicht bezahlt."
+          }
+        }
+      }
+    },
+    "Your time is saved on this phone. Open the app and check the message." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Zeit ist auf dem Telefon gespeichert. Öffnen Sie die App und prüfen Sie den Hinweis."
           }
         }
       }

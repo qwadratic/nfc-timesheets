@@ -106,20 +106,26 @@ final class ShiftSignalCenter {
     /// One-shot requests at +1h .. +8h, each with its own wording, the last one being the
     /// auto-close itself. Rungs already in the past are skipped - re-arming after a
     /// reinstall four hours into a shift schedules 5h, 6h, 7h and 8h and nothing else.
+    ///
+    /// THE WORDING IS FIXED HERE, when the request is added: iOS cannot rewrite a pending
+    /// notification's text later, so "Not confirmed yet" has to be re-armed away the moment the
+    /// server says yes (ContentView.handleTap / manualStop, after their push). Which rungs there
+    /// are and what each one says is ShiftSignal.ladder - pending first, for EVERY rung
+    /// including the 8h one - so that part is proven on a Mac; this only turns a rung into a request.
     private func scheduleLadder(for running: RunningShift, center: UNUserNotificationCenter) {
-        let now = Date.now
-        for hour in ShiftSignal.reminderHours {
-            let fireAt = running.startTime.addingTimeInterval(TimeInterval(hour) * 3600)
-            let delay = fireAt.timeIntervalSince(now)
-            guard delay > 0 else { continue }
-
+        for rung in ShiftSignal.ladder(for: running, now: .now) {
+            let hour = rung.hour
             let content = UNMutableNotificationContent()
-            if ShiftSignal.isAutoCloseWarning(hour: hour) {
+            switch rung.kind {
+            case .pending:
+                content.title = String(localized: "Not confirmed yet: \(running.locationName)")
+                content.body = String(localized: "Your time is saved on this phone. Open the app and check the message.")
+            case .autoClose:
                 content.title = String(localized: "Shift closed automatically")
                 content.body = String(
                     localized: "Your shift at \(running.locationName) hit 8 hours and was closed automatically. Open the app and confirm when you actually finished, or it will not be paid."
                 )
-            } else {
+            case .nudge:
                 content.title = String(localized: "Still clocked in")
                 content.body = String(
                     localized: "\(hour) h at \(running.locationName). Hold your phone to the tag to finish."
@@ -138,7 +144,7 @@ final class ShiftSignalCenter {
             let request = UNNotificationRequest(
                 identifier: Self.reminderId(hour: hour),
                 content: content,
-                trigger: UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: rung.delay, repeats: false)
             )
             center.add(request) { _ in }   // a rejection changes nothing that matters
         }

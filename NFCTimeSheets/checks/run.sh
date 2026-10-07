@@ -84,6 +84,12 @@ run finish-card-check   "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swi
 # as text: display only (not in refresh, the tap, sync or signals), no surface of their own, both languages,
 # German = Android's verbatim. Reads checks' sources, the catalogue and ../android off disk.
 run schedule-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/ViennaTime.swift" "$SRC/ScheduleStore.swift"
+# TASK-365.6 (iOS P5): "Not confirmed yet" is WORDS, never behaviour. The grace (an online tap is unacknowledged
+# for one request, so the screen waits 2 s), the notice decision run for real, and the screens read as text: the
+# notice is a SEPARATE view after the clock card (never inside it), no surface of its own, nothing hidden or
+# disabled, the Live Activity not told, German = Android's verbatim. shift-signal-check pins the plan, the ladder
+# and the re-arm after the push.
+run pending-notice-check "$SRC/ShiftSignal.swift" "$SRC/PendingNotice.swift"
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

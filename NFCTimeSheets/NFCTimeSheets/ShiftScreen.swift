@@ -37,6 +37,16 @@ struct ShiftScreen: View {
     /// It resolves a tag and posts it to TapInbox - the same mailbox the background tap
     /// uses - so this button opens no shift logic of its own.
     let onScan: () -> Void
+    /// The OPEN row's delivery problem, already a worker-facing sentence (Sync.swift
+    /// `APIFailure.workerMessage`) - never a code - and whether nobody is retrying it
+    /// (`syncBlocked`: a human has to act, so it is drawn red). Together with
+    /// `running.pendingConfirmation` they decide the words under the clock (PendingNotice) and
+    /// NOTHING ELSE: no control is hidden or disabled by them, and the clock keeps counting.
+    let syncError: String?
+    let syncBlocked: Bool
+    /// The same refresh pull-to-refresh runs (roster, adopt, push the queue, re-arm). The one
+    /// retry control on this screen.
+    let onRefresh: () -> Void
     /// decision-80: the worker's PLANNED assignments, for display and nothing else - this screen
     /// never branches on them, and the tap, the sync and the signals know nothing about them. The
     /// state and the reload closure come from LogView's ScheduleStore, so the idle list and this
@@ -47,6 +57,11 @@ struct ShiftScreen: View {
     @Environment(ShiftSignalCenter.self) private var signals
     @Environment(\.openURL) private var openURL
     @State private var confirmingStop = false
+    /// The grace before "Not confirmed yet" may be CLAIMED (ShiftSignal.isPending): iOS writes the
+    /// row before the POST, so an online tap is unacknowledged for one request and must not flash
+    /// a warning. Set by the .task(id:) below after PendingNotice.grace; a sync error or an old
+    /// start skips the wait (PendingNotice.graceElapsedAtOnce, read in `body`).
+    @State private var graceElapsed = false
 
     /// decision-60: the flag no longer decides the COLOUR - blue is the colour, flag or no
     /// flag. What it still decides is whether that blue is animated (the gradient below).
@@ -66,7 +81,15 @@ struct ShiftScreen: View {
     /// Text(timerInterval:), so nothing here needs to keep up with them.
     var body: some View {
         TimelineView(.periodic(from: running.startTime, by: 60)) { context in
-            let overdue = ShiftSignal.phase(of: running, now: context.date) == .overdue
+            // overdue > pending > running (ShiftSignal.presentation). The tick's date decides
+            // the 8h boundary; the REAL now decides whether an old start skips the grace, so a
+            // screen reopened on a long-unacknowledged shift never says "Clocked in" first.
+            let hasError = syncError?.isEmpty == false
+            let graceOver = graceElapsed
+                || PendingNotice.graceElapsedAtOnce(startedAt: running.startTime, now: .now, hasSyncError: hasError)
+            let presentation = ShiftSignal.presentation(of: running, now: context.date,
+                                                        graceElapsed: graceOver, hasSyncError: hasError)
+            let overdue = presentation == .overdue
             // Colour is the SECOND signal, never the only one - the state is spelled out
             // in words directly under the clock, so this screen still reads in greyscale.
             //
@@ -81,8 +104,17 @@ struct ShiftScreen: View {
             // is worse than no lock at all.
             ScrollView {
                 VStack(spacing: 24) {
-                    header(overdue: overdue, tint: tint)
-                    clock(overdue: overdue, now: context.date)
+                    header(presentation: presentation, tint: tint)
+                    clock(presentation: presentation, now: context.date)
+                    // A SEPARATE view, AFTER the clock card and not inside it: the card is one
+                    // accessibility element (children: .ignore), which would swallow a Refresh
+                    // button put in there - VoiceOver could not focus it and the line would be
+                    // read as part of the time. Separate, it is its own element and the button
+                    // is its own control.
+                    if let content = PendingNotice.content(for: running, graceElapsed: graceOver,
+                                                           syncError: syncError, syncBlocked: syncBlocked) {
+                        PendingNoticeView(content: content, onRefresh: onRefresh)
+                    }
                     instruction(tint: tint)
                     scanButton
                     stopButton
@@ -104,6 +136,20 @@ struct ShiftScreen: View {
         .task {
             await signals.requestAuthorizationIfNeeded()
         }
+        // The grace itself (ShiftSignal.isPending). Restarts when the flag flips or a DIFFERENT
+        // shift takes the screen (a switch keeps the flag true, so the id carries the start too),
+        // and a cancelled sleep never claims anything.
+        .task(id: GraceKey(startTime: running.startTime, pending: running.pendingConfirmation)) {
+            graceElapsed = false
+            guard running.pendingConfirmation else { return }
+            try? await Task.sleep(for: .seconds(PendingNotice.grace))
+            if !Task.isCancelled { graceElapsed = true }
+        }
+    }
+
+    private struct GraceKey: Equatable {
+        let startTime: Date
+        let pending: Bool
     }
 
     // MARK: - Background
@@ -130,11 +176,47 @@ struct ShiftScreen: View {
         }
     }
 
+    // MARK: - The three states, in words
+    //
+    // overdue > pending > running (ShiftSignal.presentation), each said in THREE places: the
+    // heading, the word under the clock and what VoiceOver reads for the clock. They are three
+    // small functions of the presentation and nothing else, so a restyle of header() / clock()
+    // keeps the words and only moves where they are drawn.
+
+    private func headingText(_ presentation: ShiftPresentation) -> Text {
+        switch presentation {
+        case .overdue: return Text("Over 8 hours")
+        case .pending: return Text("Not confirmed yet")
+        case .running: return Text("Clocked in")
+        }
+    }
+
+    /// The sentence under the clock. "Time recorded on this phone" - not "Running" - while the
+    /// start is only on the phone: the clock beside it still counts, from the LOCAL start.
+    private func stateWord(_ presentation: ShiftPresentation) -> Text {
+        switch presentation {
+        case .overdue: return Text("This shift passed 8 hours and was closed automatically. It will not be paid until you confirm when you actually finished.")
+        case .pending: return Text("Time recorded on this phone")
+        case .running: return Text("Running")
+        }
+    }
+
+    private func spokenState(_ presentation: ShiftPresentation, elapsed: (hours: Int, minutes: Int)) -> Text {
+        switch presentation {
+        case .overdue:
+            return Text("Shift at \(running.locationName) passed 8 hours and was closed automatically. Confirm when you finished.")
+        case .pending:
+            return Text("\(elapsed.hours) hours and \(elapsed.minutes) minutes recorded on this phone for \(running.locationName). Not confirmed by the office yet.")
+        case .running:
+            return Text("Shift running for \(elapsed.hours) hours \(elapsed.minutes) minutes at \(running.locationName)")
+        }
+    }
+
     // MARK: - Pieces
 
-    private func header(overdue: Bool, tint: Color) -> some View {
+    private func header(presentation: ShiftPresentation, tint: Color) -> some View {
         VStack(spacing: 6) {
-            Text(overdue ? "Over 8 hours" : "Clocked in")
+            headingText(presentation)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(tint)
                 .accessibilityAddTraits(.isHeader)
@@ -154,10 +236,13 @@ struct ShiftScreen: View {
     /// are inside it rather than beside it, because a per-second change under VoiceOver is
     /// unusable. Its label is recomputed once a minute from `now`; updating a label is not
     /// an announcement, so nothing is interrupted.
-    private func clock(overdue: Bool, now: Date) -> some View {
+    ///
+    /// A PENDING start is drawn exactly like a running one - the same ticking digits, counting
+    /// from the local start - and only the word under them and the spoken label change.
+    private func clock(presentation: ShiftPresentation, now: Date) -> some View {
         let elapsed = ShiftSignal.elapsed(from: running.startTime, to: now)
         return VStack(spacing: 10) {
-            if overdue {
+            if presentation == .overdue {
                 // No running clock on a shift the 8h timer has closed (or is about to):
                 // a ticking number there would be a lie about a row that is already out
                 // of payroll until a human fixes it.
@@ -166,7 +251,7 @@ struct ShiftScreen: View {
                     .monospacedDigit()
                     .minimumScaleFactor(0.4)
                     .lineLimit(1)
-                Text("This shift passed 8 hours and was closed automatically. It will not be paid until you confirm when you actually finished.")
+                stateWord(presentation)
                     .font(.callout)
                     .multilineTextAlignment(.center)
             } else {
@@ -176,19 +261,16 @@ struct ShiftScreen: View {
                     .monospacedDigit()
                     .minimumScaleFactor(0.4)
                     .lineLimit(1)
-                Text("Running")
+                stateWord(presentation)
                     .font(.headline)
+                    .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            overdue
-                ? Text("Shift at \(running.locationName) passed 8 hours and was closed automatically. Confirm when you finished.")
-                : Text("Shift running for \(elapsed.hours) hours \(elapsed.minutes) minutes at \(running.locationName)")
-        )
+        .accessibilityLabel(spokenState(presentation, elapsed: elapsed))
     }
 
     /// The PRIMARY way to end the shift, and still the only silent one.

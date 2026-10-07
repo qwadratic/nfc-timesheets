@@ -4,8 +4,9 @@
 //   cat NFCTimeSheets/ShiftSignal.swift checks/shift-signal-check.swift \
 //     > /tmp/shift-signal-check.swift && swift /tmp/shift-signal-check.swift
 //
-// Four things are pinned here, and every one of them is a way this feature could quietly
-// cost somebody money:
+// Five things are pinned here, and every one of them is a way this feature could quietly
+// cost somebody money (the fifth - section 7 - is TASK-365.6: "Not confirmed yet" is WORDS and
+// never behaviour):
 //
 //   1. THE STATE MACHINE. A shift opens -> the lock, the badge, the ladder and the Live
 //      Activity are on. It closes -> every one of them is off. Past 8h -> the clock stops
@@ -18,6 +19,10 @@
 //      because that ordering lives in SwiftUI code this runner cannot import: the local
 //      row is written and SAVED before arm(for:) is called, and arm() is not awaited.
 //      A cache miss is not a rejection - that bug already cost this project a dead tap.
+//   5. "NOT CONFIRMED YET" IS WORDS (TASK-365.6). A start only the phone knows about changes
+//      the screen's heading, the word under the clock and the ladder's text - and not one bit
+//      of the plan: lock, badge, rung timing and the 8h phase are equal for a pending and a
+//      confirmed shift. The ladder is re-armed after the push so the text flips on acceptance.
 //
 // Mirrored by android/checks/core-check.kt section 13. The two platforms are supposed to
 // behave the same; if one of these files changes alone, that has stopped being true.
@@ -273,5 +278,216 @@ check(ShiftSignal.plan(for: nil, now: at(3)) == ShiftSignal.SignalPlan.idle &&
 let materials = try! String(contentsOfFile: "NFCTimeSheets/MaterialStore.swift", encoding: .utf8)
 check(!materials.contains("setBadgeCount"),
       "materials never touch the APP-ICON badge - the open shift owns it (the tab badge is a different surface)")
+
+// ---------------------------------------------------------------------------------
+// 7. "NOT CONFIRMED YET" IS WORDS, NEVER BEHAVIOUR (TASK-365.6, iOS P5)
+// ---------------------------------------------------------------------------------
+//
+// A start that exists only on the phone is SAID so - the running screen's heading, the word under
+// the clock, what VoiceOver reads, the one-line notice, and every reminder's text. It must never
+// GATE anything: the plan, the lock, the badge, the ladder's timing and the 8h phase are the same
+// value for a pending shift as for a confirmed one. Mirrors android/checks/core-check.kt's pending
+// section and Android 60f6886 (RunningShift.pendingConfirmation, TimeSheetApp.kt, ShiftSignals.kt).
+
+let pendingShift = RunningShift(locationId: shift.locationId, locationName: shift.locationName,
+                                startTime: start, pendingConfirmation: true)
+check(!shift.pendingConfirmation && !serverClosed.pendingConfirmation,
+      "the flag defaults to false, so every existing RunningShift(...) call keeps its meaning")
+check(pendingShift.pendingConfirmation && pendingShift != shift,
+      "the flag is part of the value (Equatable): an acknowledgement is a change the arm can see")
+
+// plan(pending) == plan(not pending): lock, badge, reminders, Live Activity, phase - at every
+// instant that matters and with or without the server's auto-close flag.
+for hours in [0.0, 0.01, 0.99, 1.0, 3.0, 7.99, 8.0, 8.01, 9.0, 24.0] {
+    for auto in [false, true] {
+        let confirmedValue = RunningShift(locationId: shift.locationId, locationName: shift.locationName,
+                                          startTime: start, serverAutoClosed: auto, pendingConfirmation: false)
+        let pendingValue = RunningShift(locationId: shift.locationId, locationName: shift.locationName,
+                                        startTime: start, serverAutoClosed: auto, pendingConfirmation: true)
+        check(ShiftSignal.plan(for: pendingValue, now: at(hours)) == ShiftSignal.plan(for: confirmedValue, now: at(hours)),
+              "a pending shift has the SAME plan as a confirmed one (+\(hours)h, serverAutoClosed \(auto)): "
+              + "the flag chooses words, it never gates the lock, the badge, the ladder or the Live Activity")
+        check(ShiftSignal.phase(of: pendingValue, now: at(hours)) == ShiftSignal.phase(of: confirmedValue, now: at(hours)),
+              "...and the same 8h phase (+\(hours)h)")
+    }
+}
+let pendingPlan = ShiftSignal.plan(for: pendingShift, now: at(0.01))
+check(pendingPlan.lockScreen && pendingPlan.badgeCount == 1 && pendingPlan.remindersScheduled
+      && pendingPlan.liveActivity && pendingPlan.phase == .running,
+      "a start that only the phone knows about still locks the screen, owns the badge and arms the ladder")
+check(ShiftSignal.autoCloseAfter == 8 * 3600 && ShiftSignal.reminderHours == [1, 2, 3, 4, 5, 6, 7, 8],
+      "the flag did not touch the shared constants")
+
+// PRESENTATION: overdue > pending > running (Android TimeSheetApp.kt), with iOS's grace.
+func present(_ running: RunningShift, hours: Double, grace: Bool, error: Bool) -> ShiftPresentation {
+    ShiftSignal.presentation(of: running, now: at(hours), graceElapsed: grace, hasSyncError: error)
+}
+for grace in [false, true] {
+    for error in [false, true] {
+        check(present(shift, hours: 1, grace: grace, error: error) == .running,
+              "an ACKNOWLEDGED shift is 'Clocked in' whatever the grace and the row's error say - the error is the "
+              + "notice's business (grace \(grace), error \(error))")
+    }
+}
+check(present(pendingShift, hours: 0.001, grace: false, error: false) == .running,
+      "THE GRACE: a start the server has not answered yet is NOT called 'Not confirmed yet' straight away - an "
+      + "online tap is unacknowledged for one request and must not flash a warning at every clock-in")
+check(present(pendingShift, hours: 0.001, grace: true, error: false) == .pending,
+      "once the grace has run out an unacknowledged start says 'Not confirmed yet'")
+check(present(pendingShift, hours: 0.001, grace: false, error: true) == .pending,
+      "a sync error ends the grace at once: the server answered and the answer was no")
+check(present(pendingShift, hours: 7.99, grace: true, error: true) == .pending,
+      "still pending at 7h59: running -> pending needs no clock")
+for grace in [false, true] {
+    for error in [false, true] {
+        check(present(pendingShift, hours: 8, grace: grace, error: error) == .overdue,
+              "OVERDUE BEATS PENDING at exactly 8h (grace \(grace), error \(error))")
+        check(present(pendingShift, hours: 9, grace: grace, error: error) == .overdue,
+              "...and after it")
+        let flagged = RunningShift(locationId: shift.locationId, locationName: shift.locationName,
+                                   startTime: start, serverAutoClosed: true, pendingConfirmation: true)
+        check(present(flagged, hours: 0.5, grace: grace, error: error) == .overdue,
+              "a server-flagged auto-close is overdue after 30 minutes even when it is also pending")
+        check(present(shift, hours: 9, grace: grace, error: error) == .overdue, "an acknowledged shift past 8h is overdue")
+    }
+}
+check(ShiftSignal.isPending(pendingShift, graceElapsed: true, hasSyncError: false)
+      && !ShiftSignal.isPending(pendingShift, graceElapsed: false, hasSyncError: false)
+      && ShiftSignal.isPending(pendingShift, graceElapsed: false, hasSyncError: true)
+      && !ShiftSignal.isPending(shift, graceElapsed: true, hasSyncError: true),
+      "isPending = flag && (grace over || error): only an unacknowledged start can be pending")
+
+// CONFIRMED (used by P7): Android's !pendingConfirmation && syncError == null && !overdue, read off the
+// FLAG - the grace never makes an unacknowledged start 'confirmed'.
+check(ShiftSignal.isConfirmed(shift, now: at(1), hasSyncError: false), "an acknowledged, error-free, running shift is confirmed")
+check(!ShiftSignal.isConfirmed(pendingShift, now: at(1), hasSyncError: false),
+      "an unacknowledged start is never confirmed - not even during the grace, when the screen still says 'Clocked in'")
+check(!ShiftSignal.isConfirmed(shift, now: at(1), hasSyncError: true), "a row carrying a sync error is not confirmed")
+check(!ShiftSignal.isConfirmed(shift, now: at(8), hasSyncError: false), "an overdue shift is not confirmed")
+check(!ShiftSignal.isConfirmed(serverClosed, now: at(0.5), hasSyncError: false), "a server-closed shift is not confirmed")
+
+// THE LADDER SAYS IT TOO. Fixed instants, so nothing depends on "now": the flag changes each rung's KIND
+// and not its hour, its delay or how many there are - and EVERY rung is 'pending' while pending,
+// the 8h one included (a shift the server never heard of was not "closed automatically").
+func rungs(_ running: RunningShift, hoursIn: Double) -> [ShiftSignal.Rung] {
+    ShiftSignal.ladder(for: running, now: at(hoursIn))
+}
+for hoursIn in [0.0, 0.5, 1.0, 3.5, 4.0, 7.5, 7.99, 8.0, 9.0] {
+    let confirmedRungs = rungs(shift, hoursIn: hoursIn)
+    let pendingRungs = rungs(pendingShift, hoursIn: hoursIn)
+    check(confirmedRungs.map(\.hour) == pendingRungs.map(\.hour) && confirmedRungs.map(\.delay) == pendingRungs.map(\.delay),
+          "pending and confirmed have the same rungs at the same delays (+\(hoursIn)h in): the flag moves no reminder")
+    check(pendingRungs.allSatisfy { $0.kind == .pending },
+          "EVERY rung of a pending shift says 'Not confirmed yet' (+\(hoursIn)h in), including the 8h one")
+    check(confirmedRungs.allSatisfy { $0.kind == ($0.hour == 8 ? .autoClose : .nudge) },
+          "a confirmed shift keeps today's two wordings: a nudge, and the auto-close at 8h (+\(hoursIn)h in)")
+}
+check(rungs(shift, hoursIn: 0).map(\.hour) == [1, 2, 3, 4, 5, 6, 7, 8], "at the moment of the tap all eight rungs are ahead")
+check(rungs(pendingShift, hoursIn: 4.5).map(\.hour) == [5, 6, 7, 8] && rungs(pendingShift, hoursIn: 4.5).map(\.kind) == [.pending, .pending, .pending, .pending],
+      "re-armed 4h30 in (a relaunch): the rungs left are 5h..8h and all of them are pending")
+check(rungs(shift, hoursIn: 4.5).map(\.kind) == [.nudge, .nudge, .nudge, .autoClose],
+      "...and when it is confirmed they are the nudges and the auto-close")
+check(rungs(shift, hoursIn: 0).first?.delay == 3600 && rungs(shift, hoursIn: 0.25).first?.delay == 2700,
+      "a rung's delay is its fire time minus now, to the second")
+check(rungs(shift, hoursIn: 8).isEmpty && rungs(pendingShift, hoursIn: 9).isEmpty,
+      "no rung is left once the shift is 8h old: nothing new is scheduled past the boundary")
+check(ShiftSignal.reminderKind(hour: 8, pendingConfirmation: true) == .pending
+      && ShiftSignal.reminderKind(hour: 8, pendingConfirmation: false) == .autoClose
+      && ShiftSignal.reminderKind(hour: 1, pendingConfirmation: false) == .nudge,
+      "reminderKind: pending first, then the auto-close rung, then the nudge")
+
+// THE ANDROID CHECK'S GREPS (android/checks/core-check.kt, 'CONSTANT PARITY WITH iOS') still match this
+// file's text. android/checks/run.sh is the real proof; these are the same three literals, here, so an
+// iOS-only edit that breaks them fails on the iOS side first.
+let signalSource = try! String(contentsOfFile: "NFCTimeSheets/ShiftSignal.swift", encoding: .utf8)
+for literal in ["autoCloseAfter: TimeInterval = 8 * 3600",
+                "reminderHours: [Int] = [1, 2, 3, 4, 5, 6, 7, 8]",
+                "shiftRunning ? [.log, .materials, .settings] : AppTab.allCases"] {
+    check(signalSource.contains(literal), "ShiftSignal.swift still contains '\(literal)' (Android's core-check greps it)")
+}
+// plan() is not allowed to know the flag AT ALL - that is how "presentation only" is enforced in text.
+let planBody = signalSource.components(separatedBy: "static func plan(for running: RunningShift?, now: Date) -> SignalPlan {")[1]
+    .components(separatedBy: "// MARK: Spoken duration")[0]
+check(!planBody.isEmpty && !planBody.contains("pending") && !planBody.contains("Pending"),
+      "ShiftSignal.plan() does not read pendingConfirmation: the flag cannot gate a signal")
+check(!signalSource.contains("import SwiftUI") && !signalSource.contains("import UserNotifications") && !signalSource.contains("import ActivityKit"),
+      "ShiftSignal.swift is still Foundation-only")
+
+// WIRING, as text (the SwiftUI side cannot be imported here).
+func sourceText(_ name: String) -> String {
+    try! String(contentsOfFile: "NFCTimeSheets/\(name)", encoding: .utf8)
+}
+func codeOnly(_ s: String) -> String {
+    s.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
+}
+func textBetween(_ s: String, _ from: String, _ to: String) -> String {
+    let parts = s.components(separatedBy: from)
+    return parts.count > 1 ? parts[1].components(separatedBy: to)[0] : ""
+}
+
+// The flag is derived from the ROW the server has not acknowledged, in the ONE place a RunningShift is built.
+let runningBuilders = (try? FileManager.default.contentsOfDirectory(atPath: "NFCTimeSheets"))?
+    .filter { $0.hasSuffix(".swift") && $0 != "ShiftSignal.swift" }
+    .filter { codeOnly(sourceText($0)).contains("RunningShift(") } ?? []
+check(runningBuilders == ["ContentView.swift"],
+      "ContentView.swift is the only file that builds a RunningShift (found \(runningBuilders)): one construction site, one place the flag can be forgotten")
+let asRunningBody = textBetween(codeOnly(view), "private func asRunning(_ shift: Shift) -> RunningShift {", "\n    }")
+check(asRunningBody.contains("pendingConfirmation: shift.openSyncedAt == nil"),
+      "asRunning sets pendingConfirmation from shift.openSyncedAt == nil - the server's acknowledgement is the only thing that clears it")
+check(!asRunningBody.contains("syncError") && !asRunningBody.contains("isFullySynced"),
+      "...and from nothing else (a close that is still unsent does not make an acknowledged OPEN pending)")
+
+// RE-ARM AFTER THE PUSH (signals-rearm-after-push). iOS freezes a notification's text when it is scheduled, so the
+// ladder armed at the tap (pending) must be armed again once the server has answered. The re-arm sits INSIDE the
+// tap's own un-awaited Task, after `await syncPending`, and is the session-guarded arm.
+let tapTask = handleTap.components(separatedBy: "\n        Task {\n            // Wraps the await rather than")[1]
+check(tapTask.contains("await syncPending(context: context, workerId: worker.id)"),
+      "handleTap's trailing Task still pushes the queue")
+let tapPush = tapTask.range(of: "await syncPending(context: context, workerId: worker.id)")!
+let tapRearm = tapTask.range(of: "armIfStillCurrent()")
+check(tapRearm != nil && tapPush.upperBound < tapRearm!.lowerBound,
+      "handleTap RE-ARMS after `await syncPending` (inside the same un-awaited Task) so 'Not confirmed yet' flips on acceptance")
+check(handleTap.components(separatedBy: "signals.arm(").count - 1 == 1,
+      "...and the FIRST arm (the unguarded one right after the save) is still the only direct signals.arm( in handleTap")
+check(!handleTap.contains("await signals.") && !tapTask.contains("await armIfStillCurrent") && !tapTask.contains("await signals"),
+      "no signal call is awaited on the tap path, the re-arm included")
+let beforeTapTask = handleTap.components(separatedBy: "\n        Task {\n            // Wraps the await rather than")[0]
+check(save!.upperBound < beforeTapTask.range(of: "signals.arm(")!.lowerBound,
+      "the first arm still follows context.save()")
+let manualStopBody = textBetween(view, "private func manualStop() {", "\n    #if DEBUG")
+let msSave = manualStopBody.range(of: "try? context.save()"), msArm = manualStopBody.range(of: "signals.arm(for: currentRunning())")
+check(msSave != nil && msArm != nil && msSave!.upperBound < msArm!.lowerBound,
+      "manualStop closes and SAVES the local row before it arms")
+let msTask = manualStopBody.components(separatedBy: "        Task {\n")
+check(msTask.count == 2, "manualStop pushes from exactly one un-awaited Task")
+let msPush = msTask[1].range(of: "await syncPending(context: context, workerId: worker.id)")
+let msRearm = msTask[1].range(of: "armIfStillCurrent()")
+check(msPush != nil && msRearm != nil && msPush!.upperBound < msRearm!.lowerBound,
+      "manualStop RE-ARMS after `await syncPending` too (the same one-arm-per-push rule as a tap)")
+check(!manualStopBody.contains("await signals.") && !manualStopBody.contains("await armIfStillCurrent"),
+      "manualStop awaits no signal call")
+check(manualStopBody.components(separatedBy: "signals.arm(").count - 1 == 1,
+      "manualStop keeps exactly one direct arm (the one after its save)")
+
+// THE LADDER'S TEXT: ShiftSignalCenter turns each rung into a request and says what its KIND says, pending first.
+let ladderBody = textBetween(codeOnly(center), "private func scheduleLadder(for running: RunningShift, center: UNUserNotificationCenter) {", "func requestAuthorizationIfNeeded() async {")
+check(ladderBody.contains("ShiftSignal.ladder(for: running, now: .now)") && ladderBody.contains("switch rung.kind {")
+      && ladderBody.contains("timeInterval: rung.delay"),
+      "scheduleLadder takes its rungs, their kinds and their delays from ShiftSignal.ladder")
+let casePending = ladderBody.range(of: "case .pending:"), caseAuto = ladderBody.range(of: "case .autoClose:"),
+    caseNudge = ladderBody.range(of: "case .nudge:")
+check(casePending != nil && caseAuto != nil && caseNudge != nil
+      && casePending!.upperBound < caseAuto!.lowerBound && caseAuto!.upperBound < caseNudge!.lowerBound,
+      "the PENDING wording is the FIRST branch of the ladder, before the auto-close one (Android ShiftSignals.postReminder)")
+check(!ladderBody.contains("isAutoCloseWarning") && !ladderBody.contains("pendingConfirmation"),
+      "scheduleLadder decides nothing itself: no isAutoCloseWarning, no flag read - ShiftSignal.reminderKind is the one rule")
+let pendingBranch = textBetween(ladderBody, "case .pending:", "case .autoClose:")
+check(pendingBranch.contains("String(localized: \"Not confirmed yet: \\(running.locationName)\")")
+      && pendingBranch.contains("String(localized: \"Your time is saved on this phone. Open the app and check the message.\")"),
+      "the pending rung is 'Not confirmed yet: <place>' with the saved-on-this-phone body (Android notify_pending_title / _body)")
+check(!pendingBranch.contains("closed automatically") && !pendingBranch.contains("Still clocked in"),
+      "...and says nothing about an automatic close or a normal shift")
+check(codeOnly(center).components(separatedBy: "isAutoCloseWarning").count == 1,
+      "ShiftSignalCenter no longer asks isAutoCloseWarning itself")
 
 print("shift-signal-check: OK")

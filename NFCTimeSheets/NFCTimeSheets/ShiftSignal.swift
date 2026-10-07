@@ -39,12 +39,24 @@ struct RunningShift: Equatable {
     /// confirmed the real finish time (decision-10). Forces `.overdue` regardless of the
     /// clock: a shift the server has closed must never be shown with a running timer.
     let serverAutoClosed: Bool
+    /// PRESENTATION ONLY (Android 60f6886 RunningShift.pendingConfirmation): this start exists
+    /// only on the phone - the server has not acknowledged it (`Shift.openSyncedAt == nil`).
+    ///
+    /// It is read by exactly two things, and both only choose WORDS: the running screen
+    /// (heading, state word, spoken label, the notice under the clock) and the reminder
+    /// ladder's text. It never gates, delays or alters a clock-in, a sync, an hours figure, or
+    /// what is shown or hidden: `plan(for:now:)` does not read it, so the lock, the badge, the
+    /// ladder's timing and the 8h phase of a pending shift are identical to a confirmed one's,
+    /// and the clock keeps counting from the local start. checks/shift-signal-check.swift pins it.
+    let pendingConfirmation: Bool
 
-    init(locationId: String, locationName: String, startTime: Date, serverAutoClosed: Bool = false) {
+    init(locationId: String, locationName: String, startTime: Date, serverAutoClosed: Bool = false,
+         pendingConfirmation: Bool = false) {
         self.locationId = locationId
         self.locationName = locationName
         self.startTime = startTime
         self.serverAutoClosed = serverAutoClosed
+        self.pendingConfirmation = pendingConfirmation
     }
 }
 
@@ -53,6 +65,28 @@ struct RunningShift: Equatable {
 enum ShiftPhase: String, Equatable {
     case running
     case overdue
+}
+
+/// What the running screen SAYS about the open shift, strongest first: overdue > pending >
+/// running (Android TimeSheetApp.kt: heading, state word and spoken label alike). A way of
+/// describing the same running clock, never a phase: nothing but words reads it.
+enum ShiftPresentation: String, Equatable {
+    case overdue
+    case pending
+    case running
+}
+
+/// Which of three wordings one reminder rung carries. Only the TEXT differs - the rung's time,
+/// its identifier and the ladder's shape are the same for all three, and so is whether a
+/// ladder exists at all (`ShiftSignal.plan`).
+enum ReminderKind: String, Equatable {
+    /// The start has not been acknowledged by the server. EVERY rung says so, the 8h one
+    /// included: a shift the server never heard of was not "closed automatically".
+    case pending
+    /// The 8h rung of a confirmed shift: the server has just closed it.
+    case autoClose
+    /// The ordinary "you are still clocked in" nudge.
+    case nudge
 }
 
 // MARK: - The lock
@@ -110,6 +144,68 @@ enum ShiftSignal {
     /// clock so it stops at 8h instead of counting to infinity.
     static func autoCloseDeadline(after startTime: Date) -> Date {
         startTime.addingTimeInterval(autoCloseAfter)
+    }
+
+    // MARK: What the running screen SAYS (presentation only)
+
+    /// Does the screen CLAIM "not confirmed yet"? The start is unacknowledged AND either the
+    /// grace has run out or the sync already left a sentence on the row.
+    ///
+    /// THE ONE DELIBERATE DEVIATION FROM ANDROID. iOS writes the row BEFORE the POST
+    /// (handleTap), so every online tap is unacknowledged for one request. Saying "Not
+    /// confirmed yet" for that half-second would make a phone that works look broken at every
+    /// clock-in, so the claim waits `PendingNotice.grace` (2 s) - unless there is already
+    /// something to report: a sync error ends the wait at once (the server answered, and the
+    /// answer was no), and so does a start that is already old
+    /// (`PendingNotice.graceElapsedAtOnce`). The FLAG is not delayed by any of this:
+    /// `pendingConfirmation` is true from the first frame, and the ladder reads the flag.
+    static func isPending(_ running: RunningShift, graceElapsed: Bool, hasSyncError: Bool) -> Bool {
+        running.pendingConfirmation && (graceElapsed || hasSyncError)
+    }
+
+    static func presentation(of running: RunningShift, now: Date, graceElapsed: Bool,
+                             hasSyncError: Bool) -> ShiftPresentation {
+        if phase(of: running, now: now) == .overdue { return .overdue }
+        return isPending(running, graceElapsed: graceElapsed, hasSyncError: hasSyncError) ? .pending : .running
+    }
+
+    /// Android's `confirmed = !running.pendingConfirmation && syncError == null && !overdue`.
+    /// Read off the FLAG, not off the grace: during the grace the server has still not said
+    /// yes, so the motion that celebrates a confirmation (P7) waits for the real acknowledgement.
+    static func isConfirmed(_ running: RunningShift, now: Date, hasSyncError: Bool) -> Bool {
+        !running.pendingConfirmation && !hasSyncError && phase(of: running, now: now) == .running
+    }
+
+    // MARK: What a reminder SAYS (presentation only)
+
+    /// Pending first, then the auto-close rung, then the nudge (Android
+    /// ShiftSignals.postReminder). iOS fixes a notification's text WHEN IT IS SCHEDULED, so this
+    /// is evaluated at every arm, and the signals are re-armed after the tap's own push
+    /// (ContentView.handleTap, manualStop) - the wording flips when the server says yes.
+    static func reminderKind(hour: Int, pendingConfirmation: Bool) -> ReminderKind {
+        if pendingConfirmation { return .pending }
+        return isAutoCloseWarning(hour: hour) ? .autoClose : .nudge
+    }
+
+    /// One rung that is still to fire: which hour it is, how long from `now`, what it says.
+    struct Rung: Equatable {
+        let hour: Int
+        let delay: TimeInterval
+        let kind: ReminderKind
+    }
+
+    /// The rungs ShiftSignalCenter schedules, as a value: +1h .. +8h after the start, rungs already
+    /// in the past skipped (re-arming four hours in gives 5h, 6h, 7h and 8h and nothing else).
+    /// The flag changes each rung's KIND and nothing about WHEN or HOW MANY - so this is the pure
+    /// half of the ladder, provable on a Mac at fixed instants, and the platform half only turns
+    /// each rung into a notification request.
+    static func ladder(for running: RunningShift, now: Date) -> [Rung] {
+        reminderHours.compactMap { hour in
+            let delay = running.startTime.addingTimeInterval(TimeInterval(hour) * 3600).timeIntervalSince(now)
+            guard delay > 0 else { return nil }
+            return Rung(hour: hour, delay: delay,
+                        kind: reminderKind(hour: hour, pendingConfirmation: running.pendingConfirmation))
+        }
     }
 
     // MARK: The lock
