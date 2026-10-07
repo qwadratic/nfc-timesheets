@@ -174,6 +174,14 @@ Decision checklist (keep updated as decisions are added):
   phone's. The `com.apple.developer.nfc.readersession.formats = ["TAG"]` entitlement and the
   Xcode capability are the OWNER's one click — no agent edits the entitlement or
   `project.pbxproj`; the code degrades in words instead (decision-49, `docs/NFC-WRITE-SETUP.md`)
+- BOTH apps carry an in-app language control: `Deutsch` / `English` / follow the phone, value
+  set `""`/`"de"`/`"en"`, on the signed-out screen and in settings. Android by decision-71, iOS
+  by decision-74. It is ONE value shared with the OS per-app language setting, never a second
+  flag; it applies live; it is never in the tap path and never signs anyone out or touches a
+  running shift. On iOS every user-visible string resolves through `AppLanguage.swift`, gated
+  by a check. German stays the default and de + en parity stays required - that half of
+  decision-61 stands; its "no in-app switcher anywhere" half is superseded on every platform
+  (decision-74, mirrors decision-71)
 
 ~~decision-37~~ (zones, no area) is SUPERSEDED by decision-43 and nothing from it shipped.
 
