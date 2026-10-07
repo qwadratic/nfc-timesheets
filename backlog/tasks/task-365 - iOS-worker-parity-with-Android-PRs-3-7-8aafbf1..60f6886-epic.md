@@ -4,6 +4,7 @@ title: 'iOS worker parity with Android PRs 3-7 (8aafbf1..60f6886): epic'
 status: To Do
 assignee: []
 created_date: '2026-10-07 12:20'
+updated_date: '2026-10-07 12:27'
 labels:
   - ios
   - parity
@@ -43,3 +44,9 @@ A 12-agent read of the range produced 134 distinct behaviour items (41 PORT, 34 
 ## Review gate (AGENTS.md)
 After the implementation tasks, a dedicated review agent reads ALL backlog/decisions/, the diff, runs node ops/check-branding.mjs and NFCTimeSheets/checks/run.sh and quotes every non-ok line (check-branding prints a TODO for TASK-188: iOS still names the renameable API host).
 <!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+DECISION NUMBERS (2026-10-07): the plan proposed decisions 77-80. Branch admin-declutter already holds decision-77 (retire /product) and decision-78 (web-admin SMS controls), so: manual start = decision-79 (recorded). The remaining proposals (planned assignments, delivery wording, My hours) get the next free numbers when their task starts - use backlog decision create, which assigns them, and quote the number in the task.
+<!-- SECTION:NOTES:END -->

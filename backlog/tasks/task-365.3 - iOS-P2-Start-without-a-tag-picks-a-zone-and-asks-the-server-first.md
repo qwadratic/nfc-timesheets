@@ -1,9 +1,10 @@
 ---
 id: TASK-365.3
 title: 'iOS P2: ''Start without a tag'' picks a zone and asks the server first'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
+updated_date: '2026-10-07 12:27'
 labels:
   - ios
   - parity
@@ -82,7 +83,7 @@ Stop without tag (regression) | Finish shift without a tag | still closes with m
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 decision-77 recorded (backlog decision create) BEFORE the code, and listed in the epic
+- [x] #1 decision-77 recorded (backlog decision create) BEFORE the code, and listed in the epic
 - [ ] #2 Driven: Idle/manual sheet (-) | open with no cached zones (fresh, offline) | empty sentence 'No zones are available. Please refresh first...' | no request
 - [ ] #3 Driven: Idle/manual sheet (+) | open with cached zones | rows 'B · Z' sorted, none selected, Start disabled until picked, confirm dialog names the label
 - [ ] #4 Driven: Start online verified zone (+) | pick, Start, confirm | sheet closes, running screen, row acked at once, 'Manual' pill later | POST /shifts/open location_uuid=Z manual:true -> 201, shifts.manual_start=true, location_id=B
@@ -93,8 +94,14 @@ Stop without tag (regression) | Finish shift without a tag | still closes with m
 - [ ] #9 Driven: Wire (-) | inspect requests | no POST /shifts/open ever carries a building uuid
 - [ ] #10 Driven: Mock armed (+) | arm 'accepts a manual start', pick the mock zone, Start | works with no server (ShiftMocks echo)
 - [ ] #11 Driven: Stop without tag (regression) | Finish shift without a tag | still closes with manual:true
-- [ ] #12 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
-- [ ] #13 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
-- [ ] #14 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
-- [ ] #15 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
+- [x] #12 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
+- [x] #13 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
+- [x] #14 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
+- [x] #15 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+2026-10-07 implementation complete on branch ios-worker-parity: decision-79 recorded FIRST (the plan called it decision-77; 77 and 78 are taken by branch admin-declutter), ManualStart.swift (zone picker rows + refuse/queue split), ContentView startManual asks ShiftFlowAPI.open BEFORE any local write (one client_uuid and start time, reused on the queue fallback), refusals shown in the sheet with no row, copy says zone (de from Android verbatim, formal Sie). Verified: manual-start-check green with three red cases reproduced (picker fed from buildings, refusal that still writes, row written before the server is asked); NFCTimeSheets/checks/run.sh 19/19; Debug and Release build. check-branding: all ok, no TODO printed. NOT DONE: criteria #2-#11 are DRIVEN walks (empty state, sorted rows, online start, 422/409 refusals, server down, wire inspection, mock, stop regression). They need a worker session against a server, which no existing rig provides (decision-50 retired the Apple token path the demo server used). Filed as the verification-rig task; this task stays In Progress until those are driven.
+<!-- SECTION:NOTES:END -->

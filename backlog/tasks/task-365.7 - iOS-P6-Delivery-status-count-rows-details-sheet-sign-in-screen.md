@@ -4,6 +4,7 @@ title: 'iOS P6: Delivery status: count rows, details sheet, sign-in screen'
 status: To Do
 assignee: []
 created_date: '2026-10-07 12:21'
+updated_date: '2026-10-07 12:27'
 labels:
   - ios
   - parity
@@ -101,3 +102,9 @@ Dynamic Type 200% | rows wrap, stay >= 44pt
 - [ ] #14 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
 - [ ] #15 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Decision number: the plan called this decision-78/79/80, but 77 and 78 are taken by branch admin-declutter and 79 is manual start. Record it with backlog decision create (next free number) BEFORE the code.
+<!-- SECTION:NOTES:END -->
