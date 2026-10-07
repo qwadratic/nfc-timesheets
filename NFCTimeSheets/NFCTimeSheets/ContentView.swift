@@ -27,9 +27,15 @@ struct ContentView: View {
     @State private var materials = MaterialStore()
     /// The lock reads this and nothing else. A separate @Query rather than a value passed
     /// up from LogView: the TAB BAR is what changes, and it is built here.
-    @Query private var shifts: [Shift]
+    ///
+    /// DEVICE-WIDE ON PURPOSE, and named so (`allShifts`): it is every account's rows. It is
+    /// only ever read through WorkerScope (forWorker / openShift(for:) / completed(for:)) -
+    /// checks/worker-scope-check.swift fails on any other use.
+    @Query private var allShifts: [Shift]
 
-    private var shiftRunning: Bool { shifts.contains(where: \.isOpen) }
+    /// The lock is the SIGNED-IN worker's: another account's forgotten open row must not
+    /// shorten this worker's tab bar.
+    private func shiftRunning(for workerId: Int) -> Bool { allShifts.openShift(for: workerId) != nil }
 
     var body: some View {
         switch session.state {
@@ -49,8 +55,17 @@ struct ContentView: View {
             // This is WORK DISCIPLINE and not a security boundary: the rule lives in the
             // pure ShiftSignal.visibleTabs, which checks/shift-signal-check.swift asserts
             // can never return a set without Materials and Settings in it.
+            //
+            // `.id(worker.id)` IS THE RESET. A DIRECT worker change - Session.restore()
+            // replacing the cached A with the server's B without ever passing through
+            // signed-out - would otherwise keep every tab's @State (the unresolved list, the
+            // switch notice, a half-typed material request, an open sheet) and never re-run
+            // LogView's refresh. A new identity recreates all four tabs, so B starts from B's
+            // own refresh (Android adopt() resets LogState and the schedule for the same
+            // reason). It must stay the FIRST modifier: the .task and .sheet below sit
+            // OUTSIDE it on purpose, and the materials store is owned above it.
             TabView {
-                ForEach(ShiftSignal.visibleTabs(shiftRunning: shiftRunning), id: \.self) { tab in
+                ForEach(ShiftSignal.visibleTabs(shiftRunning: shiftRunning(for: worker.id)), id: \.self) { tab in
                     switch tab {
                     case .log:
                         LogView(worker: worker).tabItem { Label("Log", systemImage: "wave.3.right") }
@@ -68,12 +83,13 @@ struct ContentView: View {
                             .tabItem { Label("Materials", systemImage: "shippingbox") }
                             .badge(materials.unseenArrivalCount)
                     case .history:
-                        HistoryView().tabItem { Label("History", systemImage: "list.bullet") }
+                        HistoryView(worker: worker).tabItem { Label("History", systemImage: "list.bullet") }
                     case .settings:
                         SettingsView(worker: worker).tabItem { Label("Settings", systemImage: "gear") }
                     }
                 }
             }
+            .id(worker.id)
             .environment(materials)
             // At LAUNCH, not when the Materials tab is opened: the badge is the only
             // thing telling a worker something is waiting for them at the warehouse, and
@@ -217,7 +233,14 @@ struct LogView: View {
     /// never sent in a shift body - it is here to stamp local rows and to keep another
     /// account's queued rows from being pushed under this session (decision-22).
     let worker: WireWorker
-    @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
+    /// Asked after an `await`, before anything is published or armed: is `worker` still the one
+    /// holding the session? (WorkerScope.isCurrent)
+    @Environment(Session.self) private var session
+    /// EVERY ACCOUNT'S ROWS, newest first - the phone's outbox. Never read directly: this
+    /// screen shows and toggles only the signed-in worker's rows (WorkerScope.swift), and
+    /// checks/worker-scope-check.swift fails on any use of `allShifts` that does not go
+    /// through forWorker / openShift(for:) / completed(for:).
+    @Query(sort: \Shift.startTime, order: .reverse) private var allShifts: [Shift]
     @Query private var sites: [Site]
     @Environment(ShiftSignalCenter.self) private var signals
     @Environment(RosterZones.self) private var rosterZones
@@ -246,14 +269,17 @@ struct LogView: View {
     @State private var scanError: String?
     @State private var scanning = false
 
-    private var open: [Shift] { shifts.filter(\.isOpen) }
-    private var recent: [Shift] { Array(shifts.filter { !$0.isOpen }.prefix(5)) }
+    /// The row a tap toggles and the running screen shows: THIS worker's newest open row. Another
+    /// account's forgotten open row is not it (WorkerScope.openShift) - B's first tap must start
+    /// B's shift, not close A's.
+    private var openRow: Shift? { allShifts.openShift(for: worker.id) }
+    private var recent: [Shift] { Array(allShifts.completed(for: worker.id).prefix(5)) }
 
     /// The ONE value the shift screen and every out-of-app signal are derived from
     /// (ShiftSignal.swift). Built from the LOCAL row, because a tap in a basement has one
     /// and a server response may never arrive.
     private var running: RunningShift? {
-        open.first.map(asRunning)
+        openRow.map(asRunning)
     }
 
     /// The same value, read straight out of the context instead of out of `@Query`.
@@ -263,9 +289,22 @@ struct LogView: View {
     /// `context.save()` that just wrote a row can hand back the state from BEFORE the tap.
     /// A fetch cannot. Rendering may lag a frame; a badge that says "clocked in" after a
     /// clock-out may not.
+    ///
+    /// SCOPED TO THE SESSION'S WORKER, like everything else here: the badge, the reminder
+    /// ladder and the Live Activity are armed from this, so an unscoped read would arm worker
+    /// B's phone with worker A's leftover shift.
     private func currentRunning() -> RunningShift? {
         let all = (try? context.fetch(FetchDescriptor<Shift>(sortBy: [SortDescriptor(\Shift.startTime, order: .reverse)]))) ?? []
-        return all.first(where: \.isOpen).map(asRunning)
+        return all.openShift(for: worker.id).map(asRunning)
+    }
+
+    /// Re-arm from the store AFTER an `await`, but only while `worker` still holds the session.
+    /// A refresh started for A that lands after A signed out (the teardown in Session already
+    /// ran) or after B replaced A must not put A's badge back. Not used right after a local
+    /// write - there is no await in between there, and a tap is never gated on anything.
+    private func armIfStillCurrent() {
+        guard WorkerScope.isCurrent(worker.id, session: session.worker?.id) else { return }
+        signals.arm(for: currentRunning())
     }
 
     private func asRunning(_ shift: Shift) -> RunningShift {
@@ -351,7 +390,7 @@ struct LogView: View {
                 // tap. Re-armed afterwards so the fixed-text reminders carry the real name.
                 Task {
                     await refreshRoster(context: context)
-                    signals.arm(for: currentRunning())
+                    armIfStillCurrent()
                 }
             }
         }
@@ -509,7 +548,10 @@ struct LogView: View {
     /// An already-open shift is answered inline without a request (Android manualOpen).
     private func startManual() {
         guard let zoneId = manualPick, !manualBusy else { return }
-        if shifts.contains(where: \.isOpen) {
+        // THIS worker's open shift. Another account's forgotten row is not a reason to refuse
+        // (the server holds one open shift per WORKER, decision-19), and a refusal here would
+        // lock B out of manual start behind A's shift.
+        if openRow != nil {
             manualError = APIFailure(status: 409, code: "shift_already_open").workerMessage
             return
         }
@@ -550,7 +592,7 @@ struct LogView: View {
     /// time in the moment, not the 8h timer guessing, so it must not enter the decision-10
     /// resolver - the server stamps corrected_at instead.
     private func manualStop() {
-        guard let running = shifts.first(where: \.isOpen) else { return }
+        guard let running = openRow else { return }
         running.endTime = .now
         running.manualClose = true
         running.closeSyncedAt = nil
@@ -618,7 +660,11 @@ struct LogView: View {
         // ladder and the Live Activity have to come back from exactly the same call the
         // tap path uses. `running` is recomputed from the store, so a shift the server
         // closed in the meantime arms nothing at all.
-        signals.arm(for: currentRunning())
+        //
+        // Guarded on the session worker being STILL this worker (WorkerScope.isCurrent): this
+        // function awaits five network calls, and a sign-out or a worker change can land in
+        // the middle of them - Session's teardown must not be undone by a stale refresh.
+        armIfStillCurrent()
     }
 
     /// One tap = one toggle. The row is written locally first (so a tap in a basement
@@ -660,7 +706,11 @@ struct LogView: View {
 
         let action: String
         let touched: Shift
-        if let running = shifts.first(where: \.isOpen) {
+        // THIS worker's open row and nobody else's. On a shared phone worker A's forgotten open
+        // shift is still in the store; B's tap must start B's own shift, never close A's (the
+        // close would go out under B's cookie and the server answers 404 unknown_shift) and
+        // never auto-close it as a walk-away. A's row is left exactly as it was.
+        if let running = openRow {
             running.endTime = .now
             running.closeSyncedAt = nil
             // BUILDINGS, not raw ids (decision-43): two zones of one building are one place.
@@ -712,7 +762,7 @@ struct LogView: View {
         // fixed text, so it is armed once more when the real building name has arrived.
         Task {
             await refreshRoster(context: context)
-            signals.arm(for: currentRunning())
+            armIfStillCurrent()
         }
 
         write.data("ts.shift.action", action)
@@ -905,14 +955,21 @@ struct ResolveSheet: View {
 
 struct HistoryView: View {
     @Environment(\.modelContext) private var context
-    @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
+    /// The signed-in worker. History lists, totals and DELETES only this worker's rows: on a
+    /// shared phone the store also holds everybody else's unsent hours, and a swipe must never
+    /// be able to reach them (WorkerScope.swift; nothing is ever deleted on sign-out).
+    let worker: WireWorker
+    /// DEVICE-WIDE (every account's rows) - read only through WorkerScope, see LogView.
+    @Query(sort: \Shift.startTime, order: .reverse) private var allShifts: [Shift]
     @Query private var sites: [Site]
     @Environment(RosterZones.self) private var rosterZones
     private func siteName(_ id: String) -> String {
         rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
     }
 
-    private var completed: [Shift] { shifts.filter { !$0.isOpen } }
+    /// This worker's rows, newest first. The list, the totals and the swipe-delete all use it.
+    private var mine: [Shift] { allShifts.forWorker(worker.id) }
+    private var completed: [Shift] { allShifts.completed(for: worker.id) }
     private var totalHours: Double { completed.compactMap(\.duration).reduce(0, +) / 3600 }
     private var weekHours: Double {
         let start = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
@@ -927,11 +984,17 @@ struct HistoryView: View {
                     LabeledContent("Total", value: String(format: "%.1f h", totalHours))
                 }
                 Section("Shifts") {
-                    if shifts.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }
-                    ForEach(shifts) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
+                    if mine.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }
+                    ForEach(mine) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
                         // Deleting only drops the local copy; anything already sent stays
-                        // on the server, which is what payroll is paid from.
-                        .onDelete { idx in idx.map { shifts[$0] }.forEach(context.delete); try? context.save() }
+                        // on the server, which is what payroll is paid from. The indices
+                        // are into THIS WORKER's rows (`mine` is already scoped), so a swipe
+                        // cannot reach another account's unsent hours.
+                        .onDelete { idx in
+                            let rows = mine
+                            idx.map { rows[$0] }.forEach(context.delete)
+                            try? context.save()
+                        }
                 }
             }
             .navigationTitle("History")

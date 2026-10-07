@@ -70,6 +70,10 @@ run enrolment-code-check "$SRC/EnrolmentCode.swift"
 run zones-check         "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/Zones.swift"
 # decision-79: "Start without a tag" picks a ZONE and asks the server first; a refusal writes no row.
 run manual-start-check  "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/ManualStart.swift"
+# TASK-365.4 (iOS P3): a shared phone belongs to whoever is signed in. The helper's behaviour is
+# run for real (WorkerScope.swift is cat-ed in, with a struct standing in for Shift) AND the screens
+# are read off disk as text, so no Shift read can skip the scope and sign-out tears the signals down.
+run worker-scope-check  "$SRC/WorkerScope.swift"
 # decision-76: a card that was written and reported but never made a zone is finished from
 # Test a tag, and the scan that found it is also its test scan. Pins the ORDER (resolve, then
 # verify with the id read off the card) and that Skip makes no verify call.

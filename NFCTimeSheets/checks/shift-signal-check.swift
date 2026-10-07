@@ -216,8 +216,29 @@ check(!materialsView.contains("private var contextLocationId: String? { openShif
 let refresh = view.components(separatedBy: "private func refresh() async {")[1]
     .components(separatedBy: "\n    }")[0]
 check(refresh.contains("adoptServerOpenShift"), "refresh still adopts the server's open shift")
-check(refresh.contains("signals.arm("),
+check(refresh.contains("armIfStillCurrent()"),
       "...and re-arms from it, so a reinstalled or rebooted phone gets its signal back")
+// TASK-365.4. The re-arm after five awaits is the GUARDED one: a refresh that started for worker A
+// and lands after A signed out (Session's teardown already ran) or after B replaced A must not put
+// A's badge back. The guard is a pure rule (WorkerScope.isCurrent) asked of the live session.
+let armIfCurrent = view.components(separatedBy: "private func armIfStillCurrent() {")[1]
+    .components(separatedBy: "\n    }")[0]
+check(armIfCurrent.contains("WorkerScope.isCurrent(worker.id, session: session.worker?.id)"),
+      "the re-arm after an await asks whether this worker STILL holds the session")
+check(armIfCurrent.contains("signals.arm(for: currentRunning())"),
+      "...and then arms through the same one wire as the tap path")
+check(handleTap.contains("armIfStillCurrent()"),
+      "handleTap's post-roster re-arm is the guarded one (the synchronous arm right after the save is not gated)")
+
+// SCOPED TO THE SIGNED-IN WORKER (TASK-365.4). On a shared phone worker A's leftover open row is
+// still in the store; arming worker B's badge, ladder and Live Activity from it would tell B they
+// are clocked in at A's building. What the signals are armed FROM reads the session worker's row only.
+let currentRunning = view.components(separatedBy: "private func currentRunning() -> RunningShift? {")[1]
+    .components(separatedBy: "\n    }")[0]
+check(currentRunning.contains("openShift(for: worker.id)"),
+      "currentRunning() - the value every out-of-app signal is armed from - filters by the session's worker id")
+check(!currentRunning.contains("first(where: \\.isOpen)"),
+      "...and the unscoped first(where: \\.isOpen) is gone from it")
 
 // TEARDOWN TAKES BACK WHAT WAS ALREADY DELIVERED, not just what is still scheduled.
 // A shift that closed at 07:40 leaving the 07:00 "Still clocked in" banner in Notification
@@ -229,6 +250,24 @@ check(center.contains("removePendingNotificationRequests(withIdentifiers: Self.a
 check(center.contains("removeDeliveredNotifications(withIdentifiers: Self.allReminderIds)"),
       "...AND removes the rungs already sitting in Notification Center - a stale "
       + "'you are still working' notification is worse than none")
+
+// SIGNING OUT TEARS EVERY SIGNAL DOWN (TASK-365.4). Mirrors android/checks/core-check.kt: "signing
+// out tears every signal down". Session.clearLocalSession is the ONE teardown both exits share -
+// a deliberate sign-out and the 401 path (serverRejectedSession) - so a phone handed to a colleague
+// stops showing a badge, +1h..+8h reminders and a Live Activity for a shift nobody is signed in to.
+// arm(for:) is otherwise reachable only from LogView, which is unmounted by then.
+let auth = try! String(contentsOfFile: "NFCTimeSheets/Auth.swift", encoding: .utf8)
+let clearLocal = auth.components(separatedBy: "private func clearLocalSession() {")[1]
+    .components(separatedBy: "\n    }")[0]
+check(clearLocal.components(separatedBy: "\n").contains { l in
+          !l.trimmingCharacters(in: .whitespaces).hasPrefix("//") && l.contains("ShiftSignalCenter.shared.arm(for: nil)")
+      },
+      "signing out tears every signal down: clearLocalSession calls ShiftSignalCenter.shared.arm(for: nil)")
+check(auth.components(separatedBy: "clearLocalSession()").count - 1 >= 3,
+      "...and both signOut and serverRejectedSession go through it (declaration + two callers)")
+check(ShiftSignal.plan(for: nil, now: at(3)) == ShiftSignal.SignalPlan.idle &&
+      ShiftSignal.plan(for: nil, now: at(3)).badgeCount == 0,
+      "arm(for: nil) is the idle plan: badge 0, no ladder, no Live Activity")
 
 // The badge has ONE owner. Two writers would fight over a surface that carries one number.
 let materials = try! String(contentsOfFile: "NFCTimeSheets/MaterialStore.swift", encoding: .utf8)

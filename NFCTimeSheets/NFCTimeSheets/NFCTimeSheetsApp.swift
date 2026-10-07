@@ -69,6 +69,11 @@ final class Shift {
     var clientUuidString: String { clientUuid.uuidString.lowercased() }
 }
 
+/// The store is the DEVICE's outbox, across every account that ever signed in on this phone.
+/// Every screen and every tap reads it through WorkerScope.swift (checks/worker-scope-check.swift
+/// enforces that); only the sync engine and the delivery summary look at all of it.
+extension Shift: WorkerScoped {}
+
 // Cached roster location. `locationId` is the UUID a tag carries; `slug` is for humans.
 @Model
 final class Site {

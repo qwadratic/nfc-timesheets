@@ -90,7 +90,7 @@ func syncPending(context: ModelContext, workerId: Int) async {
             guard await pushOpen(shift, as: workerId) else { continue }  // don't close what never opened
         }
         if let end = shift.endTime, shift.closeSyncedAt == nil {
-            await pushClose(shift, end: end)
+            await pushClose(shift, end: end, as: workerId)
         }
     }
     try? context.save()
@@ -134,7 +134,15 @@ private func pushOpen(_ shift: Shift, as workerId: Int) async -> Bool {
 }
 
 @MainActor
-private func pushClose(_ shift: Shift, end: Date) async {
+private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
+    // ANOTHER ACCOUNT'S CLOSE STAYS ON THE PHONE. The server looks the shift up under whoever holds
+    // the cookie (decision-22), so worker A's finished-but-unsent row, pushed while B is signed in,
+    // answers 404 unknown_shift - which is terminal, so it would BLOCK A's row for ever and A's
+    // shift would sit open on the server until the 8h timer closed it. Skipping changes nothing on
+    // the row: no error, no block, no request. It is simply still pending when A signs back in,
+    // and goes out then. (pushOpen's wrong-account block is a separate, deliberately untouched
+    // behaviour - same as Android's SyncPlan.)
+    guard shift.workerId == workerId else { return }
     do {
         // Carry the local flag up. The server only ever raises auto_closed, never clears it,
         // so a plain tap-out cannot downgrade a shift the 8h timer already flagged.

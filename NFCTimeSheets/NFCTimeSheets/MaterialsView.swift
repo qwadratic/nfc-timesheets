@@ -26,14 +26,18 @@ struct MaterialsView: View {
     /// Read-only, from the app's existing container. Used for two cosmetic things: which
     /// building to attach as CONTEXT, and what to call it. Nothing branches on either -
     /// a request with no building is a perfectly good request.
-    @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
+    ///
+    /// DEVICE-WIDE (every account's rows), read only through WorkerScope: the building a
+    /// request carries is the SIGNED-IN worker's open shift, never a colleague's leftover one
+    /// ("For <A's building>" must not appear on B's request).
+    @Query(sort: \Shift.startTime, order: .reverse) private var allShifts: [Shift]
     @Query private var sites: [Site]
     @Environment(RosterZones.self) private var rosterZones
 
     @State private var typed = ""
     @FocusState private var writing: Bool
 
-    private var openShift: Shift? { shifts.first(where: \.isOpen) }
+    private var openShift: Shift? { allShifts.openShift(for: worker.id) }
     /// The BUILDING of the open shift, never the zone that was tapped: POST /material-requests
     /// validates its location against buildings only, so a zone id answers 422 and the row
     /// stays blocked on the phone for ever. nil (building not cached yet) is a perfectly good
