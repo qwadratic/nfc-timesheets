@@ -35,7 +35,6 @@ import io.github.qwadratic.nfctimesheets.TimeSheetsApplication
 import io.github.qwadratic.nfctimesheets.core.ApiFailure
 import io.github.qwadratic.nfctimesheets.core.WireOperatorLocation
 import io.github.qwadratic.nfctimesheets.core.WriteGuard
-import io.github.qwadratic.nfctimesheets.ui.BuildingPicker
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -420,51 +419,31 @@ class WriteTagActivity : LocalizedActivity() {
         }
     }
 
-    /** The name field, the buildings, Skip, and submit. Shared by picking and load-failed. */
+    /**
+     * The name field, the buildings, Skip, and submit. Shared by picking and load-failed. The
+     * drawing itself is ui/ZoneForm.kt, shared with Test a tag's finish-a-card step
+     * (decision-76 section 1); the state, and what submit does, stay this screen's alone.
+     */
     @Composable
     private fun ZoneForm(locations: List<WireOperatorLocation>) {
-        Text(stringResource(R.string.write_zone_hint), style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = zoneName,
-            onValueChange = { zoneName = it },
-            label = { Text(stringResource(R.string.write_zone_name_label)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        // The list itself is ui/BuildingPicker.kt, shared with the bind flow in
-        // nfc/VerifyZoneActivity — same question, asked at two moments (decision-54 §2/§3).
-        // The name field above and the Skip below are this screen's alone and stay here.
-        BuildingPicker(
+        io.github.qwadratic.nfctimesheets.ui.ZoneForm(
+            hint = stringResource(R.string.write_zone_hint),
+            name = zoneName,
+            onNameChange = { zoneName = it },
             locations = locations,
-            selectedId = zoneBuilding?.id,
-            emptyText = stringResource(R.string.write_zone_locations_empty),
-            onPick = {
+            selectedBuildingId = zoneBuilding?.id,
+            onPickBuilding = {
                 zoneBuilding = it
                 zoneSkipped = false
             },
-        )
-        OutlinedButton(
-            onClick = {
+            skipped = zoneSkipped,
+            onSkip = {
                 zoneBuilding = null
                 zoneSkipped = true
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp),
-        ) {
-            Text(
-                if (zoneSkipped) {
-                    "\u2713 " + stringResource(R.string.write_zone_no_building)
-                } else {
-                    stringResource(R.string.write_zone_no_building)
-                },
-            )
-        }
-        Button(
-            onClick = ::submitZone,
-            enabled = zoneName.isNotBlank() && (zoneBuilding != null || zoneSkipped),
-            modifier = Modifier.heightIn(min = 48.dp),
-        ) { Text(stringResource(R.string.write_zone_submit)) }
+            canSubmit = zoneName.isNotBlank() && (zoneBuilding != null || zoneSkipped),
+            onSubmit = ::submitZone,
+        )
     }
 
     /**

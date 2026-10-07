@@ -38,16 +38,19 @@ import androidx.lifecycle.lifecycleScope
 import io.github.qwadratic.nfctimesheets.R
 import io.github.qwadratic.nfctimesheets.TimeSheetsApplication
 import io.github.qwadratic.nfctimesheets.core.ApiFailure
+import io.github.qwadratic.nfctimesheets.core.ReportedZone
 import io.github.qwadratic.nfctimesheets.core.TagLink
 import io.github.qwadratic.nfctimesheets.core.Wire
 import io.github.qwadratic.nfctimesheets.core.WireOperatorLocation
 import io.github.qwadratic.nfctimesheets.core.WireOperatorZone
+import io.github.qwadratic.nfctimesheets.core.WireResolvedZone
 import io.github.qwadratic.nfctimesheets.core.WireTagClassification
 import io.github.qwadratic.nfctimesheets.core.WireZoneShiftPage
 import io.github.qwadratic.nfctimesheets.core.WireZoneVerifyResult
 import io.github.qwadratic.nfctimesheets.core.Zones
 import io.github.qwadratic.nfctimesheets.ui.BuildingPicker
 import io.github.qwadratic.nfctimesheets.ui.TimeSheetsTheme
+import io.github.qwadratic.nfctimesheets.ui.ZoneForm
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
@@ -104,6 +107,15 @@ import java.time.format.FormatStyle
  * untouched: [selectZone] and its verify are the same lines they were. An ADDED entry point,
  * not a replacement.
  *
+ * AND A CARD THAT WAS WRITTEN AND REPORTED BUT NEVER MADE A ZONE IS FINISHED RIGHT HERE
+ * (decision-76, [ReportedStep]). The scan-first classification answers `tag_reported` for such a
+ * card, and since decision-76 that is no longer a dead end: the same zone-name and building form
+ * the write screen ends in (ui/ZoneForm) is offered, resolve-zone is called with the id that was
+ * just read off the card, and — when a building was chosen — the SAME id is immediately sent to
+ * the unchanged verify. The scan that found the card is its test scan. The ORDER and the Skip
+ * rule live in core/ReportedZone, which checks/reported-zone-check.kt runs. Nothing here lets a
+ * zone become verified without a scan of its own card (decision-76 §6).
+ *
  * IT WRITES A CARD, IN EXACTLY ONE PLACE (decision-55 §3, [ReassignStep]). Reassigning a bound
  * zone's building needs a freshly written card before the server call, and it gets one through
  * the SAME `app.tagWriter` and the SAME `POST /operator/tags` report the write screen uses —
@@ -158,6 +170,22 @@ class VerifyZoneActivity : LocalizedActivity() {
 
     /** The id the WRITE-FRESH recovery puts on the card. Minted here for [reassignTagId]'s reason. */
     private var freshTagId by mutableStateOf(UUID.randomUUID().toString())
+
+    /**
+     * FINISHING A REPORTED CARD (decision-76). [reportedTagId] is the id that was just READ OFF
+     * the card — the phone mints nothing here — and it is what a late answer is checked against,
+     * so a building list that arrives after the operator moved to another card is dropped.
+     * Name, pick and Skip are held apart for the write screen's reason: "not decided yet" and
+     * "decided to leave it unbound" are different states and only the second may be submitted.
+     */
+    private var reportedStep by mutableStateOf<ReportedStep>(ReportedStep.Idle)
+    private var reportedTagId by mutableStateOf<String?>(null)
+    private var reportedName by mutableStateOf("")
+    private var reportedBuilding by mutableStateOf<WireOperatorLocation?>(null)
+    private var reportedSkipped by mutableStateOf(false)
+
+    /** One sentence over the zone this card just became. Cleared by every other way of picking a zone. */
+    private var reportedNote by mutableStateOf<ReportedNote?>(null)
 
     /** What a completed test scan showed. Rendered as a named sentence, never a raw code. */
     private sealed interface VerifyOutcome {
@@ -218,10 +246,11 @@ class VerifyZoneActivity : LocalizedActivity() {
      */
     /**
      * SCAN FIRST, ASK WHAT THE CARD IS (decision-55 §1) — the state of the screen BEFORE any
-     * zone is picked. Only [WireTagClassification.Zone] has anywhere to go; the other four are
-     * one honest sentence each and offer no action, which is the decision and not an omission:
-     * there is no operator screen for a building card, and turning a reported card into a zone
-     * stays where it has always been, in the write flow.
+     * zone is picked. Only [WireTagClassification.Zone] and [WireTagClassification.TagReported]
+     * have anywhere to go; the other three are one honest sentence each and offer no action,
+     * which is the decision and not an omission: there is no operator screen for a building
+     * card. A REPORTED card used to be a sentence too (decision-55 §1) and is now the start of
+     * [ReportedStep] (decision-76 §1): it carries the id that was just read off the card.
      */
     private sealed interface ScanStep {
         /** Waiting for a card, with no zone picked. Renders the ordinary worklist. */
@@ -229,7 +258,8 @@ class VerifyZoneActivity : LocalizedActivity() {
         data object Checking : ScanStep
         data object Building : ScanStep
         data object Retired : ScanStep
-        data object TagReported : ScanStep
+        /** Written and reported, never made a zone. [id] is the id that was read off this card. */
+        data class TagReported(val id: String) : ScanStep
         data object Unknown : ScanStep
 
         /** No URI and no worklist serial: never reached the server, because there was no id. */
@@ -239,6 +269,51 @@ class VerifyZoneActivity : LocalizedActivity() {
             val diagnosis: TagLink.Diagnosis,
         ) : ScanStep
         data class Failed(val code: String) : ScanStep
+    }
+
+    /**
+     * FINISHING A CARD THAT WAS REPORTED BUT NEVER MADE A ZONE (decision-76 §1) — the form this
+     * screen offers when the scan-first classification is `tag_reported`. The same two fields as
+     * the write screen's zone step (a name, and a building with Skip), the same existing calls,
+     * and the id that was just READ OFF THE CARD for both. The calls and their order are
+     * [ReportedZone.finish]; this is only the screen around them.
+     *
+     * A LOAD FAILURE IS NOT A DEAD END, as on the write screen: Skip needs no list, so the form
+     * is still offered and the zone can still be made unbound.
+     */
+    private sealed interface ReportedStep {
+        /** No reported card on screen. Renders nothing. */
+        data object Idle : ReportedStep
+        data object Loading : ReportedStep
+
+        /** The buildings to choose between. Empty is legitimate: everything can be skipped. */
+        data class Picking(val locations: List<WireOperatorLocation>) : ReportedStep
+        data class LoadFailed(val code: String) : ReportedStep
+
+        /** resolve-zone, and — with a building — the verify straight after it. */
+        data class Submitting(val verifying: Boolean) : ReportedStep
+
+        /**
+         * resolve-zone did not land: NOTHING was created. [locations] keeps the form drawn, with
+         * the typed name and the pick still in place, for the failures a retry can fix.
+         */
+        data class Failed(
+            val kind: ReportedZone.ResolveFailure,
+            val code: String,
+            val locations: List<WireOperatorLocation>,
+        ) : ReportedStep
+    }
+
+    /** What the zone this card just became still needs, said once above its page. */
+    private sealed interface ReportedNote {
+        /** Created with a building and proved by the very scan that found the card. */
+        data class Verified(val zoneName: String, val building: String) : ReportedNote
+
+        /** Created without a building: not verified, and the bind picker is the next step. */
+        data class Unbound(val zoneName: String) : ReportedNote
+
+        /** Created with a building, but the verify call failed. The ordinary test scan is open. */
+        data class Untested(val zoneName: String, val building: String) : ReportedNote
     }
 
     /**
@@ -376,6 +451,9 @@ class VerifyZoneActivity : LocalizedActivity() {
                 // stranded an already-written, already-reported card. Keyed on both flows
                 // because they are the same bug twice.
                 LaunchedEffect(freshStep, reassignStep) { syncReaderMode() }
+                // Same rule for finishing a reported card (decision-76): a tap while its two
+                // calls are in flight must not re-classify the card away from under them.
+                LaunchedEffect(reportedStep) { syncReaderMode() }
                 Scaffold { padding ->
                     Column(
                         modifier = Modifier
@@ -423,6 +501,8 @@ class VerifyZoneActivity : LocalizedActivity() {
             // statement of fact and not an invitation to arm something.
             Text(stringResource(R.string.verify_scan_any_hint), style = MaterialTheme.typography.titleMedium)
             ScanFirstStatus()
+            // A CARD THAT WAS REPORTED BUT NEVER MADE A ZONE IS FINISHED HERE (decision-76 §1).
+            (scanStep as? ScanStep.TagReported)?.let { ReportedZoneSection(it.id) }
             // THE DEAD END GETS AN EXIT (decision-58 §3). Same section, same writer, on both
             // paths — only the state that reveals it differs.
             if (scanStep is ScanStep.Unreadable) FreshCardSection()
@@ -482,6 +562,7 @@ class VerifyZoneActivity : LocalizedActivity() {
             style = MaterialTheme.typography.titleMedium,
         )
 
+        ReportedNoteStatus()
         UnbindStatus()
 
         // NO BUILDING, NO SCAN. The bind form replaces the scan body entirely — it does not
@@ -539,9 +620,10 @@ class VerifyZoneActivity : LocalizedActivity() {
     }
 
     /**
-     * What the last scan-first card was, in one sentence. Four of the five kinds end here and
-     * offer nothing else; the fifth ([WireTagClassification.Zone]) never renders in this state at
-     * all, because it has already put a zone on the screen.
+     * What the last scan-first card was, in one sentence. Three of the five kinds end here and
+     * offer nothing else; [WireTagClassification.Zone] never renders in this state at all,
+     * because it has already put a zone on the screen, and [WireTagClassification.TagReported]
+     * is this sentence PLUS the form [ReportedZoneSection] draws under it.
      */
     @Composable
     private fun ScanFirstStatus() {
@@ -550,7 +632,7 @@ class VerifyZoneActivity : LocalizedActivity() {
             ScanStep.Checking -> stringResource(R.string.verify_scan_any_checking)
             ScanStep.Building -> stringResource(R.string.verify_scan_any_building)
             ScanStep.Retired -> stringResource(R.string.verify_scan_any_retired)
-            ScanStep.TagReported -> stringResource(R.string.verify_scan_any_reported)
+            is ScanStep.TagReported -> stringResource(R.string.verify_scan_any_reported)
             ScanStep.Unknown -> stringResource(R.string.verify_scan_any_unknown)
             is ScanStep.Unreadable -> unreadableText(step.techs, step.uid, step.diagnosis)
             is ScanStep.Failed -> getString(R.string.verify_scan_any_failed, step.code)
@@ -660,6 +742,282 @@ class VerifyZoneActivity : LocalizedActivity() {
                 .fillMaxWidth()
                 .heightIn(min = 48.dp),
         ) { Text(stringResource(R.string.verify_fresh_cancel)) }
+    }
+
+    /**
+     * FINISH THIS CARD (decision-76 §1). Drawn under the scan-first sentence when the card the
+     * operator just held up classifies as `tag_reported`: written and reported, never named.
+     *
+     * The same fields as the write screen's zone step (ui/ZoneForm): a name, a building, and
+     * Skip — an unbound zone is still a legitimate resting state (decision-54 §1). With a
+     * building the card is tested by the very scan that found it; with Skip it is not, and the
+     * zone lands on the unbound page this screen already has.
+     */
+    @Composable
+    private fun ReportedZoneSection(tagId: String) {
+        when (val step = reportedStep) {
+            ReportedStep.Idle -> Unit
+            ReportedStep.Loading -> Text(stringResource(R.string.verify_reported_loading))
+
+            is ReportedStep.Submitting -> Text(
+                stringResource(
+                    if (step.verifying) R.string.verify_reported_submitting_tested else R.string.verify_reported_submitting,
+                ),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+
+            is ReportedStep.LoadFailed -> {
+                Text(
+                    getString(R.string.verify_reported_load_failed, step.code),
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedButton(
+                    onClick = { loadReportedLocations(tagId) },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.write_zone_retry)) }
+                ReportedForm(tagId, emptyList())
+            }
+
+            is ReportedStep.Picking -> ReportedForm(tagId, step.locations)
+
+            is ReportedStep.Failed -> {
+                Text(
+                    reportedFailureText(step.kind, step.code),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                when (step.kind) {
+                    // NOTHING TO SUBMIT: the card is not (or no longer) in the state this form
+                    // is for. Holding it up again re-classifies it, which is the right next move.
+                    ReportedZone.ResolveFailure.UnknownReportedTag,
+                    ReportedZone.ResolveFailure.AlreadyResolved -> Unit
+
+                    ReportedZone.ResolveFailure.UnknownLocation -> OutlinedButton(
+                        onClick = { loadReportedLocations(tagId) },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) { Text(stringResource(R.string.verify_reported_reload)) }
+
+                    // The form stays, typed name and pick in place: submit IS the retry.
+                    else -> ReportedForm(tagId, step.locations)
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun ReportedForm(tagId: String, locations: List<WireOperatorLocation>) {
+        ZoneForm(
+            hint = null,
+            name = reportedName,
+            onNameChange = { reportedName = it },
+            locations = locations,
+            selectedBuildingId = reportedBuilding?.id,
+            onPickBuilding = {
+                reportedBuilding = it
+                reportedSkipped = false
+            },
+            skipped = reportedSkipped,
+            onSkip = {
+                reportedBuilding = null
+                reportedSkipped = true
+            },
+            canSubmit = reportedName.isNotBlank() && (reportedBuilding != null || reportedSkipped),
+            onSubmit = { submitReported(tagId, locations) },
+        )
+    }
+
+    /** What the zone this card just became still needs, in one sentence over its page. */
+    @Composable
+    private fun ReportedNoteStatus() {
+        val text = when (val note = reportedNote) {
+            null -> return
+            is ReportedNote.Verified -> getString(R.string.verify_reported_done, note.zoneName, note.building)
+            is ReportedNote.Unbound -> getString(R.string.verify_reported_unbound, note.zoneName)
+            is ReportedNote.Untested -> getString(R.string.verify_reported_untested, note.zoneName, note.building)
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+
+    /**
+     * Every refusal `POST /operator/tags/:id/resolve-zone` can produce that has its own next
+     * move, as its own sentence — never a bare code. [ReportedZone.classifyResolveFailure] does
+     * the classifying (and is what the check runs); this only picks the words.
+     */
+    private fun reportedFailureText(kind: ReportedZone.ResolveFailure, code: String): String = when (kind) {
+        ReportedZone.ResolveFailure.UnknownReportedTag -> getString(R.string.verify_reported_unknown_tag)
+        ReportedZone.ResolveFailure.AlreadyResolved -> getString(R.string.verify_reported_already_resolved)
+        ReportedZone.ResolveFailure.DuplicateZoneName -> getString(R.string.verify_reported_duplicate_name)
+        ReportedZone.ResolveFailure.UnknownLocation -> getString(R.string.verify_reported_unknown_location)
+        ReportedZone.ResolveFailure.Network -> getString(R.string.verify_reported_network)
+        ReportedZone.ResolveFailure.Other -> getString(R.string.verify_reported_failed, code)
+    }
+
+    /** Back to nothing: no reported card on screen, nothing typed, no note. */
+    private fun resetReported() {
+        reportedStep = ReportedStep.Idle
+        reportedTagId = null
+        reportedName = ""
+        reportedBuilding = null
+        reportedSkipped = false
+        reportedNote = null
+    }
+
+    /**
+     * A card classified as `tag_reported` was just read. The SAME card held up again keeps the
+     * typed name and the pick (the building list is simply fetched afresh); a different card
+     * starts blank.
+     */
+    private fun beginReported(id: String, sameCard: Boolean) {
+        if (!sameCard || reportedTagId != id) {
+            reportedName = ""
+            reportedBuilding = null
+            reportedSkipped = false
+        }
+        reportedNote = null
+        reportedTagId = id
+        loadReportedLocations(id)
+    }
+
+    /**
+     * GET /operator/locations — the same list the write flow's picker loads. A failure is NOT a
+     * dead end: Skip needs no list, so the form is still offered and the zone can still be
+     * created unbound (the same row the write flow's Skip produces on purpose).
+     */
+    private fun loadReportedLocations(id: String) {
+        reportedStep = ReportedStep.Loading
+        lifecycleScope.launch {
+            val step = try {
+                val locations = if (isSimulatedTag(id)) simulatedBindLocations() else app.operatorApi.operatorLocations()
+                // A pick that is not on the fresh list names a building that is gone.
+                val picked = reportedBuilding
+                if (picked != null && locations.none { it.id == picked.id }) reportedBuilding = null
+                ReportedStep.Picking(locations)
+            } catch (e: ApiFailure) {
+                ReportedStep.LoadFailed(e.code)
+            } catch (_: Exception) {
+                ReportedStep.LoadFailed("unknown")
+            }
+            // An answer for a card the operator has since moved on from is dropped.
+            if (reportedTagId == id) reportedStep = step
+        }
+    }
+
+    /**
+     * resolve-zone, then — when a building was chosen — verify with the SAME id (decision-76 §2).
+     * The order, the Skip rule and the "verify failed after resolve succeeded" rule are
+     * [ReportedZone.finish]; this only supplies the two network calls and shows the answer.
+     *
+     * The BUILDING NAME shown afterwards is the one that was tapped, not one read back off the
+     * response: the route returns ids only, exactly as the write screen's submit notes.
+     */
+    private fun submitReported(tagId: String, locations: List<WireOperatorLocation>) {
+        if (reportedStep is ReportedStep.Submitting) return
+        val name = reportedName.trim()
+        val building = if (reportedSkipped) null else reportedBuilding
+        if (name.isEmpty() || (building == null && !reportedSkipped)) return
+        // DEBUG BUILDS ONLY: a simulated reported card has no server row behind it, so neither
+        // call may be made for it. isSimulatedTag() is constantly false in release.
+        val simulated = isSimulatedTag(tagId)
+        reportedStep = ReportedStep.Submitting(verifying = building != null)
+        lifecycleScope.launch {
+            val result = ReportedZone.finish(
+                scannedId = tagId,
+                name = name,
+                buildingId = building?.id,
+                resolveZone = { id, zoneName, locationId ->
+                    if (simulated) {
+                        val made = runFreshZoneSimulation(id, zoneName, building)
+                        WireResolvedZone(made.id, made.name, made.locationId)
+                    } else {
+                        app.operatorApi.resolveZone(id, zoneName, locationId)
+                    }
+                },
+                verifyZone = { zoneId, placeUuid ->
+                    if (simulated) {
+                        runVerifySimulation(
+                            WireOperatorZone(
+                                id = zoneId,
+                                locationId = building?.id,
+                                locationName = building?.name,
+                                name = name,
+                                tagSerial = null,
+                                tagDeployedAt = null,
+                                verifiedAt = null,
+                            ),
+                        )
+                    } else {
+                        app.operatorApi.verifyZone(zoneId, placeUuid)
+                    }
+                },
+            )
+            applyReportedOutcome(result, building, locations)
+        }
+    }
+
+    private fun applyReportedOutcome(
+        result: ReportedZone.Outcome,
+        building: WireOperatorLocation?,
+        locations: List<WireOperatorLocation>,
+    ) {
+        when (result) {
+            // Nothing was created. The card is fine and the form is still there (or, for the two
+            // failures a form cannot fix, the card has to be held up again).
+            is ReportedZone.Outcome.NotCreated -> reportedStep = ReportedStep.Failed(
+                kind = ReportedZone.classifyResolveFailure(result.failure),
+                code = result.failure.code,
+                locations = locations,
+            )
+
+            // The zone exists AND the scan that found the card has already proved it.
+            is ReportedZone.Outcome.Verified -> {
+                val zone = zoneFrom(result.zone, building?.name ?: result.proof.locationName, result.proof.verifiedAt)
+                adoptReportedZone(zone, ReportedNote.Verified(zone.name, zone.locationName.orEmpty()))
+                // The zone page follows a proof and never precedes one (decision-54 §7), exactly
+                // as handleRead does it. selectZone cleared the outcome, so set it after.
+                outcome = VerifyOutcome.Verified(result.proof)
+                loadShifts(zone, 1)
+            }
+
+            // Skip: no verify call was made. The unbound page, with its building picker, is next.
+            is ReportedZone.Outcome.CreatedUnbound -> {
+                val zone = zoneFrom(result.zone, null, null)
+                adoptReportedZone(zone, ReportedNote.Unbound(zone.name))
+            }
+
+            // The zone exists with its building but is not tested yet. Nothing is rolled back and
+            // the ordinary test scan is armed (selectZone does that), under the reason in words.
+            is ReportedZone.Outcome.CreatedUntested -> {
+                val zone = zoneFrom(result.zone, building?.name, null)
+                adoptReportedZone(zone, ReportedNote.Untested(zone.name, zone.locationName.orEmpty()))
+                outcome = verifyFailureOutcome(zone.name, result.failure)
+            }
+        }
+    }
+
+    /** The worklist row for a zone this screen just created. The route returns no building name. */
+    private fun zoneFrom(resolved: WireResolvedZone, locationName: String?, verifiedAt: Instant?) = WireOperatorZone(
+        id = resolved.id,
+        locationId = resolved.locationId,
+        locationName = if (resolved.locationId == null) null else locationName,
+        name = resolved.name,
+        tagSerial = null,
+        tagDeployedAt = null,
+        verifiedAt = verifiedAt,
+    )
+
+    /**
+     * Put the new zone on the worklist and select it: a bound one goes to the test scan it was
+     * always going to, an unbound one to the building picker (selectZone's own fork). The note is
+     * set AFTER selectZone, which clears every earlier one.
+     */
+    private fun adoptReportedZone(zone: WireOperatorZone, note: ReportedNote) {
+        zones = zones.filterNot { it.id == zone.id } + zone
+        selectZone(zone)
+        reportedNote = note
     }
 
     /** Arm the write. Reader mode is (re)started because this is now a tap that WRITES. */
@@ -1136,7 +1494,8 @@ class VerifyZoneActivity : LocalizedActivity() {
      * WHEN A CARD MAY BE READ AT ALL, in one place, because there are now three answers and a
      * scattered set of `if`s is how the fourth one ends up wrong.
      *
-     *   no zone picked   YES — scan-first classification (decision-55 §2), read-only.
+     *   no zone picked   YES — scan-first classification (decision-55 §2), read-only. Except
+     *                    while a reported card's zone is being created (decision-76): NO.
      *   reassigning      YES — and ONLY while a fresh card is expected: this is the one state
      *                    in this screen where a tap WRITES. Mid-reassignment (picking a
      *                    building, submitting) NO: a card presented then has nowhere to go.
@@ -1159,6 +1518,9 @@ class VerifyZoneActivity : LocalizedActivity() {
         freshStep !is FreshStep.Idle -> false
         reassignStep is ReassignStep.AwaitingCard || reassignStep is ReassignStep.WriteRefused -> true
         reassignStep !is ReassignStep.Idle && reassignStep !is ReassignStep.Done -> false
+        // Finishing a reported card (decision-76): resolve-zone and the verify after it are in
+        // flight, and a stray tap would re-classify the card under them.
+        reportedStep is ReportedStep.Submitting -> false
         selectedZone == null -> true
         else -> selectedZone?.isBound == true
     }
@@ -1178,6 +1540,7 @@ class VerifyZoneActivity : LocalizedActivity() {
         reassignBuilding = null
         freshStep = FreshStep.Idle
         freshBuilding = null
+        resetReported()
         bindBuilding = null
         shifts = null
         shiftsError = false
@@ -1206,6 +1569,7 @@ class VerifyZoneActivity : LocalizedActivity() {
         reassignBuilding = null
         freshStep = FreshStep.Idle
         freshBuilding = null
+        resetReported()
         // This ARMS rather than disarms: with no zone picked this screen is the scan-first one
         // (decision-55 §2), which reads cards precisely in that state. syncReaderMode() enabling
         // is a no-op when reader mode is already on and the honest thing when it was off.
@@ -1226,11 +1590,16 @@ class VerifyZoneActivity : LocalizedActivity() {
      * exists — there is nothing to verify until it has a building.
      */
     private fun handleScanFirst(techs: List<String>, uid: String, uriString: String?) {
+        // A reported card's zone is being created (decision-76): that owns the screen until it
+        // answers. readerWanted() already disarms the radio; this is the belt behind it, because
+        // disableReaderMode is asynchronous.
+        if (reportedStep is ReportedStep.Submitting) return
         val placeUuid = app.tagLink.locationId(uriString) ?: matchSerial(uid)
         if (placeUuid == null) {
             scanStep = ScanStep.Unreadable(techs, uid, app.tagLink.diagnose(uriString))
             return
         }
+        val previousReported = (scanStep as? ScanStep.TagReported)?.id
         scanStep = ScanStep.Checking
         lifecycleScope.launch {
             val classification = try {
@@ -1251,7 +1620,15 @@ class VerifyZoneActivity : LocalizedActivity() {
                 }
                 WireTagClassification.Building -> scanStep = ScanStep.Building
                 WireTagClassification.Retired -> scanStep = ScanStep.Retired
-                WireTagClassification.TagReported -> scanStep = ScanStep.TagReported
+                WireTagClassification.TagReported -> {
+                    // DEBUG BUILDS ONLY: a simulated reported card must also be "written" as far
+                    // as the next two calls are concerned (nfc/VerifySimulation.kt). Both are no-ops
+                    // in release, where simulatedClassification() is constantly null.
+                    if (simulatedClassification(placeUuid) != null) noteSimulatedWrite(placeUuid)
+                    // The SAME card held up again keeps what was typed; a different one starts blank.
+                    beginReported(placeUuid, sameCard = previousReported == placeUuid)
+                    scanStep = ScanStep.TagReported(placeUuid)
+                }
                 WireTagClassification.Unknown -> scanStep = ScanStep.Unknown
             }
         }
@@ -1580,18 +1957,25 @@ class VerifyZoneActivity : LocalizedActivity() {
                 loadShifts(target, 1)
                 VerifyOutcome.Verified(result)
             } catch (e: ApiFailure) {
-                when (e.code) {
-                    "zone_mismatch" -> VerifyOutcome.Mismatch(target.name)
-                    "tag_unbound" -> VerifyOutcome.Unbound
-                    "unknown_location" -> VerifyOutcome.UnknownLocation
-                    "unknown_zone" -> VerifyOutcome.UnknownZone
-                    else -> VerifyOutcome.Failure(serverSide = e.status == 0 || e.status >= 500)
-                }
+                verifyFailureOutcome(target.name, e)
             } catch (_: Exception) {
                 VerifyOutcome.Failure(serverSide = true)
             }
             checking = false
         }
+    }
+
+    /**
+     * A failed `POST /operator/zones/:id/verify` as the sentence the operator sees. One mapping,
+     * shared by the test scan above and by finishing a reported card ([applyReportedOutcome]),
+     * so the same refusal reads the same wherever it comes from.
+     */
+    private fun verifyFailureOutcome(zoneName: String, e: ApiFailure): VerifyOutcome = when (e.code) {
+        "zone_mismatch" -> VerifyOutcome.Mismatch(zoneName)
+        "tag_unbound" -> VerifyOutcome.Unbound
+        "unknown_location" -> VerifyOutcome.UnknownLocation
+        "unknown_zone" -> VerifyOutcome.UnknownZone
+        else -> VerifyOutcome.Failure(serverSide = e.status == 0 || e.status >= 500)
     }
 
     /**
