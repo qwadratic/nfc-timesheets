@@ -401,6 +401,16 @@
         }
       }
     },
+    "Choose a zone" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zone auswählen"
+          }
+        }
+      }
+    },
     "Clocked in" : {
       "localizations" : {
         "de" : {
@@ -1025,16 +1035,6 @@
         }
       }
     },
-    "No buildings on this phone yet. Connect to the internet and pull down to refresh." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auf diesem Telefon sind noch keine Objekte gespeichert. Verbinde dich mit dem Internet und ziehe zum Aktualisieren nach unten."
-          }
-        }
-      }
-    },
     "No completed shifts yet." : {
       "localizations" : {
         "de" : {
@@ -1081,6 +1081,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Noch keine Schichten."
+          }
+        }
+      }
+    },
+    "No zones are available. Please refresh first. If your zone is still missing, contact the office." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es sind keine Zonen verfügbar. Bitte zuerst aktualisieren. Fehlt Ihre Zone weiterhin, melden Sie sich bei der Verwaltung."
           }
         }
       }
@@ -1192,6 +1202,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Only use this when the tag is missing or cannot be read. Pick the zone in the building you are working in now. The shift is flagged for the office as a manual start." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur verwenden, wenn der Tag fehlt oder nicht gelesen werden kann. Wählen Sie die Zone im Objekt, in der Sie jetzt arbeiten. Die Schicht wird für das Büro als manueller Start markiert."
           }
         }
       }
@@ -1944,12 +1964,12 @@
         }
       }
     },
-    "Tag missing or unreachable? Pick the building instead. The office sees this as a manual entry." : {
+    "Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tag fehlt oder ist nicht erreichbar? Wähle stattdessen das Objekt. Die Verwaltung sieht das als manuelle Erfassung."
+            "value" : "Tag fehlt oder ist nicht erreichbar? Wählen Sie stattdessen die Zone. Die Verwaltung sieht das als manuelle Erfassung."
           }
         }
       }
@@ -2864,16 +2884,6 @@
         }
       }
     },
-    "Your admin will see that this shift was started without a tag." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deine Verwaltung sieht, dass diese Schicht ohne Tag gestartet wurde."
-          }
-        }
-      }
-    },
     "Your name is no longer on the roster. Ask your admin." : {
       "localizations" : {
         "de" : {
@@ -2900,6 +2910,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ihre Schicht bei %@ hat 8 Stunden erreicht und wurde automatisch beendet. Öffnen Sie die App und bestätigen Sie, wann Sie tatsächlich fertig waren – sonst wird sie nicht bezahlt."
+          }
+        }
+      }
+    },
+    "Zone" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zone"
           }
         }
       }

@@ -236,6 +236,9 @@ struct LogView: View {
     @State private var showManualStart = false
     @State private var manualPick: String?
     @State private var confirmingManualStart = false
+    /// decision-79: a request is in flight / the server's last refusal, shown inside the sheet.
+    @State private var manualBusy = false
+    @State private var manualError: String?
     /// The foreground scan (TapScanner.swift). One instance for the life of the view, and
     /// `scanError` is the calm sentence for a card that could not be read or is not ours -
     /// never a crash, never a silent no-op.
@@ -401,11 +404,12 @@ struct LogView: View {
                 // Corrective, so BORDERED and never filled (2026-08-29 UX audit).
                 Button("Start without a tag") {
                     manualPick = nil
+                    manualError = nil
                     showManualStart = true
                 }
                 .buttonStyle(.bordered)
             } footer: {
-                Text("Tag missing or unreachable? Pick the building instead. The office sees this as a manual entry.")
+                Text("Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry.")
                     .font(.footnote)
             }
             #if DEBUG
@@ -422,28 +426,37 @@ struct LogView: View {
         }
     }
 
-    /// decision-56 §4: the picker, built from the roster this app ALREADY caches (`sites`,
-    /// filled by refreshRoster) - no new endpoint and no new cache. An empty list is a real
-    /// state on a fresh install with no signal, so it says so instead of showing an empty
-    /// wheel above a live Start button.
+    /// decision-79: the picker lists ZONES (cached roster zones whose building is cached), never
+    /// buildings - a building id is no clock-in target since decision-69, so a manual start
+    /// posted with one was refused 422 in the background behind a normal-looking running
+    /// screen. An empty list is a real state on a fresh install with no signal, so it says so
+    /// instead of showing an empty wheel above a live Start button.
     private var manualStartSheet: some View {
         NavigationStack {
             Form {
-                if pickableSites.isEmpty {
-                    Text("No buildings on this phone yet. Connect to the internet and pull down to refresh.")
+                if manualPlaces.isEmpty {
+                    Text("No zones are available. Please refresh first. If your zone is still missing, contact the office.")
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
-                    Picker("Building", selection: $manualPick) {
+                    Picker("Zone", selection: $manualPick) {
                         // Always present, always first, for the same reason BuildingPicker
                         // has one: a nil selection with no matching tag renders BLANK, which
                         // reads as a broken control rather than an unanswered question.
-                        Text("Choose a building").tag(String?.none)
-                        ForEach(pickableSites, id: \.self) { id in
-                            Text(siteName(id)).tag(String?.some(id))
+                        Text("Choose a zone").tag(String?.none)
+                        ForEach(manualPlaces) { place in
+                            Text(place.label).tag(String?.some(place.zoneId))
                         }
                     }
-                    Text("Your admin will see that this shift was started without a tag.")
+                    Text("Only use this when the tag is missing or cannot be read. Pick the zone in the building you are working in now. The shift is flagged for the office as a manual start.")
                         .font(.footnote).foregroundStyle(.secondary)
+                }
+                // The server's refusal, in the worker's words, right where they are looking.
+                // The sheet stays open and nothing was written.
+                if let manualError {
+                    Text(manualError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .accessibilityLabel(manualError)
                 }
             }
             .navigationTitle("Start without a tag")
@@ -453,10 +466,10 @@ struct LogView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Start") { confirmingManualStart = true }
-                        .disabled(manualPick == nil)
+                        .disabled(manualPick == nil || manualBusy)
                 }
             }
-            .confirmationDialog(Text("Start a shift at \(siteName(manualPick ?? ""))?"),
+            .confirmationDialog(Text("Start a shift at \(manualLabel(manualPick))?"),
                                 isPresented: $confirmingManualStart,
                                 titleVisibility: .visible) {
                 Button("Start shift") { startManual() }
@@ -466,28 +479,69 @@ struct LogView: View {
         }
     }
 
-    /// Cached buildings, plus - only while a debug mock is armed - the canned one, so the
-    /// picker is walkable on a simulator that can reach no server. Never written to the
-    /// SwiftData cache; see ShiftMockFlows.swift.
-    private var pickableSites: [String] {
-        var ids = sites.map(\.locationId)
+    /// The cached zones, plus - only while a debug mock is armed - one mock zone built from the
+    /// canned building, so the picker is walkable on a simulator that can reach no server.
+    /// Never written to the SwiftData cache; see ShiftMockFlows.swift.
+    private var manualPlaces: [ManualStart.Place] {
+        var places = ManualStart.places(
+            zones: rosterZones.zones,
+            buildingNames: Dictionary(sites.map { ($0.locationId, $0.name) }, uniquingKeysWith: { first, _ in first }))
         #if DEBUG
-        if ShiftMocks.active != nil {
-            ids += ShiftMocks.locations.map(\.id).filter { !ids.contains($0) }
+        if ShiftMocks.active != nil, let building = ShiftMocks.locations.first {
+            places.append(ManualStart.Place(zoneId: "99999999-9999-4999-8999-999999999999",
+                                            buildingName: building.name, zoneName: "Haupteingang (mock)"))
         }
         #endif
-        return ids
+        return places
     }
 
-    /// decision-56 §4, and note what it does NOT do: it calls the SAME handleTap the tag
-    /// path calls, with one flag flipped. Every rejection the server can answer with - 409
-    /// shift_already_open, 422 zone_unverified, 422 unknown_location - therefore lands in
-    /// APIFailure.workerMessage and on the row exactly as a tap's would, in the same words.
-    /// A separate post here would have been a second place for that copy to drift.
+    private func manualLabel(_ zoneId: String?) -> String {
+        manualPlaces.first { $0.zoneId == zoneId }?.label ?? ""
+    }
+
+    /// decision-79. ASK THE SERVER FIRST, then write. The zone id is posted with `manual: true`
+    /// under ONE client_uuid and ONE start time fixed here, before the request:
+    ///   - accepted           -> the same local-first `handleTap` a tag uses writes the row (the
+    ///                           sync pass re-posts the same client_uuid and gets 200 duplicate);
+    ///   - refused (4xx)      -> shown in the sheet in the worker's words, NO row, sheet stays;
+    ///   - could not be asked -> the same `handleTap`, same client_uuid: a manual start still
+    ///                           works in a basement, and the queue retry cannot open it twice.
+    /// An already-open shift is answered inline without a request (Android manualOpen).
     private func startManual() {
-        guard let id = manualPick else { return }
-        showManualStart = false
-        handleTap(id, manual: true)
+        guard let zoneId = manualPick, !manualBusy else { return }
+        if shifts.contains(where: \.isOpen) {
+            manualError = APIFailure(status: 409, code: "shift_already_open").workerMessage
+            return
+        }
+        manualError = nil
+        manualBusy = true
+        let clientUuid = UUID()
+        let start = Date.now
+        Task {
+            defer { manualBusy = false }
+            do {
+                _ = try await ShiftFlowAPI.open(clientUuid: clientUuid.uuidString.lowercased(),
+                                                locationId: zoneId, startTime: start, manual: true)
+                showManualStart = false
+                handleTap(zoneId, manual: true, clientUuid: clientUuid, startTime: start)
+            } catch let failure as APIFailure {
+                switch ManualStart.classify(failure) {
+                case .refuse:
+                    manualError = failure.workerMessage
+                    Telemetry.log("manual start refused", .info, [
+                        "ts.api.status": failure.status,
+                        "ts.api.code": failure.code,
+                        "ts.location.id": zoneId,
+                    ])
+                case .queue:
+                    showManualStart = false
+                    handleTap(zoneId, manual: true, clientUuid: clientUuid, startTime: start)
+                }
+            } catch {
+                showManualStart = false
+                handleTap(zoneId, manual: true, clientUuid: clientUuid, startTime: start)
+            }
+        }
     }
 
     /// decision-56 §4/§3. Closes the LOCAL row first, exactly as a tap-out does, so a Stop
@@ -589,7 +643,8 @@ struct LogView: View {
     ///
     /// `manual` (decision-56) changes exactly one thing: the flag stamped on a row this
     /// function was going to write anyway. It is NOT a second code path - see startManual().
-    private func handleTap(_ locationId: String, manual: Bool = false) {
+    private func handleTap(_ locationId: String, manual: Bool = false,
+                           clientUuid: UUID? = nil, startTime: Date? = nil) {
         let trace = Telemetry.beginTap(locationId: locationId, cachedLocations: sites.count)
         let write = trace.child("db", "shift.local_write")
 
@@ -626,14 +681,14 @@ struct LogView: View {
                 // with an unconfirmed end time. A normal tap-out stays unflagged.
                 running.autoClosed = true
                 switchNotice = String(localized: "Finished your open shift at \(siteName(running.locationId)) and started at \(siteName(locationId)). Confirm when you actually left \(siteName(running.locationId)) — it will not count until you do.")
-                touched = startShift(at: locationId)
+                touched = startShift(at: locationId, clientUuid: clientUuid, startTime: startTime)
                 action = "switch"
             } else {
                 touched = running
                 action = "close"
             }
         } else {
-            touched = startShift(at: locationId)
+            touched = startShift(at: locationId, clientUuid: clientUuid, startTime: startTime)
             // decision-56, set ONLY on a row this call is creating. A manual clock-in is
             // unreachable while a shift is running (the button lives on the idle screen), so
             // the close and switch branches above can never be handed manual = true - and if
@@ -701,8 +756,12 @@ struct LogView: View {
     }
 
     @discardableResult
-    private func startShift(at locationId: String) -> Shift {
-        let shift = Shift(workerId: worker.id, workerName: worker.name, locationId: locationId)
+    private func startShift(at locationId: String, clientUuid: UUID? = nil, startTime: Date? = nil) -> Shift {
+        let shift = Shift(workerId: worker.id, workerName: worker.name, locationId: locationId,
+                          startTime: startTime ?? .now)
+        // A manual start asked the server FIRST under this exact client_uuid (decision-79), so
+        // the row must carry it: the sync pass then gets 200 duplicate, never a second open.
+        if let clientUuid { shift.clientUuid = clientUuid }
         context.insert(shift)
         return shift
     }

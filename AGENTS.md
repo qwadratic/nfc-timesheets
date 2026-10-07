@@ -174,6 +174,11 @@ Decision checklist (keep updated as decisions are added):
   phone's. The `com.apple.developer.nfc.readersession.formats = ["TAG"]` entitlement and the
   Xcode capability are the OWNER's one click — no agent edits the entitlement or
   `project.pbxproj`; the code degrades in words instead (decision-49, `docs/NFC-WRITE-SETUP.md`)
+- "Start without a tag" picks a ZONE ("Building · Zone", cached roster zones, nothing preselected)
+  and posts the ZONE uuid with `manual: true`; iOS asks the server FIRST under one client_uuid, a
+  refusal is shown in the sheet and writes no row, only a transport failure / 408 / 429 / 5xx falls
+  back to the local-first queue with the SAME client_uuid. A building id is never posted by a manual
+  start (decision-79, amends decision-56 §2/§4, completes decision-69 for the worker phones)
 - BOTH apps carry an in-app language control: `Deutsch` / `English` / follow the phone, value
   set `""`/`"de"`/`"en"`, on the signed-out screen and in settings. Android by decision-71, iOS
   by decision-74. It is ONE value shared with the OS per-app language setting, never a second

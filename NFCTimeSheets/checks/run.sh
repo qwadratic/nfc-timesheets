@@ -68,6 +68,8 @@ run enrolment-code-check "$SRC/EnrolmentCode.swift"
 # same-building rule on the tap path, and the building a material request carries. Also pins
 # that a malformed or missing `zones` key in /roster can never cost the app its locations.
 run zones-check         "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/Zones.swift"
+# decision-79: "Start without a tag" picks a ZONE and asks the server first; a refusal writes no row.
+run manual-start-check  "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/ManualStart.swift"
 # decision-76: a card that was written and reported but never made a zone is finished from
 # Test a tag, and the scan that found it is also its test scan. Pins the ORDER (resolve, then
 # verify with the id read off the card) and that Skip makes no verify call.
