@@ -580,10 +580,32 @@
     <string name="verify_scan_any_checking">Karte wird nachgeschlagen …</string>
     <string name="verify_scan_any_building">Das ist eine Objekt-Karte, keine Zonen-Karte. Für Objekt-Karten gibt es hier nichts zu prüfen.</string>
     <string name="verify_scan_any_retired">Diese Karte gehörte zu einer Zone, die inzwischen stillgelegt wurde. Sie öffnet nichts mehr.</string>
-    <string name="verify_scan_any_reported">Diese Karte ist gemeldet, aber noch keiner Zone zugeordnet. Zuordnen geht in „Tag beschreiben“.</string>
+    <string name="verify_scan_any_reported">Diese Karte ist gemeldet, aber noch keiner Zone zugeordnet. Hier fertig einrichten: Zone benennen und Objekt wählen — die Karte wird dabei gleich mitgeprüft.</string>
     <string name="verify_scan_any_unknown">Diese Karte gehört nicht zu diesem System.</string>
     <!-- %1$s = Fehlercode vom Server -->
     <string name="verify_scan_any_failed">Karte konnte nicht nachgeschlagen werden (%1$s). Bitte erneut versuchen.</string>
+
+    <!-- KARTE FERTIG EINRICHTEN, decision-76. Eine geschriebene und gemeldete Karte ohne Zone
+         wird aus „Tag prüfen“ heraus zur Zone; mit Objekt ist derselbe Scan zugleich der Test. -->
+    <string name="verify_reported_loading">Objektliste wird geladen …</string>
+    <!-- %1$s = Fehlercode vom Server -->
+    <string name="verify_reported_load_failed">Die Objektliste konnte nicht geladen werden (%1$s). Die Zone kann trotzdem ohne Objekt angelegt werden — das Objekt lässt sich danach hier zuordnen.</string>
+    <string name="verify_reported_reload">Objektliste neu laden</string>
+    <string name="verify_reported_submitting">Zone wird angelegt …</string>
+    <string name="verify_reported_submitting_tested">Zone wird angelegt und die Karte geprüft …</string>
+    <!-- %1$s = Name der Zone, %2$s = Name des Objekts -->
+    <string name="verify_reported_done">Zone „%1$s“ in %2$s angelegt und mit dieser Karte geprüft.</string>
+    <!-- %1$s = Name der Zone -->
+    <string name="verify_reported_unbound">Zone „%1$s“ ist angelegt, braucht aber noch ein Objekt. Hier kann noch niemand einstempeln — erst Objekt wählen, danach die Karte prüfen.</string>
+    <!-- %1$s = Name der Zone, %2$s = Name des Objekts -->
+    <string name="verify_reported_untested">Zone „%1$s“ in %2$s ist angelegt, aber noch nicht geprüft. Die Karte noch einmal an das Telefon halten, um sie zu prüfen.</string>
+    <string name="verify_reported_unknown_tag">Diese Karte ist beim Büro nicht (mehr) als gemeldet bekannt. Die Zone wurde nicht angelegt. Bitte die Karte noch einmal an das Telefon halten.</string>
+    <string name="verify_reported_already_resolved">Diese Karte wurde inzwischen schon einer Zone zugeordnet. Bitte die Karte noch einmal an das Telefon halten.</string>
+    <string name="verify_reported_duplicate_name">Im gewählten Objekt gibt es bereits eine Zone mit diesem Namen. Bitte einen anderen Namen wählen.</string>
+    <string name="verify_reported_unknown_location">Dieses Objekt gibt es nicht mehr. Bitte Objektliste neu laden.</string>
+    <string name="verify_reported_network">Keine Verbindung zum Server. Die Zone wurde nicht angelegt — bitte erneut versuchen.</string>
+    <!-- %1$s = Fehlercode vom Server -->
+    <string name="verify_reported_failed">Die Zone konnte nicht angelegt werden (%1$s). Die Karte ist in Ordnung — erneut versuchen.</string>
 
     <!-- OBJEKT NEU ZUWEISEN, decision-55 §3. Es wird nichts verschoben: die alte Zone wird
          stillgelegt, eine neue Zone entsteht auf einer NEU beschriebenen Karte. -->

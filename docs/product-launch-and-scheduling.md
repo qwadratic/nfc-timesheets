@@ -34,8 +34,9 @@ retries idempotent. Cancellation retains the row for history. Started plans cann
 The admin week board uses Vienna time and can create, edit and cancel assignments. The
 Android worker home shows only the signed-in worker's uncancelled assignments from now
 through the next 31 days (up to 200), with refresh, loading, error and empty states. There
-is no new navigation tab and no push reminder in this version. iOS scheduling is not added
-in this iteration; its existing NFC behavior is unaffected.
+is no new navigation tab and no push reminder in this version. The iOS worker app shows the
+same read-only list (decision-80); it still plans and reminds nothing, and its existing NFC
+behavior is unaffected.
 
 ## Report date selection
 

@@ -64,6 +64,30 @@ struct VerifyZoneScreen: View {
     // before the server is told anything (decision-55 §3). Nothing else on this screen writes,
     // and the sequence itself lives in OperatorTagMint.swift, shared with Write a tag.
     @State private var writer = TagWriter()
+    // FINISHING A REPORTED-ONLY CARD (decision-76). A card that was written and reported but
+    // never made a zone has no other way home: the Write screen's zone step is in-memory and
+    // is gone once the operator leaves it.
+    @State private var finish: FinishState = .idle
+    @State private var finishTagId: String?
+    @State private var finishLocations: [WireOperatorLocation] = []
+    @State private var finishLocationId: String?
+    @State private var finishName = ""
+    @State private var createdNotice: String?
+    @State private var preselected = false
+
+    /// The zone Write a tag just created, selected once the worklist has it (decision-76 §3).
+    /// nil is the ordinary way in: the worklist, or a scan.
+    let preselectZoneId: String?
+
+    init(preselectZoneId: String? = nil) {
+        self.preselectZoneId = preselectZoneId
+    }
+
+    /// `.failed` carries the server's code, the same as every other step on this screen.
+    private enum FinishState: Equatable {
+        case idle, loading, picking, submitting
+        case failed(String)
+    }
 
     /// SCAN-FIRST (decision-55 §1). `.notAZone` carries the server's `kind` rather than a
     /// sentence for the same reason `.failed` carries a code: the wording belongs next to the
@@ -72,6 +96,9 @@ struct VerifyZoneScreen: View {
     /// worklist path and not a copy of it.
     private enum ClassifyState: Equatable {
         case idle, scanning
+        /// A card the office knows but nobody made a zone (decision-76). The id is in
+        /// `finishTagId`; the form is `finishSection`.
+        case reportedCard
         case notAZone(kind: String)
         /// The radio failed before any classification happened - message already localized.
         case scanFailed(String)
@@ -141,7 +168,11 @@ struct VerifyZoneScreen: View {
             if let selected {
                 selectedZoneSection(selected)
             } else {
-                scanFirstSection
+                if classify == .reportedCard {
+                    finishSection
+                } else {
+                    scanFirstSection
+                }
                 pickerSection
             }
 
@@ -240,10 +271,11 @@ struct VerifyZoneScreen: View {
     /// One sentence per kind, and each one tells the operator something different about the
     /// card in their hand - which is the entire reason the route tells `building`, `retired`
     /// and `tag_reported` apart from `unknown` instead of collapsing them (decision-55 §1).
-    /// NO ACTION is offered from any of them, by decision.
+    /// NO ACTION is offered from any of them - except `tag_reported`, which decision-76
+    /// amended: that card is finished right here, see `finishSection`.
     private var classifyText: String? {
         switch classify {
-        case .idle: return nil
+        case .idle, .reportedCard: return nil
         case .scanning: return String(localized: "Reading the card…")
         case .notAZone(let kind):
             switch kind {
@@ -278,6 +310,10 @@ struct VerifyZoneScreen: View {
         }
         do {
             let classified = try await OperatorFlowAPI.classifyTag(id: placeId)
+            if classified.kind == "tag_reported" {
+                await startFinish(tagId: placeId)
+                return
+            }
             guard classified.kind == "zone", let zone = classified.zone else {
                 classify = .notAZone(kind: classified.kind)
                 return
@@ -292,6 +328,125 @@ struct VerifyZoneScreen: View {
             classify = .failed(failure.code)
         } catch {
             classify = .failed("network")
+        }
+    }
+
+    /// A CARD THE OFFICE KNOWS BUT NOBODY MADE A ZONE (decision-76). Same two fields as the
+    /// Write screen's zone step, the same `resolve-zone` call, and Skip is still an answer: an
+    /// unbound zone is a legitimate resting state (decision-54 §1).
+    @ViewBuilder
+    private var finishSection: some View {
+        Section("Finish this card") {
+            Text("The office knows this card, but nobody has made it a zone yet.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text(finishText)
+                .font(.footnote)
+                .accessibilityLabel(finishText)
+            switch finish {
+            case .picking, .failed:
+                TextField("Zone name", text: $finishName)
+                    .autocorrectionDisabled()
+                BuildingPicker(locations: finishLocations, allowsSkip: true, selection: $finishLocationId)
+                Text("With a building, this scan also tests the card, so workers can clock in right away.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Create zone") { Task { await finishCard() } }
+                    .disabled(finishName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            case .idle, .loading, .submitting:
+                EmptyView()
+            }
+            // The way out. Not the same as a zone's "Choose a different zone": nothing is
+            // selected yet, this simply drops the card and goes back to scanning.
+            Button("Scan a card") { Task { await scanFirst() } }
+                .disabled(finish == .submitting)
+        }
+    }
+
+    private var finishText: String {
+        switch finish {
+        case .idle: return ""
+        case .loading: return String(localized: "Loading buildings…")
+        case .picking:
+            return finishLocations.isEmpty
+                ? String(localized: "Name this door. No buildings loaded - the zone will be created without one.")
+                : String(localized: "Name this door and pick its building, or skip the building for now.")
+        case .submitting: return String(localized: "Creating the zone…")
+        case .failed(let code):
+            switch code {
+            case "duplicate_zone_name": return String(localized: "That building already has a zone with this name.")
+            case "already_resolved": return String(localized: "Somebody already made this card into a zone.")
+            case "unknown_reported_tag": return String(localized: "The office doesn't know this card yet. Tell the office first.")
+            case "unknown_location": return String(localized: "That building isn't one of ours any more.")
+            case "network": return String(localized: "No connection - try again.")
+            default: return String(localized: "Server trouble - try again.")
+            }
+        }
+    }
+
+    /// The building list is a CONVENIENCE and never a gate, exactly as on the Write screen: if
+    /// it does not load, Skip is the only choice and the zone can still be created unbound.
+    private func startFinish(tagId: String) async {
+        finishTagId = tagId
+        finishName = ""
+        finishLocationId = nil
+        classify = .reportedCard
+        finish = .loading
+        finishLocations = (try? await OperatorFlowAPI.locations()) ?? []
+        finish = .picking
+    }
+
+    /// resolve-zone, then - only with a building - the verify, with the id READ OFF THE CARD
+    /// (decision-76 §2). The order and the conditions live in FinishCard.swift and are pinned
+    /// by checks/finish-card-check.swift; the id travels in the closure below, which that
+    /// check cannot see, so it is the one line here to read twice.
+    ///
+    /// On success the new zone becomes `selected`, so what follows is the EXISTING screen:
+    /// verified -> its zone page; unbound -> the building picker; verify failed -> the usual
+    /// status line and the "Scan the card" button.
+    private func finishCard() async {
+        guard let tagId = finishTagId else { return }
+        let name = finishName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let building = finishLocationId
+        finish = .submitting
+        do {
+            let result = try await FinishCard.run(
+                isBound: { $0.locationId != nil },
+                resolve: { try await OperatorFlowAPI.resolveZone(tagId: tagId, name: name, locationId: building) },
+                verify: { try await OperatorFlowAPI.verifyZone(zoneId: $0.id, placeUuid: tagId) })
+            let created: WireCreatedZone
+            var proof: WireZoneVerifyResult?
+            var verifyCode: String?
+            switch result {
+            case .unbound(let zone): created = zone
+            case .verified(let zone, let verified): created = zone; proof = verified
+            case .notVerified(let zone, let code): created = zone; verifyCode = code
+            }
+            let row = WireOperatorZone(
+                id: created.id, locationId: created.locationId,
+                locationName: building.flatMap { id in finishLocations.first { $0.id == id }?.name },
+                name: created.name, tagSerial: nil, tagDeployedAt: nil, verifiedAt: proof?.verifiedAt)
+            // The worklist behind this screen is wrong about this card now; patch it and its
+            // cache the way a bind does, rather than waiting for a refresh.
+            zones = [row] + zones.filter { $0.id != row.id }
+            OperatorFlowAPI.cacheZones(zones)
+            finish = .idle
+            finishTagId = nil
+            classify = .idle
+            select(row)
+            createdNotice = created.locationId == nil
+                ? String(localized: "Zone created: \(created.name). No building yet - bind it in Test a tag.")
+                : String(localized: "Zone created: \(created.name).")
+            if let proof {
+                verifyResult = proof
+                await loadShifts(row, page: 1)
+            } else if let verifyCode {
+                lastFailureCode = verifyCode
+            }
+        } catch let failure as APIFailure {
+            finish = .failed(failure.code)
+        } catch {
+            finish = .failed("network")
         }
     }
 
@@ -330,6 +485,11 @@ struct VerifyZoneScreen: View {
     @ViewBuilder
     private func selectedZoneSection(_ zone: WireOperatorZone) -> some View {
         Section {
+            if let createdNotice {
+                Text(createdNotice)
+                    .font(.footnote)
+                    .accessibilityLabel(createdNotice)
+            }
             Text(zone.locationName.map { String(localized: "\(zone.name) at \($0)") }
                  ?? String(localized: "\(zone.name), no building yet"))
                 .font(.headline)
@@ -705,7 +865,18 @@ struct VerifyZoneScreen: View {
         confirmingUnbind = false
         reassign = .idle
         reassignLocationId = nil
+        createdNotice = nil
         if let zone, !zone.isBound { Task { await loadLocations() } }
+    }
+
+    /// Select the zone Write a tag just created, ONCE, as soon as the list holds it
+    /// (decision-76 §3). Through `select` and never by assigning `selected`, for the reason
+    /// `select` gives. A bound zone lands on "Scan the card", an unbound one on the building
+    /// picker; the NFC sheet is never opened for the operator.
+    private func applyPreselect() {
+        guard !preselected, let id = preselectZoneId, let zone = zones.first(where: { $0.id == id }) else { return }
+        preselected = true
+        select(zone)
     }
 
     /// Unlike the zone worklist there is no cache here: an operator standing at a door with
@@ -791,12 +962,15 @@ struct VerifyZoneScreen: View {
 
     private func load() async {
         zones = OperatorZoneCache.read()
+        applyPreselect()
         loading = true
         do {
             let fresh = try await OperatorFlowAPI.zones()
             OperatorFlowAPI.cacheZones(fresh)
             zones = fresh
             loadError = false
+            // A zone created seconds ago is not in the cache, so this is where it normally lands.
+            applyPreselect()
         } catch {
             loadError = true
         }
@@ -846,7 +1020,7 @@ struct VerifyZoneScreen: View {
         if let code = lastFailureCode {
             switch code {
             case "zone_mismatch": return String(localized: "This card belongs to a different zone.")
-            case "tag_unbound": return String(localized: "This card was reported but nobody has claimed it yet. Ask an admin.")
+            case "tag_unbound": return String(localized: "This card was reported but isn't a zone yet. Use Test any card to finish it.")
             case "unknown_location": return String(localized: "This card isn't one of ours.")
             case "unknown_zone": return String(localized: "This zone isn't active any more.")
             case "network": return String(localized: "No connection - try again.")

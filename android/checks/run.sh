@@ -83,6 +83,21 @@ KOTLIN_HOME="$(dirname "$(dirname "$(command -v "$KOTLINC")")")"
 STDLIB="$KOTLIN_HOME/lib/kotlin-stdlib.jar"
 [ -f "$STDLIB" ] || STDLIB="$(find "$KOTLIN_HOME" -name 'kotlin-stdlib*.jar' | head -1)"
 
+# FINISHING A REPORTED CARD (decision-76). core/ReportedZone.kt is the ORDER of the two calls a
+# card that was written and reported but never made a zone goes through - resolve-zone, then
+# the unchanged verify with the SAME id the phone read off the card, and no verify at all on
+# Skip. The check runs the shipping object against a fake that records every call in order,
+# then reads nfc/VerifyZoneActivity.kt (which imports android.nfc and cannot run here) to pin
+# that the screen routes through it, and the strings for both languages. stdlib only.
+OUT_REPORTED_ZONE=checks/.out-reported-zone
+mkdir -p "$OUT_REPORTED_ZONE"
+check_reported_zone() {
+  "$KOTLINC" -nowarn -cp "$JSON_JAR" -d "$OUT_REPORTED_ZONE" \
+    "$CORE"/TagLink.kt "$CORE"/ApiFailure.kt "$CORE"/MaterialQueue.kt "$CORE"/Wire.kt "$CORE"/Zones.kt \
+    "$CORE"/ReportedZone.kt checks/reported-zone-check.kt &&
+  "$JAVA_BIN" -cp "$OUT_REPORTED_ZONE:$JSON_JAR:$STDLIB" io.github.qwadratic.nfctimesheets.checks.ReportedZoneCheck
+}
+
 # Adopted third-party tags (nfc/KnownTags). Compiled separately because it lives outside
 # core/ — it is still Android-free, which is the only reason this can run off-device.
 NFC=app/src/main/kotlin/io/github/qwadratic/nfctimesheets/nfc
@@ -206,6 +221,7 @@ step() {          # step <name> <function>
 
 step core            check_core
 step version-tap-gate check_version_tap_gate
+step reported-zone   check_reported_zone
 step known-tags      check_known_tags
 step tag-writer      check_tag_writer
 step raw-tag-io      check_raw_tag_io

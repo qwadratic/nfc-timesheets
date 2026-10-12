@@ -75,6 +75,11 @@ final class Shift {
     var clientUuidString: String { clientUuid.uuidString.lowercased() }
 }
 
+/// The store is the DEVICE's outbox, across every account that ever signed in on this phone.
+/// Every screen and every tap reads it through WorkerScope.swift (checks/worker-scope-check.swift
+/// enforces that); only the sync engine and the delivery summary look at all of it.
+extension Shift: WorkerScoped {}
+
 // Cached roster location. `locationId` is the UUID a tag carries; `slug` is for humans.
 @Model
 final class Site {
@@ -136,6 +141,9 @@ struct NFCTimeSheetsApp: App {
                 // and LogView.refresh) and it can never block a tap - see the header of
                 // ShiftSignalCenter.swift.
                 .environment(ShiftSignalCenter.shared)
+                // Which building each zone belongs to (decision-43). Read for names and for
+                // the same-building rule; never a gate on a tap.
+                .environment(RosterZones.shared)
                 // Cached worker first, server's verdict second. A worker deactivated in
                 // the admin panel is signed out here, on their next launch.
                 //

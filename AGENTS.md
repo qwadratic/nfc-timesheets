@@ -174,6 +174,38 @@ Decision checklist (keep updated as decisions are added):
   phone's. The `com.apple.developer.nfc.readersession.formats = ["TAG"]` entitlement and the
   Xcode capability are the OWNER's one click — no agent edits the entitlement or
   `project.pbxproj`; the code degrades in words instead (decision-49, `docs/NFC-WRITE-SETUP.md`)
+- "Start without a tag" picks a ZONE ("Building · Zone", cached roster zones, nothing preselected)
+  and posts the ZONE uuid with `manual: true`; iOS asks the server FIRST under one client_uuid, a
+  refusal is shown in the sheet and writes no row, only a transport failure / 408 / 429 / 5xx falls
+  back to the local-first queue with the SAME client_uuid. A building id is never posted by a manual
+  start (decision-81, amends decision-56 §2/§4, completes decision-69 for the worker phones)
+- The iOS worker app shows the signed-in worker's planned assignments (`GET /me/schedule`),
+  READ-ONLY and DISPLAY-ONLY: in memory, fetched fresh on each shift-screen appearance, never read
+  by tap handling, sync, signals or navigation, never able to delay a clock-in; Europe/Vienna
+  times; a collapsed "Next planned assignment" row on the idle and running screens, expanded to
+  "My schedule"; no new tab, no reminder, zero new endpoints (decision-80, amends decision-73 and
+  `docs/product-launch-and-scheduling.md` line 36)
+- iOS says what the phone still holds and what the server has not confirmed: device-wide count rows
+  (blocked, waiting) on the idle list, the running screen and the SIGN-IN screen, and a details
+  sheet. DISPLAY-ONLY (never gates a tap, a sync or a control), read through WorkerScope, counted by
+  the SAME predicate `syncPending` iterates, and worded so that nothing promises automatic delivery -
+  iOS has no background delivery. "Last attempt" is one UserDefaults date, never a SwiftData column
+  (decision-82, ports Android TASK-339/363 with iOS wording)
+- iOS shows a "Shift finished" receipt on the idle list (offered when the newest finish is 0-120 s
+  old, then kept until Continue) and a read-only "My hours" list in Settings (the server's last 60
+  days, fetched on every entry, never cached), and plays the one-shot ring-then-check ONLY after a
+  clean server ACK of an event under 45 s old, once per identity (consumed before it animates, also
+  under Reduce Motion), never for a pending, failed or blocked row. PRESENTATION-ONLY: it never
+  gates, delays or alters a tap, a sync, an accounting figure or navigation; ZERO new endpoints
+  (decision-83, ports Android TASK-363/TASK-189 at 60f6886)
+- BOTH apps carry an in-app language control: `Deutsch` / `English` / follow the phone, value
+  set `""`/`"de"`/`"en"`, on the signed-out screen and in settings. Android by decision-71, iOS
+  by decision-74. It is ONE value shared with the OS per-app language setting, never a second
+  flag; it applies live; it is never in the tap path and never signs anyone out or touches a
+  running shift. On iOS every user-visible string resolves through `AppLanguage.swift`, gated
+  by a check. German stays the default and de + en parity stays required - that half of
+  decision-61 stands; its "no in-app switcher anywhere" half is superseded on every platform
+  (decision-74, mirrors decision-71)
 
 ~~decision-37~~ (zones, no area) is SUPERSEDED by decision-43 and nothing from it shipped.
 

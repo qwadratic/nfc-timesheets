@@ -28,9 +28,15 @@ struct ContentView: View {
     @State private var locationReporter = ShiftLocationReporter.shared
     /// The lock reads this and nothing else. A separate @Query rather than a value passed
     /// up from LogView: the TAB BAR is what changes, and it is built here.
-    @Query private var shifts: [Shift]
+    ///
+    /// DEVICE-WIDE ON PURPOSE, and named so (`allShifts`): it is every account's rows. It is
+    /// only ever read through WorkerScope (forWorker / openShift(for:) / completed(for:)) -
+    /// checks/worker-scope-check.swift fails on any other use.
+    @Query private var allShifts: [Shift]
 
-    private var shiftRunning: Bool { shifts.contains(where: \.isOpen) }
+    /// The lock is the SIGNED-IN worker's: another account's forgotten open row must not
+    /// shorten this worker's tab bar.
+    private func shiftRunning(for workerId: Int) -> Bool { allShifts.openShift(for: workerId) != nil }
 
     var body: some View {
         switch session.state {
@@ -50,8 +56,17 @@ struct ContentView: View {
             // This is WORK DISCIPLINE and not a security boundary: the rule lives in the
             // pure ShiftSignal.visibleTabs, which checks/shift-signal-check.swift asserts
             // can never return a set without Materials and Settings in it.
+            //
+            // `.id(worker.id)` IS THE RESET. A DIRECT worker change - Session.restore()
+            // replacing the cached A with the server's B without ever passing through
+            // signed-out - would otherwise keep every tab's @State (the unresolved list, the
+            // switch notice, a half-typed material request, an open sheet) and never re-run
+            // LogView's refresh. A new identity recreates all four tabs, so B starts from B's
+            // own refresh (Android adopt() resets LogState and the schedule for the same
+            // reason). It must stay the FIRST modifier: the .task and .sheet below sit
+            // OUTSIDE it on purpose, and the materials store is owned above it.
             TabView {
-                ForEach(ShiftSignal.visibleTabs(shiftRunning: shiftRunning), id: \.self) { tab in
+                ForEach(ShiftSignal.visibleTabs(shiftRunning: shiftRunning(for: worker.id)), id: \.self) { tab in
                     switch tab {
                     case .log:
                         LogView(worker: worker).tabItem { Label("Log", systemImage: "wave.3.right") }
@@ -69,23 +84,29 @@ struct ContentView: View {
                             .tabItem { Label("Materials", systemImage: "shippingbox") }
                             .badge(materials.unseenArrivalCount)
                     case .history:
-                        HistoryView().tabItem { Label("History", systemImage: "list.bullet") }
+                        HistoryView(worker: worker).tabItem { Label("History", systemImage: "list.bullet") }
                     case .settings:
                         SettingsView(worker: worker).tabItem { Label("Settings", systemImage: "gear") }
                     }
                 }
             }
+            .id(worker.id)
             .environment(materials)
+            // SHIFT EVIDENCE (location). Driven from the STORE, strictly after a tap has saved its
+            // row, and failure-silent: a denied permission, no GPS or a dead network only change a
+            // footnote - nothing here is read by the tap, the sync pass or the signals. Scoped to
+            // the SIGNED-IN worker's open row like every other read (WorkerScope): another
+            // account's forgotten open shift must never start location collection for this one.
             .task(id: worker.id) {
                 locationReporter.beginSession(workerId: worker.id)
                 defer { locationReporter.endSession() }
                 while !Task.isCancelled {
-                    locationReporter.configure(shift: shifts.first { $0.workerId == worker.id && $0.isOpen })
+                    locationReporter.configure(shift: allShifts.openShift(for: worker.id))
                     try? await Task.sleep(for: .seconds(5))
                 }
             }
-            .onChange(of: shifts.filter(\.isOpen).map(\.clientUuid)) { _, _ in
-                locationReporter.configure(shift: shifts.first { $0.workerId == worker.id && $0.isOpen })
+            .onChange(of: allShifts.openShift(for: worker.id)?.clientUuid) { _, _ in
+                locationReporter.configure(shift: allShifts.openShift(for: worker.id))
             }
             // At LAUNCH, not when the Materials tab is opened: the badge is the only
             // thing telling a worker something is waiting for them at the warehouse, and
@@ -128,6 +149,12 @@ struct SignInView: View {
     /// initial value is the fail-closed one, so the first frame - drawn before any request
     /// can possibly have returned - never flashes a door that is shut.
     @State private var smsAvailable = false
+    /// THE PHONE'S OUTBOX, device-wide: signing out deletes nothing, so a worker who signed out with
+    /// unsent shifts must see that the phone still holds them (decision-82, Android TimeSheetApp
+    /// SignInScreen). Read through WorkerScope.deviceWide - the only legitimate unscoped read - and
+    /// used for nothing but the delivery summary below.
+    @Query private var allShifts: [Shift]
+    private var deliveryRows: [PendingRow] { allShifts.deviceWide().map { $0.deliveryRow() } }
 
     var body: some View {
         // OperatorHomeScreen is pushed from operatorSection below, so whatever presents
@@ -164,6 +191,10 @@ struct SignInView: View {
                     .padding(.vertical, 6)
                 }
                 .listRowBackground(Color.clear)
+
+                // What the phone still holds (decision-82): nothing at all when it holds nothing.
+                // `signedOut: true` puts the sign-in sentence in the sheet, never "open the app".
+                DeliveryStatusRows(rows: deliveryRows, signedOut: true)
 
                 // The phone field, the Request-SMS button, ONE code field and ONE submit
                 // button - the same view the operator gate mounts (decision-54 §5). All
@@ -223,16 +254,23 @@ struct SignInView: View {
 // MARK: - Log tab
 
 struct LogView: View {
-    @Environment(Session.self) private var session
     @Environment(\.modelContext) private var context
     @Environment(TapInbox.self) private var inbox
     /// Who the SERVER says is holding this phone. Not a preference, not editable, and
     /// never sent in a shift body - it is here to stamp local rows and to keep another
     /// account's queued rows from being pushed under this session (decision-22).
     let worker: WireWorker
-    @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
+    /// Asked after an `await`, before anything is published or armed: is `worker` still the one
+    /// holding the session? (WorkerScope.isCurrent)
+    @Environment(Session.self) private var session
+    /// EVERY ACCOUNT'S ROWS, newest first - the phone's outbox. Never read directly: this
+    /// screen shows and toggles only the signed-in worker's rows (WorkerScope.swift), and
+    /// checks/worker-scope-check.swift fails on any use of `allShifts` that does not go
+    /// through forWorker / openShift(for:) / completed(for:).
+    @Query(sort: \Shift.startTime, order: .reverse) private var allShifts: [Shift]
     @Query private var sites: [Site]
     @Environment(ShiftSignalCenter.self) private var signals
+    @Environment(RosterZones.self) private var rosterZones
     @Environment(\.scenePhase) private var scenePhase
     /// "Your open shift at A was finished and one at B was started." A CARD, not an
     /// alert: SwiftUI silently drops one of an alert and a sheet presented together, so
@@ -248,27 +286,80 @@ struct LogView: View {
     @State private var showManualStart = false
     @State private var manualPick: String?
     @State private var confirmingManualStart = false
+    /// decision-81: a request is in flight / the server's last refusal, shown inside the sheet.
+    @State private var manualBusy = false
+    @State private var manualError: String?
     /// The foreground scan (TapScanner.swift). One instance for the life of the view, and
     /// `scanError` is the calm sentence for a card that could not be read or is not ours -
     /// never a crash, never a silent no-op.
     @State private var scanner = TapScanner()
     @State private var scanError: String?
     @State private var scanning = false
+    /// decision-80: the worker's PLANNED assignments, for the two schedule rows and nothing else.
+    /// Held HERE so the idle list and the running screen show one answer, and so it dies with this
+    /// view: on sign-out, on a 401 and (through `.id(worker.id)` on the TabView) on a change of
+    /// worker. DISPLAY ONLY - nothing on the tap path, in `refresh()`, in the sync pass or in the
+    /// signals reads it, and `loadSchedule()` is its one trigger (see ScheduleStore.swift).
+    @State private var schedule = ScheduleStore()
+    /// SHIFT EVIDENCE (photo proof, docs/shift-evidence.md). Only ever set for a FINISH whose shift
+    /// is KNOWN to require proof (`proofOfWorkRequired == true`, see prepareCompletion); a start, a
+    /// finish of a proof-disabled shift and a finish whose policy this phone does not know are never
+    /// held back by any of it. `closePending` is true exactly while the proof sheet is up or its
+    /// upload and close are in flight - it dies with this view like every other @State here.
     @State private var proofShift: Shift?
     @State private var closePending = false
     @State private var afterProof: (() -> Void)?
     @State private var proofCompleting = false
     @State private var proofManualClose = false
     @State private var proofAutoClose = false
+    /// decision-82: bumped when a held-back delivery row settles, so `deliveryRows` is read again.
+    @State private var deliveryTick = 0
+    /// decision-83 (P7): which finished shift the idle list is offering a "Shift finished" receipt
+    /// for, and which one the worker dismissed. A VALUE (ShiftReceipt.Memory): the rule - offered
+    /// when the newest finish is 0-120 s old, then kept until Continue - runs on a Mac in
+    /// checks/shift-receipt-check.swift. DISPLAY ONLY: nothing on the tap path, in the sync pass or
+    /// in the signals reads it, and it dies with this view like every other @State here.
+    @State private var receiptMemory = ShiftReceipt.Memory()
 
-    private var open: [Shift] { shifts.filter(\.isOpen) }
-    private var recent: [Shift] { Array(shifts.filter { !$0.isOpen }.prefix(5)) }
+    /// The row a tap toggles and the running screen shows: THIS worker's newest open row. Another
+    /// account's forgotten open row is not it (WorkerScope.openShift) - B's first tap must start
+    /// B's shift, not close A's.
+    private var openRow: Shift? { allShifts.openShift(for: worker.id) }
+    private var recent: [Shift] { Array(allShifts.completed(for: worker.id).prefix(5)) }
+    /// decision-83: the finished shift whose receipt is up, or nil. It is the NEWEST finished row of
+    /// THIS worker (`recent.first`), and only while the memory offers it - derived in the same
+    /// render, so the first frame after a finish already shows the receipt and never the start
+    /// controls first.
+    private var receiptShift: Shift? {
+        guard let latest = recent.first,
+              receiptMemory.offer(for: latest.receiptIdentity, now: .now) != nil else { return nil }
+        return latest
+    }
+    /// Recent, minus the row the receipt is showing (Android: `filterNot { showReceipt && it == latest }`).
+    private var recentRows: [Shift] {
+        guard let shown = receiptShift else { return recent }
+        return recent.filter { $0.clientUuid != shown.clientUuid }
+    }
+    /// What the PHONE still holds, for every account that queued it (decision-82): the one deliberate
+    /// device-wide read on this screen. It feeds the delivery rows on the idle list and the running
+    /// screen and nothing else - never a list, a total, the lock or a tap.
+    private var phoneRows: [PendingRow] {
+        allShifts.deviceWide().map { $0.deliveryRow(sessionWorkerId: worker.id) }
+    }
+    /// The same, minus a tap's own request that has not been answered yet (PendingWork.settleGrace), so a
+    /// normal online clock-in or clock-out never pops a "waiting" row in and out. `deliveryTick` is bumped
+    /// by the task below at the moment the earliest held-back row stops being held back.
+    private var deliveryRows: [PendingRow] {
+        _ = deliveryTick
+        return PendingWork.settled(phoneRows, now: .now)
+    }
+    private var deliverySettleAt: Date? { PendingWork.nextSettle(phoneRows, now: .now) }
 
     /// The ONE value the shift screen and every out-of-app signal are derived from
     /// (ShiftSignal.swift). Built from the LOCAL row, because a tap in a basement has one
     /// and a server response may never arrive.
     private var running: RunningShift? {
-        open.first.map(asRunning)
+        openRow.map(asRunning)
     }
 
     /// The same value, read straight out of the context instead of out of `@Query`.
@@ -278,9 +369,22 @@ struct LogView: View {
     /// `context.save()` that just wrote a row can hand back the state from BEFORE the tap.
     /// A fetch cannot. Rendering may lag a frame; a badge that says "clocked in" after a
     /// clock-out may not.
+    ///
+    /// SCOPED TO THE SESSION'S WORKER, like everything else here: the badge, the reminder
+    /// ladder and the Live Activity are armed from this, so an unscoped read would arm worker
+    /// B's phone with worker A's leftover shift.
     private func currentRunning() -> RunningShift? {
         let all = (try? context.fetch(FetchDescriptor<Shift>(sortBy: [SortDescriptor(\Shift.startTime, order: .reverse)]))) ?? []
-        return all.first(where: \.isOpen).map(asRunning)
+        return all.openShift(for: worker.id).map(asRunning)
+    }
+
+    /// Re-arm from the store AFTER an `await`, but only while `worker` still holds the session.
+    /// A refresh started for A that lands after A signed out (the teardown in Session already
+    /// ran) or after B replaced A must not put A's badge back. Not used right after a local
+    /// write - there is no await in between there, and a tap is never gated on anything.
+    private func armIfStillCurrent() {
+        guard WorkerScope.isCurrent(worker.id, session: session.worker?.id) else { return }
+        signals.arm(for: currentRunning())
     }
 
     private func asRunning(_ shift: Shift) -> RunningShift {
@@ -289,15 +393,32 @@ struct LogView: View {
                      startTime: shift.startTime,
                      // decision-10: the server flagged it and no human has fixed it. The
                      // screen must then stop showing a running clock.
-                     serverAutoClosed: shift.autoClosed && shift.correctedAt == nil)
+                     serverAutoClosed: shift.autoClosed && shift.correctedAt == nil,
+                     // PRESENTATION ONLY: the start exists only on this phone until the
+                     // server has acknowledged it (Sync.pushOpen sets openSyncedAt). It picks
+                     // words - the screen's heading and the reminders' text - and nothing else.
+                     pendingConfirmation: shift.openSyncedAt == nil)
     }
     /// "Unknown location" until the roster arrives, and that is fine: a missing name is
     /// cosmetic, a missing shift is unpaid work. Nothing branches on this string.
+    ///
+    /// A shift row keeps the id that was TAPPED, which is a zone id for every zone card, so the
+    /// name is the zone's BUILDING (decision-43) - see Zones.buildingName.
     private func siteName(_ id: String) -> String {
-        sites.first { $0.locationId == id }?.name ?? String(localized: "Unknown location")
+        rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
     }
 
     var body: some View {
+        // decision-80: the schedule is asked for every time this tab appears (a return from
+        // another tab, the first appearance). It sits on the NavigationStack and not on the Group
+        // inside it, because that Group swaps between the idle list and the running screen, and
+        // starting or finishing a shift is not a reason to ask again. A return to the foreground
+        // is the other trigger (the scenePhase handler below); a retry is the third.
+        content
+            .onAppear { loadSchedule() }
+    }
+
+    private var content: some View {
         NavigationStack {
             // TWO SHAPES, and which one is on screen is the entire point of this work.
             // Idle: a list of recent shifts with a hint at the bottom. Running: a
@@ -311,7 +432,13 @@ struct LogView: View {
                                 notice: switchNotice,
                                 onDismissNotice: { switchNotice = nil },
                                 onManualStop: manualStop,
-                                onScan: scan)
+                                onScan: scan,
+                                deliveryRows: deliveryRows,
+                                syncError: openRow?.syncError,
+                                syncBlocked: openRow?.syncBlocked ?? false,
+                                onRefresh: { Task { await refresh() } },
+                                schedule: schedule.state,
+                                onReloadSchedule: loadSchedule)
                 } else {
                     idleList
                 }
@@ -348,6 +475,14 @@ struct LogView: View {
                 await signals.refreshAuthorization()
                 await refresh()
             }
+            // decision-82: wakes the delivery rows when the earliest in-flight tap has been unanswered for
+            // the grace. Display only: it sleeps, bumps a counter, and nothing on the tap path reads it.
+            .task(id: deliverySettleAt) {
+                guard let settleAt = deliverySettleAt else { return }
+                let wait = settleAt.timeIntervalSinceNow
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                if !Task.isCancelled { deliveryTick += 1 }
+            }
             // onDismiss, not just on present: confirming an auto-closed shift is the one
             // path that can end a shift WITHOUT a tag tap, and a lock screen or a badge
             // left standing after it would be exactly the "stuck lock / orphaned
@@ -368,6 +503,7 @@ struct LogView: View {
                     Task {
                         defer { proofCompleting = false }
                         do {
+                            DeliveryAttempt.stamp()   // a request is about to leave this phone (decision-82: "Last attempt")
                             let response = try await ShiftAPI.close(clientUuid: shift.clientUuidString, endTime: shift.pendingEvidenceEnd ?? .now,
                                 autoClosed: proofAutoClose, manual: proofManualClose, proofId: proofId)
                             guard case .eligible(let signedIn) = session.state, signedIn.id == worker.id else { return }
@@ -397,8 +533,27 @@ struct LogView: View {
                 guard phase == .active else { return }
                 signals.arm(for: currentRunning())
                 Task { await signals.refreshAuthorization() }
+                // A zone created while the app was in the background is not in the cache yet.
+                // Silent on failure, never awaited before the arm above, never a gate on a
+                // tap. Re-armed afterwards so the fixed-text reminders carry the real name.
+                Task {
+                    await refreshRoster(context: context)
+                    armIfStillCurrent()
+                }
+                // decision-80: last, and not awaited - the plan is a picture, never a reason to
+                // hold the arm or the roster pass back.
+                loadSchedule()
             }
         }
+    }
+
+    /// decision-80. Ask the server for THIS worker's plan. Returns at once: the request is its own
+    /// Task inside the store, concurrent with and never inside `refresh()` / the sync pass, and
+    /// nothing on the tap path calls this. The session is asked again after the await, so an
+    /// answer for a worker who has since signed out or been replaced is dropped.
+    private func loadSchedule() {
+        let session = session
+        schedule.load(for: worker.id) { session.worker?.id }
     }
 
     /// The app with no shift running: unchanged from before this screen split.
@@ -413,47 +568,76 @@ struct LogView: View {
                     }
                 }
             }
-            Section("Recent") {
-                if recent.isEmpty { Text("No completed shifts yet.").foregroundStyle(.secondary) }
-                ForEach(recent) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
-            }
-            Section {
-                VStack(spacing: 12) {
-                    Image(systemName: "wave.3.right")
-                        .font(.title2)
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                    Text("Hold your phone to the tag by the entrance to start.")
-                        .font(.callout)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .accessibilityElement(children: .combine)
-                    // THE ONE FILLED BUTTON on this screen: the primary action. Everything
-                    // else in this list is secondary or corrective and is plain/bordered.
-                    Button(action: scan) {
-                        Label("Scan a tag", systemImage: "wave.3.right")
-                            .frame(maxWidth: .infinity)
+            // decision-83: the "Shift finished" receipt, at the TOP of the idle list (Android replaces its start
+            // card with it; here the start Sections sit below Recent, so the receipt goes above everything
+            // but the unresolved banner, which stays on screen). Inline, never a sheet or alert: taps, tabs
+            // and the resolver keep working. Its row is filtered out of Recent below.
+            if let receiptShift {
+                Section {
+                    ShiftReceiptView(shift: receiptShift, name: siteName(receiptShift.locationId)) {
+                        receiptMemory.dismiss(receiptShift.receiptIdentity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
             }
-            // decision-56 §4. CLEARLY SECONDARY: a plain row under the tap instruction, not
-            // a prominent button beside it - the tag stays the normal way in, and this is the
-            // answer to a broken card, an unreachable one, or a phone whose NFC is dead.
-            // Flagged, never silent; the footer says so before it is pressed, not after.
+            // decision-82: what the phone still holds - blocked and waiting count rows, nothing at all
+            // when the outbox is empty. Not wrapped in a Section on purpose: an empty Section would
+            // still draw a gap on the screen most workers see most of the time.
+            DeliveryStatusRows(rows: deliveryRows, signedOut: false)
+            // decision-80: the collapsed "Next planned assignment" row. Above Recent, because on this
+            // screen Recent sits above the scan block (Android puts it after the start card).
             Section {
-                // Corrective, so BORDERED and never filled (2026-08-29 UX audit).
-                Button("Start without a tag") {
-                    manualPick = nil
-                    showManualStart = true
+                ScheduleSummary(state: schedule.state, retry: loadSchedule)
+            }
+            // decision-83: while the receipt shows the only finished row, a "Recent" header over
+            // nothing (or over "No completed shifts yet.") would contradict the screen.
+            if receiptShift == nil || !recentRows.isEmpty {
+                Section("Recent") {
+                    if recent.isEmpty { Text("No completed shifts yet.").foregroundStyle(.secondary) }
+                    ForEach(recentRows) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
                 }
-                .buttonStyle(.bordered)
-            } footer: {
-                Text("Tag missing or unreachable? Pick the building instead. The office sees this as a manual entry.")
-                    .font(.footnote)
+            }
+            // decision-83: the scan block and "Start without a tag" are the start card the receipt
+            // replaces (Android). A tag tap still starts a shift; Continue brings these back.
+            if receiptShift == nil {
+                Section {
+                    VStack(spacing: 12) {
+                        Image(systemName: "wave.3.right")
+                            .font(.title2)
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
+                        Text("Hold your phone to the tag by the entrance to start.")
+                            .font(.callout)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .combine)
+                        // THE ONE FILLED BUTTON on this screen: the primary action. Everything
+                        // else in this list is secondary or corrective and is plain/bordered.
+                        Button(action: scan) {
+                            Label("Scan a tag", systemImage: "wave.3.right")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                // decision-56 §4. CLEARLY SECONDARY: a plain row under the tap instruction, not
+                // a prominent button beside it - the tag stays the normal way in, and this is the
+                // answer to a broken card, an unreachable one, or a phone whose NFC is dead.
+                // Flagged, never silent; the footer says so before it is pressed, not after.
+                Section {
+                    // Corrective, so BORDERED and never filled (2026-08-29 UX audit).
+                    Button("Start without a tag") {
+                        manualPick = nil
+                        manualError = nil
+                        showManualStart = true
+                    }
+                    .buttonStyle(.bordered)
+                } footer: {
+                    Text("Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry.")
+                        .font(.footnote)
+                }
             }
             #if DEBUG
             manualMockSection
@@ -467,30 +651,45 @@ struct LogView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        // decision-83: remember the offer, so a receipt entered within two minutes outlives the
+        // window and stays until Continue. `initial: true` is the first appearance after a finish.
+        // It only records which receipt was shown; the screen above already derived it.
+        .onChange(of: recent.first?.receiptIdentity, initial: true) { _, latest in
+            receiptMemory.observe(latest, now: .now)
+        }
     }
 
-    /// decision-56 §4: the picker, built from the roster this app ALREADY caches (`sites`,
-    /// filled by refreshRoster) - no new endpoint and no new cache. An empty list is a real
-    /// state on a fresh install with no signal, so it says so instead of showing an empty
-    /// wheel above a live Start button.
+    /// decision-81: the picker lists ZONES (cached roster zones whose building is cached), never
+    /// buildings - a building id is no clock-in target since decision-69, so a manual start
+    /// posted with one was refused 422 in the background behind a normal-looking running
+    /// screen. An empty list is a real state on a fresh install with no signal, so it says so
+    /// instead of showing an empty wheel above a live Start button.
     private var manualStartSheet: some View {
         NavigationStack {
             Form {
-                if pickableSites.isEmpty {
-                    Text("No buildings on this phone yet. Connect to the internet and pull down to refresh.")
+                if manualPlaces.isEmpty {
+                    Text("No zones are available. Please refresh first. If your zone is still missing, contact the office.")
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
-                    Picker("Building", selection: $manualPick) {
+                    Picker("Zone", selection: $manualPick) {
                         // Always present, always first, for the same reason BuildingPicker
                         // has one: a nil selection with no matching tag renders BLANK, which
                         // reads as a broken control rather than an unanswered question.
-                        Text("Choose a building").tag(String?.none)
-                        ForEach(pickableSites, id: \.self) { id in
-                            Text(siteName(id)).tag(String?.some(id))
+                        Text("Choose a zone").tag(String?.none)
+                        ForEach(manualPlaces) { place in
+                            Text(place.label).tag(String?.some(place.zoneId))
                         }
                     }
-                    Text("Your admin will see that this shift was started without a tag.")
+                    Text("Only use this when the tag is missing or cannot be read. Pick the zone in the building you are working in now. The shift is flagged for the office as a manual start.")
                         .font(.footnote).foregroundStyle(.secondary)
+                }
+                // The server's refusal, in the worker's words, right where they are looking.
+                // The sheet stays open and nothing was written.
+                if let manualError {
+                    Text(manualError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                        .accessibilityLabel(manualError)
                 }
             }
             .navigationTitle("Start without a tag")
@@ -500,10 +699,10 @@ struct LogView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Start") { confirmingManualStart = true }
-                        .disabled(manualPick == nil)
+                        .disabled(manualPick == nil || manualBusy)
                 }
             }
-            .confirmationDialog(Text("Start a shift at \(siteName(manualPick ?? ""))?"),
+            .confirmationDialog(Text("Start a shift at \(manualLabel(manualPick))?"),
                                 isPresented: $confirmingManualStart,
                                 titleVisibility: .visible) {
                 Button("Start shift") { startManual() }
@@ -513,28 +712,72 @@ struct LogView: View {
         }
     }
 
-    /// Cached buildings, plus - only while a debug mock is armed - the canned one, so the
-    /// picker is walkable on a simulator that can reach no server. Never written to the
-    /// SwiftData cache; see ShiftMockFlows.swift.
-    private var pickableSites: [String] {
-        var ids = sites.map(\.locationId)
+    /// The cached zones, plus - only while a debug mock is armed - one mock zone built from the
+    /// canned building, so the picker is walkable on a simulator that can reach no server.
+    /// Never written to the SwiftData cache; see ShiftMockFlows.swift.
+    private var manualPlaces: [ManualStart.Place] {
+        var places = ManualStart.places(
+            zones: rosterZones.zones,
+            buildingNames: Dictionary(sites.map { ($0.locationId, $0.name) }, uniquingKeysWith: { first, _ in first }))
         #if DEBUG
-        if ShiftMocks.active != nil {
-            ids += ShiftMocks.locations.map(\.id).filter { !ids.contains($0) }
+        if ShiftMocks.active != nil, let building = ShiftMocks.locations.first {
+            places.append(ManualStart.Place(zoneId: "99999999-9999-4999-8999-999999999999",
+                                            buildingName: building.name, zoneName: "Haupteingang (mock)"))
         }
         #endif
-        return ids
+        return places
     }
 
-    /// decision-56 §4, and note what it does NOT do: it calls the SAME handleTap the tag
-    /// path calls, with one flag flipped. Every rejection the server can answer with - 409
-    /// shift_already_open, 422 zone_unverified, 422 unknown_location - therefore lands in
-    /// APIFailure.workerMessage and on the row exactly as a tap's would, in the same words.
-    /// A separate post here would have been a second place for that copy to drift.
+    private func manualLabel(_ zoneId: String?) -> String {
+        manualPlaces.first { $0.zoneId == zoneId }?.label ?? ""
+    }
+
+    /// decision-81. ASK THE SERVER FIRST, then write. The zone id is posted with `manual: true`
+    /// under ONE client_uuid and ONE start time fixed here, before the request:
+    ///   - accepted           -> the same local-first `handleTap` a tag uses writes the row (the
+    ///                           sync pass re-posts the same client_uuid and gets 200 duplicate);
+    ///   - refused (4xx)      -> shown in the sheet in the worker's words, NO row, sheet stays;
+    ///   - could not be asked -> the same `handleTap`, same client_uuid: a manual start still
+    ///                           works in a basement, and the queue retry cannot open it twice.
+    /// An already-open shift is answered inline without a request (Android manualOpen).
     private func startManual() {
-        guard let id = manualPick else { return }
-        showManualStart = false
-        handleTap(id, manual: true)
+        guard let zoneId = manualPick, !manualBusy else { return }
+        // THIS worker's open shift. Another account's forgotten row is not a reason to refuse
+        // (the server holds one open shift per WORKER, decision-19), and a refusal here would
+        // lock B out of manual start behind A's shift.
+        if openRow != nil {
+            manualError = APIFailure(status: 409, code: "shift_already_open").workerMessage
+            return
+        }
+        manualError = nil
+        manualBusy = true
+        let clientUuid = UUID()
+        let start = Date.now
+        Task {
+            defer { manualBusy = false }
+            do {
+                _ = try await ShiftFlowAPI.open(clientUuid: clientUuid.uuidString.lowercased(),
+                                                locationId: zoneId, startTime: start, manual: true)
+                showManualStart = false
+                handleTap(zoneId, manual: true, clientUuid: clientUuid, startTime: start)
+            } catch let failure as APIFailure {
+                switch ManualStart.classify(failure) {
+                case .refuse:
+                    manualError = failure.workerMessage
+                    Telemetry.log("manual start refused", .info, [
+                        "ts.api.status": failure.status,
+                        "ts.api.code": failure.code,
+                        "ts.location.id": zoneId,
+                    ])
+                case .queue:
+                    showManualStart = false
+                    handleTap(zoneId, manual: true, clientUuid: clientUuid, startTime: start)
+                }
+            } catch {
+                showManualStart = false
+                handleTap(zoneId, manual: true, clientUuid: clientUuid, startTime: start)
+            }
+        }
     }
 
     /// decision-56 §4/§3. Closes the LOCAL row first, exactly as a tap-out does, so a Stop
@@ -546,35 +789,36 @@ struct LogView: View {
         prepareCompletion(manual: true) { finishManualStop() }
     }
 
+    /// SHIFT EVIDENCE (docs/shift-evidence.md): the ONE gate in front of a FINISH - a manual stop, a
+    /// tag tap-out, a building switch. It holds a finish back for exactly one reason: THIS worker's
+    /// open row is KNOWN to require photo proof (`proofOfWorkRequired == true`, learned from the
+    /// server's own answer to the open), because the server refuses a close without one. Then the
+    /// proof sheet runs first and `action` follows the server's acceptance.
+    ///
+    /// EVERYTHING ELSE RUNS `action` AT ONCE, in this same turn, with nothing awaited: proof not
+    /// required, and - the case that matters in a basement - policy NOT KNOWN YET (a shift opened
+    /// offline, or a row from before this build). The tap is never refused for want of a connection
+    /// and nothing waits on the network before the local write (audit R2). If the server turns out to
+    /// require proof it answers 422 proof_required to the queued close; Sync.record reopens the row,
+    /// remembers the policy, and says why, and the next stop opens the camera. A START is never
+    /// routed through here at all.
     private func prepareCompletion(manual: Bool = false, switched: Bool = false, _ action: @escaping () -> Void) {
-        guard !closePending, let shift = shifts.first(where: { $0.isOpen && $0.workerId == worker.id }) else { return }
-        closePending = true
-        Task {
-            if shift.proofOfWorkRequired == nil {
-                await adoptServerOpenShift(context: context)
-                await syncPending(context: context, workerId: worker.id)
-            }
-            guard case .eligible(let signedIn) = session.state, signedIn.id == worker.id,
-                  shift.isOpen else { closePending = false; return }
-            guard let required = shift.proofOfWorkRequired else {
-                scanError = String(localized: "Connect to the internet to check this shift before finishing it.")
-                closePending = false
-                return
-            }
-            if required {
-                proofManualClose = manual
-                proofAutoClose = switched
-                afterProof = action
-                proofShift = shift
-            } else {
-                closePending = false
-                action()
-            }
+        // A finish is already waiting on the camera or its upload: this tap is the same intent.
+        guard !closePending else { return }
+        guard let shift = openRow, shift.proofOfWorkRequired == true else {
+            action()
+            return
         }
+        closePending = true
+        proofManualClose = manual
+        proofAutoClose = switched
+        afterProof = action
+        proofShift = shift
     }
 
+    /// The close itself: the LOCAL row first (the old manualStop body, unchanged).
     private func finishManualStop() {
-        guard let running = shifts.first(where: \.isOpen) else { return }
+        guard let running = openRow else { return }
         running.endTime = .now
         running.manualClose = true
         running.closeSyncedAt = nil
@@ -585,7 +829,14 @@ struct LogView: View {
             "ts.location.id": running.locationId,
             "ts.shift.client_uuid": running.clientUuidString,
         ])
-        Task { await syncPending(context: context, workerId: worker.id) }
+        Task {
+            await syncPending(context: context, workerId: worker.id)
+            // Once the push has answered, state the world again. A stop has nothing left to
+            // word differently (the shift is closed, so this arms nothing), but it is the same
+            // rule as a tap's: every push is followed by one arm from the store, so the signals
+            // never disagree with the row the server has just acknowledged.
+            armIfStillCurrent()
+        }
     }
 
     #if DEBUG
@@ -642,7 +893,11 @@ struct LogView: View {
         // ladder and the Live Activity have to come back from exactly the same call the
         // tap path uses. `running` is recomputed from the store, so a shift the server
         // closed in the meantime arms nothing at all.
-        signals.arm(for: currentRunning())
+        //
+        // Guarded on the session worker being STILL this worker (WorkerScope.isCurrent): this
+        // function awaits five network calls, and a sign-out or a worker change can land in
+        // the middle of them - Session's teardown must not be undone by a stale refresh.
+        armIfStillCurrent()
     }
 
     /// One tap = one toggle. The row is written locally first (so a tap in a basement
@@ -667,11 +922,20 @@ struct LogView: View {
     ///
     /// `manual` (decision-56) changes exactly one thing: the flag stamped on a row this
     /// function was going to write anyway. It is NOT a second code path - see startManual().
-    private func handleTap(_ locationId: String, manual: Bool = false, proofApproved: Bool = false) {
-        guard !closePending else { return }
-        if shifts.contains(where: \.isOpen) && !proofApproved {
-            prepareCompletion(switched: shifts.first(where: \.isOpen)?.locationId != locationId) {
-                handleTap(locationId, manual: manual, proofApproved: true)
+    ///
+    /// SHIFT EVIDENCE (docs/shift-evidence.md). A tap that would FINISH this worker's open shift (a
+    /// tap-out or a building switch) first asks prepareCompletion, which holds it back ONLY for a
+    /// shift known to require photo proof; every other tap, a start always, falls straight through
+    /// and `proofApproved` is true on the re-entry after the proof. The open row is THIS worker's
+    /// (openRow), so another account's forgotten shift can neither start the proof flow nor
+    /// swallow B's tap, and `switched` is the SAME building rule the branch below applies.
+    private func handleTap(_ locationId: String, manual: Bool = false,
+                           clientUuid: UUID? = nil, startTime: Date? = nil,
+                           proofApproved: Bool = false) {
+        if let running = openRow, !proofApproved {
+            prepareCompletion(switched: leavesBuilding(of: running, for: locationId)) {
+                handleTap(locationId, manual: manual, clientUuid: clientUuid, startTime: startTime,
+                          proofApproved: true)
             }
             return
         }
@@ -690,10 +954,17 @@ struct LogView: View {
 
         let action: String
         let touched: Shift
-        if let running = shifts.first(where: \.isOpen) {
+        // THIS worker's open row and nobody else's. On a shared phone worker A's forgotten open
+        // shift is still in the store; B's tap must start B's own shift, never close A's (the
+        // close would go out under B's cookie and the server answers 404 unknown_shift) and
+        // never auto-close it as a walk-away. A's row is left exactly as it was.
+        if let running = openRow {
             running.endTime = .now
             running.closeSyncedAt = nil
-            if running.locationId != locationId {
+            // BUILDINGS, not raw ids (decision-43): two zones of one building are one place.
+            // Without this a tap-out at the building's second door auto-closes the shift as
+            // "left without tapping out" and opens a new one, flagged for correction.
+            if leavesBuilding(of: running, for: locationId) {
                 // The worker left the last building without tapping out and is now at a
                 // new one. Auto-closing is the only non-deadlocking option: the server
                 // allows one open shift per worker, and they cannot walk back to the old
@@ -707,14 +978,14 @@ struct LogView: View {
                 // with an unconfirmed end time. A normal tap-out stays unflagged.
                 running.autoClosed = true
                 switchNotice = String(localized: "Finished your open shift at \(siteName(running.locationId)) and started at \(siteName(locationId)). Confirm when you actually left \(siteName(running.locationId)) — it will not count until you do.")
-                touched = startShift(at: locationId)
+                touched = startShift(at: locationId, clientUuid: clientUuid, startTime: startTime)
                 action = "switch"
             } else {
                 touched = running
                 action = "close"
             }
         } else {
-            touched = startShift(at: locationId)
+            touched = startShift(at: locationId, clientUuid: clientUuid, startTime: startTime)
             // decision-56, set ONLY on a row this call is creating. A manual clock-in is
             // unreachable while a shift is running (the button lives on the idle screen), so
             // the close and switch branches above can never be handed manual = true - and if
@@ -731,6 +1002,15 @@ struct LogView: View {
         // "arm nothing" - never "reject the tap". checks/shift-signal-check.swift pins
         // this ordering by reading this function as text.
         signals.arm(for: currentRunning())
+
+        // A zone created after the last roster fetch is unknown to this phone until the next
+        // one. Its OWN task, started after the save and after the arm, so a slow or dead
+        // network can neither delay the clock-in nor the push below. The reminder ladder is
+        // fixed text, so it is armed once more when the real building name has arrived.
+        Task {
+            await refreshRoster(context: context)
+            armIfStillCurrent()
+        }
 
         write.data("ts.shift.action", action)
         write.data("ts.shift.client_uuid", touched.clientUuidString)
@@ -759,6 +1039,13 @@ struct LogView: View {
             // http.client span lands inside this transaction because it is scope-bound.
             let push = trace.child("function", "shift.push")
             await syncPending(context: context, workerId: worker.id)
+            // SIGNALS, AGAIN, now that the server has (or has not) answered. iOS freezes a
+            // notification's text when it is scheduled, and the arm above ran while this start
+            // was unacknowledged - so the ladder says "Not confirmed yet" until this re-arm
+            // says otherwise. It follows the push inside this un-awaited Task: it cannot delay
+            // the tap (already saved and armed) or the push (already done), and it is the
+            // session-guarded one, so a sign-out during the request is not undone.
+            armIfStillCurrent()
             if let serverId = touched.serverId { push.data("ts.shift.server_id", serverId) }
             push.data("ts.shift.outcome", outcome(of: touched))
             push.finish()
@@ -767,14 +1054,27 @@ struct LogView: View {
         }
     }
 
+    /// THE ONE "did this tap leave the building the shift runs in" rule (decision-43): BUILDINGS, not
+    /// raw place ids, because two zones of one building are one place. Asked by the branch in handleTap
+    /// that decides close-versus-switch AND by the proof gate at the top of it, so a tap-out at a
+    /// building's second door is a plain close for both - never a walk-away flagged auto_closed.
+    private func leavesBuilding(of running: Shift, for locationId: String) -> Bool {
+        Zones.buildingIdOf(running.locationId, zones: rosterZones.zones)
+            != Zones.buildingIdOf(locationId, zones: rosterZones.zones)
+    }
+
     private func outcome(of shift: Shift) -> String {
         if shift.syncBlocked { return "blocked" }
         return shift.isFullySynced ? "synced" : "queued"
     }
 
     @discardableResult
-    private func startShift(at locationId: String) -> Shift {
-        let shift = Shift(workerId: worker.id, workerName: worker.name, locationId: locationId)
+    private func startShift(at locationId: String, clientUuid: UUID? = nil, startTime: Date? = nil) -> Shift {
+        let shift = Shift(workerId: worker.id, workerName: worker.name, locationId: locationId,
+                          startTime: startTime ?? .now)
+        // A manual start asked the server FIRST under this exact client_uuid (decision-81), so
+        // the row must carry it: the sync pass then gets 200 duplicate, never a second open.
+        if let clientUuid { shift.clientUuid = clientUuid }
         context.insert(shift)
         return shift
     }
@@ -830,7 +1130,10 @@ struct ShiftRow: View {
 /// Text(_ key: LocalizedStringKey) consults the catalogue. All call sites pass literals,
 /// so they compile unchanged; a future caller with a RUNTIME String will not compile,
 /// which is the point - it would have to say what key it means.
-private func pill(_ t: LocalizedStringKey, _ c: Color) -> some View {
+///
+/// Not private any more (decision-83, P7): the finished-shift receipt and My hours draw the SAME
+/// pills, so there is one place the Blue Hour reskin has to restyle them.
+func pill(_ t: LocalizedStringKey, _ c: Color) -> some View {
     Text(t).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
         .background(c.opacity(0.2)).foregroundStyle(c).clipShape(Capsule())
 }
@@ -934,13 +1237,21 @@ struct ResolveSheet: View {
 
 struct HistoryView: View {
     @Environment(\.modelContext) private var context
-    @Query(sort: \Shift.startTime, order: .reverse) private var shifts: [Shift]
+    /// The signed-in worker. History lists, totals and DELETES only this worker's rows: on a
+    /// shared phone the store also holds everybody else's unsent hours, and a swipe must never
+    /// be able to reach them (WorkerScope.swift; nothing is ever deleted on sign-out).
+    let worker: WireWorker
+    /// DEVICE-WIDE (every account's rows) - read only through WorkerScope, see LogView.
+    @Query(sort: \Shift.startTime, order: .reverse) private var allShifts: [Shift]
     @Query private var sites: [Site]
+    @Environment(RosterZones.self) private var rosterZones
     private func siteName(_ id: String) -> String {
-        sites.first { $0.locationId == id }?.name ?? String(localized: "Unknown location")
+        rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
     }
 
-    private var completed: [Shift] { shifts.filter { !$0.isOpen } }
+    /// This worker's rows, newest first. The list, the totals and the swipe-delete all use it.
+    private var mine: [Shift] { allShifts.forWorker(worker.id) }
+    private var completed: [Shift] { allShifts.completed(for: worker.id) }
     private var totalHours: Double { completed.compactMap(\.duration).reduce(0, +) / 3600 }
     private var weekHours: Double {
         let start = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
@@ -955,11 +1266,17 @@ struct HistoryView: View {
                     LabeledContent("Total", value: String(format: "%.1f h", totalHours))
                 }
                 Section("Shifts") {
-                    if shifts.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }
-                    ForEach(shifts) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
+                    if mine.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }
+                    ForEach(mine) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
                         // Deleting only drops the local copy; anything already sent stays
-                        // on the server, which is what payroll is paid from.
-                        .onDelete { idx in idx.map { shifts[$0] }.forEach(context.delete); try? context.save() }
+                        // on the server, which is what payroll is paid from. The indices
+                        // are into THIS WORKER's rows (`mine` is already scoped), so a swipe
+                        // cannot reach another account's unsent hours.
+                        .onDelete { idx in
+                            let rows = mine
+                            idx.map { rows[$0] }.forEach(context.delete)
+                            try? context.save()
+                        }
                 }
             }
             .navigationTitle("History")
@@ -988,6 +1305,11 @@ struct SettingsView: View {
                 Section("Signed in as") {
                     LabeledContent("Name", value: worker.name)
                         .accessibilityLabel("Signed in as \(worker.name)")
+                    // decision-83: the server's last 60 days, read-only (Android: More > "Meine Stunden",
+                    // in the identity card). A pushed screen that asks the server on every entry and
+                    // keeps nothing; it takes the worker so its request is made as THEM and dropped if
+                    // somebody else holds the session by the time it lands.
+                    NavigationLink("My hours") { MyHoursView(worker: worker) }
                 }
                 Section {
                     Text("Hours, locations and payroll are managed by your admin on the web.")

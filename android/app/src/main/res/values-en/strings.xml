@@ -451,10 +451,32 @@
     <string name="verify_scan_any_checking">Looking the card up …</string>
     <string name="verify_scan_any_building">That is a building card, not a zone card. There is nothing to test here for building cards.</string>
     <string name="verify_scan_any_retired">This card belonged to a zone that has since been retired. It no longer opens anything.</string>
-    <string name="verify_scan_any_reported">This card is reported but has not been made into a zone yet. Do that in “Write a tag”.</string>
+    <string name="verify_scan_any_reported">This card is reported but not yet a zone. Finish it here: name the zone and pick the building — the card is tested at the same time.</string>
     <string name="verify_scan_any_unknown">This card does not belong to this system.</string>
     <!-- %1$s = server error code -->
     <string name="verify_scan_any_failed">The card could not be looked up (%1$s). Please try again.</string>
+
+    <!-- FINISH THE CARD, decision-76. A card that was written and reported but never made a zone
+         becomes one from "Test tag"; with a building, the same scan is also the test. -->
+    <string name="verify_reported_loading">Loading buildings …</string>
+    <!-- %1$s = server error code -->
+    <string name="verify_reported_load_failed">The buildings could not be loaded (%1$s). The zone can still be created with no building — you can assign one afterwards, here.</string>
+    <string name="verify_reported_reload">Reload buildings</string>
+    <string name="verify_reported_submitting">Creating the zone …</string>
+    <string name="verify_reported_submitting_tested">Creating the zone and testing the card …</string>
+    <!-- %1$s = zone name, %2$s = building name -->
+    <string name="verify_reported_done">Zone “%1$s” created in %2$s and tested with this card.</string>
+    <!-- %1$s = zone name -->
+    <string name="verify_reported_unbound">Zone “%1$s” is created but still needs a building. Nobody can clock in here yet — pick a building first, then test the card.</string>
+    <!-- %1$s = zone name, %2$s = building name -->
+    <string name="verify_reported_untested">Zone “%1$s” is created in %2$s but not tested yet. Hold the card to the phone again to test it.</string>
+    <string name="verify_reported_unknown_tag">The office does not (or no longer) have this card as reported. The zone was not created. Please hold the card to the phone again.</string>
+    <string name="verify_reported_already_resolved">This card has meanwhile been made into a zone. Please hold the card to the phone again.</string>
+    <string name="verify_reported_duplicate_name">The chosen building already has a zone with this name. Please choose another name.</string>
+    <string name="verify_reported_unknown_location">That building no longer exists. Please reload the buildings.</string>
+    <string name="verify_reported_network">No connection to the server. The zone was not created — please try again.</string>
+    <!-- %1$s = server error code -->
+    <string name="verify_reported_failed">The zone could not be created (%1$s). The card is fine — try again.</string>
 
     <!-- REASSIGN THE BUILDING, decision-55 §3. Nothing is moved: the old zone is retired and a
          new zone is created on a NEWLY written card. -->

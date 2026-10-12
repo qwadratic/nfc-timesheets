@@ -208,6 +208,12 @@ struct APIFailure: Error {
             // decision-47 / server/lib/validate.js requireVerifiedPlace. Same wording as
             // Android's err_zone_unverified - one sentence across both phones.
             return String(localized: "This tag hasn't been activated yet. No shift was started. Please contact your administration.")
+        case "tag_unbound":
+            // server/lib/validate.js activePlace: the card was written and reported but nobody
+            // has made it a zone yet. TERMINAL, like Android's err_tag_unbound - the same
+            // sentence on both phones (decision-76 §4). Before this case iOS fell through to
+            // "Rejected by the server (tag_unbound)", which reads as a broken card.
+            return String(localized: "This tag isn't assigned to a building yet. No shift was started. Please contact your administration.")
         case "too_many_attempts":
             return String(localized: "Too many attempts - try again shortly.")
         default:
@@ -253,12 +259,130 @@ struct WireLocation: Codable, Identifiable, Hashable {
     let name: String
 }
 
+/// One zone of GET /roster (decision-43): a door inside a building. `id` is what a zone's
+/// card carries and what a tap posts; `locationId` is the BUILDING it belongs to.
+/// `tagSerial` is only ever present for a VERIFIED zone (server/routes/app.js, decision-47).
+struct WireZone: Codable, Hashable {
+    let id: String
+    let locationId: String
+    let name: String
+    let tagSerial: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case locationId = "location_id"
+        case tagSerial = "tag_serial"
+    }
+}
+
 /// GET /roster. The server also sends a `workers` array; it is deliberately NOT decoded.
 /// The app has no picker to fill any more (decision-22) and does not need a staff list on
 /// every phone - and leaving the field out means the day the server stops sending it, the
 /// location cache keeps decoding instead of the app forgetting every tag it knows.
+///
+/// `zones` IS DECODED LEAST-STRICTLY OF ALL, and that is the same fear stated one field
+/// over: a zone row this build cannot parse, or a server too old to send the key at all, must
+/// never cost the app its LOCATIONS. A missing key is an empty list; one malformed zone drops
+/// that zone and nothing else.
 struct WireRoster: Codable {
     let locations: [WireLocation]
+    let zones: [WireZone]
+
+    enum CodingKeys: String, CodingKey { case locations, zones }
+
+    init(locations: [WireLocation], zones: [WireZone] = []) {
+        self.locations = locations
+        self.zones = zones
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        locations = try container.decode([WireLocation].self, forKey: .locations)
+        zones = ((try? container.decode([LossyZone].self, forKey: .zones)) ?? []).compactMap(\.value)
+    }
+
+    private struct LossyZone: Decodable {
+        let value: WireZone?
+        init(from decoder: Decoder) throws { value = try? WireZone(from: decoder) }
+    }
+}
+
+/// One PLANNED assignment of GET /me/schedule (decision-80). Display only: a plan is a
+/// picture of the week, never an input to a clock-in, sync, signal or payroll.
+///
+/// Five fields and no more. The server row (`SELECT p.*, worker_name, location_name`,
+/// server/routes/schedule.js) carries `location_id`, `worker_id`, `worker_name`, `tenant_id`,
+/// `cancelled_at`, `version`, `created_at`, `updated_at` as well; NONE is decoded, and
+/// `location_id` least of all: it is a BUILDING id and a building id is no clock-in target
+/// (decision-69), so a plan must not offer the app one to tap. Android's Wire.scheduleAssignment
+/// reads the same five. `note` is NOT NULL on the server, yet it is the one optional key here
+/// (absent or null reads as ''): a missing instruction is cosmetic and must not cost the worker
+/// the line that says where and when.
+struct WireScheduleAssignment: Decodable, Identifiable, Equatable {
+    /// The plan's own UUID (a row identity, not a place), kept as the server sent it.
+    let id: String
+    /// The building's name, joined server-side. Plain text for display.
+    let locationName: String
+    let startsAt: Date
+    let endsAt: Date
+    let note: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case locationName = "location_name"
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case note
+    }
+
+    init(id: String, locationName: String, startsAt: Date, endsAt: Date, note: String = "") {
+        self.id = id
+        self.locationName = locationName
+        self.startsAt = startsAt
+        self.endsAt = endsAt
+        self.note = note
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        locationName = try container.decode(String.self, forKey: .locationName)
+        startsAt = try container.decode(Date.self, forKey: .startsAt)
+        endsAt = try container.decode(Date.self, forKey: .endsAt)
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+    }
+}
+
+/// 200 body of GET /me/schedule: `{assignments: [...]}`.
+///
+/// DECODED THE WAY THE ROSTER'S ZONES ARE: one row this build cannot read drops THAT row and
+/// nothing else, so one odd plan never takes the whole list down (Android's strict `map` would
+/// show "could not load" for all of them). The one exception is the case where rows WERE sent
+/// and not one could be read: that is a shape this build does not understand, and rendering it
+/// as "no assignments planned" would tell a worker with a full week that they have nothing.
+/// It throws instead, and the card says "could not load". A missing or non-array `assignments`
+/// key throws too.
+struct WireScheduleEnvelope: Decodable {
+    let assignments: [WireScheduleAssignment]
+
+    enum CodingKeys: String, CodingKey { case assignments }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rows = try container.decode([LossyAssignment].self, forKey: .assignments)
+        let readable = rows.compactMap(\.value)
+        if !rows.isEmpty && readable.isEmpty {
+            throw DecodingError.dataCorruptedError(
+                forKey: .assignments, in: container,
+                debugDescription: "\(rows.count) assignment row(s), none readable")
+        }
+        assignments = readable
+    }
+
+    private struct LossyAssignment: Decodable {
+        let value: WireScheduleAssignment?
+        init(from decoder: Decoder) throws { value = try? WireScheduleAssignment(from: decoder) }
+    }
 }
 
 /// The single shift shape every shift endpoint returns.
@@ -592,6 +716,26 @@ enum ShiftAPI {
 enum RosterAPI {
     /// GET /roster -> workers + locations the app may pick from.
     static func fetch() async throws -> WireRoster { try await apiGet("/roster") }
+}
+
+/// decision-80. The signed-in worker's PLANNED assignments, read-only.
+enum ScheduleAPI {
+    /// GET /me/schedule -> {assignments:[{id, location_name, starts_at, ends_at, note, ...}]}.
+    ///
+    /// Worker session cookie + X-App-Key, NO query: who is asking is the session's worker and
+    /// nobody else (decision-22; the server ignores a `?worker_id=`), so this takes no worker id
+    /// and must never gain one. Through `apiGet`, the worker's cookie jar - never `OperatorAPI`.
+    /// The server answers this worker's uncancelled plans that end after now and start within
+    /// 31 days, in start order, at most 200 (server/routes/schedule.js `mine`).
+    ///
+    /// 401 -> signed out by `send` (the response choke point); a transport failure is
+    /// `APIFailure(status: 0)`; a server that predates migration 025 answers 404 / 500. This
+    /// function only reports - ScheduleStore decides how each reads, and nothing on the tap, sync
+    /// or signal path ever calls it.
+    static func mine() async throws -> [WireScheduleAssignment] {
+        let envelope: WireScheduleEnvelope = try await apiGet("/me/schedule")
+        return envelope.assignments
+    }
 }
 
 /// decision-57. GET /flags (worker auth) -> {name: bool} for every row in feature_flags.

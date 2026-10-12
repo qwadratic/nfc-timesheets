@@ -171,14 +171,26 @@ final class Session {
         UserDefaults.standard.removeObject(forKey: Cache.workerName)
     }
 
-    /// Cache + cookie. The cookie is dropped locally as well as server-side: if logout
-    /// could not reach the server, leaving the cookie on the phone would sign the next
-    /// person straight back in as this worker.
+    /// Cache + cookie + every out-of-app shift signal. The cookie is dropped locally as well as
+    /// server-side: if logout could not reach the server, leaving the cookie on the phone would
+    /// sign the next person straight back in as this worker.
+    ///
+    /// THE SIGNALS GO HERE, in the one teardown both exits share (a deliberate sign-out and the
+    /// 401 path, serverRejectedSession). `arm(for: nil)` takes down the app-icon badge, every
+    /// pending and delivered +1h..+8h reminder and the Live Activity. Without it a phone that was
+    /// signed out - and possibly handed to a colleague - kept telling them somebody was clocked
+    /// in: arm(for:) was only reachable from LogView, which is unmounted by then. Android does the
+    /// same in signOut() and dropToSignedOut() (ShiftSignals.arm(app, null), core-check.kt).
+    ///
+    /// The rows themselves are NOT touched: they belong to the worker who logged them, SyncPlan
+    /// blocks them under any other session, and they come back for their owner. The next
+    /// sign-in re-arms through LogView.task -> refresh(), from that worker's own open row.
     private func clearLocalSession() {
         ShiftLocationReporter.shared.endSession()
         clearCache()
         Telemetry.clearWorker()
         let storage = HTTPCookieStorage.shared
         for cookie in storage.cookies(for: API.base) ?? [] { storage.deleteCookie(cookie) }
+        ShiftSignalCenter.shared.arm(for: nil)
     }
 }

@@ -49,6 +49,9 @@ func refreshRoster(context: ModelContext) async {
     // hardware-UID rows the old build cached) drop out.
     for site in existing where !wanted.contains(site.locationId) { context.delete(site) }
     try? context.save()
+    // The zones of the same answer (decision-43). Only reached on a SUCCESSFUL fetch (the
+    // guard above returns first), so a phone with no signal keeps the last zones it had.
+    RosterZones.shared.replace(with: roster.zones)
 }
 
 // MARK: - Feature flags
@@ -82,13 +85,19 @@ func refreshFlags() async {
 @MainActor
 func syncPending(context: ModelContext, workerId: Int) async {
     let all = (try? context.fetch(FetchDescriptor<Shift>(sortBy: [SortDescriptor<Shift>(\.startTime)]))) ?? []
-    for shift in all where !shift.syncBlocked && (!shift.isFullySynced || shift.pendingEvidenceEnd != nil) {
+    // THE ONE PREDICATE (PendingWork.state): the delivery summary on the idle list, the running screen
+    // and the sign-in screen counts exactly these rows, so what is tried and what is said cannot drift.
+    // It is `!syncBlocked && (!isFullySynced || a finish is owed with its proof)`, spelled once.
+    for shift in all where PendingWork.state(of: shift.deliveryRow()) == .waiting {
         if shift.openSyncedAt == nil {
             guard await pushOpen(shift, as: workerId) else { continue }  // don't close what never opened
         }
-        guard shift.workerId == workerId else { continue }
+        // `pendingEvidenceEnd` is the finish time a proof-of-work close was sent with (shift
+        // evidence): while it is set the close is still owed, even though the row's own endTime
+        // may not be written yet. The "another account's row" guard is INSIDE pushClose
+        // (TASK-365.4), so it is one rule in one place.
         if let end = shift.pendingEvidenceEnd ?? shift.endTime, shift.closeSyncedAt == nil {
-            await pushClose(shift, end: end)
+            await pushClose(shift, end: end, as: workerId)
         }
     }
     try? context.save()
@@ -114,6 +123,9 @@ private func pushOpen(_ shift: Shift, as workerId: Int) async -> Bool {
         return false
     }
     do {
+        // "A push was tried, now" - BEFORE the request, for both outcomes (PendingWork.swift:
+        // DeliveryAttempt). The only reader is the delivery details sheet's "Last attempt".
+        DeliveryAttempt.stamp()
         let envelope = try await ShiftFlowAPI.open(clientUuid: shift.clientUuidString,
                                                    locationId: shift.locationId,
                                                    startTime: shift.startTime,
@@ -132,8 +144,17 @@ private func pushOpen(_ shift: Shift, as workerId: Int) async -> Bool {
 }
 
 @MainActor
-private func pushClose(_ shift: Shift, end: Date) async {
+private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
+    // ANOTHER ACCOUNT'S CLOSE STAYS ON THE PHONE. The server looks the shift up under whoever holds
+    // the cookie (decision-22), so worker A's finished-but-unsent row, pushed while B is signed in,
+    // answers 404 unknown_shift - which is terminal, so it would BLOCK A's row for ever and A's
+    // shift would sit open on the server until the 8h timer closed it. Skipping changes nothing on
+    // the row: no error, no block, no request. It is simply still pending when A signs back in,
+    // and goes out then. (pushOpen's wrong-account block is a separate, deliberately untouched
+    // behaviour - same as Android's SyncPlan.)
+    guard shift.workerId == workerId else { return }
     do {
+        DeliveryAttempt.stamp()   // before the request, like pushOpen's
         // Carry the local flag up. The server only ever raises auto_closed, never clears it,
         // so a plain tap-out cannot downgrade a shift the 8h timer already flagged.
         // `manual` rides up the same way `autoClosed` does, from the local row, so a Stop
@@ -153,6 +174,24 @@ private func pushClose(_ shift: Shift, end: Date) async {
         record(failure, on: shift)
     } catch {
         shift.syncError = APIFailure(status: 0, code: "network").workerMessage
+    }
+}
+
+/// What the delivery summary needs of a row (PendingWork.swift), as a value - the one mapping from
+/// the SwiftData model, so the engine above and the screens count with the same fields.
+///
+/// `sessionWorkerId` is the worker the server says holds this session, or nil when nobody does (the
+/// sign-in screen). It only feeds `queuedByAnotherAccount`, which only the wording reads.
+extension Shift {
+    func deliveryRow(sessionWorkerId: Int? = nil) -> PendingRow {
+        PendingRow(startTime: startTime,
+                   openSyncedAt: openSyncedAt,
+                   closeSyncedAt: closeSyncedAt,
+                   isOpen: isOpen,
+                   syncBlocked: syncBlocked,
+                   finishOwed: pendingEvidenceEnd != nil,
+                   queuedByAnotherAccount: sessionWorkerId.map { $0 != workerId } ?? false,
+                   lastChangedAt: pendingEvidenceEnd ?? endTime ?? startTime)
     }
 }
 
@@ -178,7 +217,15 @@ private func apply(_ wire: WireShift, to shift: Shift) {
 @MainActor
 private func record(_ failure: APIFailure, on shift: Shift) {
     if ["proof_required", "proof_expired"].contains(failure.code) {
+        // The server refused this close for want of a photo, so the row goes back to what it was
+        // BEFORE the close was attempted - all of it. A tap-out or a manual stop (and a switch's
+        // walk-away flag) writes `autoClosed` / `manualClose` together with the end time; left
+        // behind, an open row that reads `autoClosed` is drawn as "closed automatically" instead of
+        // a running clock, and a later tap-out would go up flagged manual. Reachable since a finish
+        // whose policy the phone does not know yet runs local-first (ContentView.prepareCompletion).
         shift.endTime = nil
+        shift.autoClosed = false
+        shift.manualClose = false
         shift.proofId = nil
         shift.pendingEvidenceEnd = nil
         shift.proofOfWorkRequired = true

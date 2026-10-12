@@ -1,230 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-"Could not finish the shift. Check your connection and try again." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Die Schicht konnte nicht beendet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+    "%@ · %@–%@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@–%3$@"
+          }
+        }
       }
     },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Could not finish the shift. Check your connection and try again."
-      }
-    }
-  }
-},
-"Location is collected during this shift at your company's interval. iOS may delay updates." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Während dieser Schicht wird Ihr Standort im vom Unternehmen festgelegten Abstand erfasst. iOS kann Aktualisierungen verzögern."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Location is collected during this shift at your company's interval. iOS may delay updates."
-      }
-    }
-  }
-},
-"Location access is off. Enable it in Settings to record your shift location." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Der Standortzugriff ist ausgeschaltet. Aktivieren Sie ihn in den Einstellungen, um Ihren Standort während der Schicht zu erfassen."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Location access is off. Enable it in Settings to record your shift location."
-      }
-    }
-  }
-},
-"Location could not be sent. A fresh location will be tried at the next interval." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Der Standort konnte nicht gesendet werden. Beim nächsten Intervall wird ein aktueller Standort erneut gesendet."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Location could not be sent. A fresh location will be tried at the next interval."
-      }
-    }
-  }
-},
-"Location is temporarily unavailable. Keep location access enabled." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Der Standort ist vorübergehend nicht verfügbar. Lassen Sie den Standortzugriff eingeschaltet."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Location is temporarily unavailable. Keep location access enabled."
-      }
-    }
-  }
-},
-"Take a photo of the completed work now. Gallery photos cannot be used. An internet connection is required." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Fotografieren Sie jetzt die erledigte Arbeit. Fotos aus der Galerie sind nicht zulässig. Eine Internetverbindung ist erforderlich."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Take a photo of the completed work now. Gallery photos cannot be used. An internet connection is required."
-      }
-    }
-  }
-},
-"Take work photo" : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Arbeit fotografieren"
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Take work photo"
-      }
-    }
-  }
-},
-"Proof of work" : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Arbeitsnachweis"
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Proof of work"
-      }
-    }
-  }
-},
-"Camera unavailable. Allow camera access in Settings and use a device with a camera." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Die Kamera ist nicht verfügbar. Erlauben Sie den Kamerazugriff in den Einstellungen und verwenden Sie ein Gerät mit Kamera."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Camera unavailable. Allow camera access in Settings and use a device with a camera."
-      }
-    }
-  }
-},
-"Could not prepare the photo. Check your connection and try again. Your shift has not been finished." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Das Foto konnte nicht vorbereitet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut. Ihre Schicht wurde nicht beendet."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Could not prepare the photo. Check your connection and try again. Your shift has not been finished."
-      }
-    }
-  }
-},
-"Take a new photo to finish this shift. Your shift has not been finished." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Nehmen Sie ein neues Foto auf, um diese Schicht zu beenden. Ihre Schicht wurde nicht beendet."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Take a new photo to finish this shift. Your shift has not been finished."
-      }
-    }
-  }
-},
-"Photo could not be prepared. Please take another photo." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Das Foto konnte nicht vorbereitet werden. Bitte nehmen Sie ein neues Foto auf."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Photo could not be prepared. Please take another photo."
-      }
-    }
-  }
-},
-"Photo could not be sent. Check your connection and take another photo. Your shift has not been finished." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Das Foto konnte nicht gesendet werden. Prüfen Sie Ihre Verbindung und nehmen Sie ein neues Foto auf. Ihre Schicht wurde nicht beendet."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Photo could not be sent. Check your connection and take another photo. Your shift has not been finished."
-      }
-    }
-  }
-},
-"Connect to the internet to check this shift before finishing it." : {
-  "localizations": {
-    "de": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Stellen Sie eine Internetverbindung her, damit diese Schicht vor dem Beenden geprüft werden kann."
-      }
-    },
-    "en": {
-      "stringUnit": {
-        "state": "translated",
-        "value": "Connect to the internet to check this shift before finishing it."
-      }
-    }
-  }
-},
     "%@ at %@" : {
       "localizations" : {
         "de" : {
@@ -241,6 +27,266 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · %@"
+          }
+        }
+      }
+    },
+    "Automatic delivery is not currently active. Open the app with an internet connection to try delivery again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die automatische Übertragung ist derzeit nicht aktiv. Öffnen Sie die App mit einer Internetverbindung, um die Übertragung erneut zu versuchen."
+          }
+        }
+      }
+    },
+    "Delivery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übertragung"
+          }
+        }
+      }
+    },
+    "Earliest shift start: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühester Schichtbeginn: %@"
+          }
+        }
+      }
+    },
+    "Last attempt: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt versucht: %@"
+          }
+        }
+      }
+    },
+    "%lld shifts need your office" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schicht braucht die Verwaltung"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schichten brauchen die Verwaltung"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shift needs your office"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shifts need your office"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld shifts still on this phone" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schicht noch auf diesem Telefon"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schichten noch auf diesem Telefon"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shift still on this phone"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shifts still on this phone"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "No delivery attempt yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch kein Übertragungsversuch."
+          }
+        }
+      }
+    },
+    "Sign in with the same account so these entries can be delivered." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melden Sie sich mit demselben Konto an, damit diese Einträge übertragen werden können."
+          }
+        }
+      }
+    },
+    "%@ – %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ – %2$@"
+          }
+        }
+      }
+    },
+    "Closed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abgeschlossen"
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter"
+          }
+        }
+      }
+    },
+    "Date: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datum: %@"
+          }
+        }
+      }
+    },
+    "Duration: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dauer: %@"
+          }
+        }
+      }
+    },
+    "End: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ende: %@"
+          }
+        }
+      }
+    },
+    "My hours" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Stunden"
+          }
+        }
+      }
+    },
+    "No connection. Your hours can't be loaded right now." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Verbindung. Ihre Stunden können gerade nicht geladen werden."
+          }
+        }
+      }
+    },
+    "No end yet" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch kein Ende"
+          }
+        }
+      }
+    },
+    "No shifts in this period." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In diesem Zeitraum keine Schichten."
+          }
+        }
+      }
+    },
+    "Shift finished" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schicht beendet"
+          }
+        }
+      }
+    },
+    "Start: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beginn: %@"
           }
         }
       }
@@ -281,6 +327,16 @@
         }
       }
     },
+    "%@, %@ – %@, %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@ – %3$@, %4$@"
+          }
+        }
+      }
+    },
     "%@, no building yet" : {
       "localizations" : {
         "de" : {
@@ -303,6 +359,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld h at %2$@. Hold your phone to the tag to finish."
+          }
+        }
+      }
+    },
+    "%lld hours and %lld minutes recorded on this phone for %@. Not confirmed by the office yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld Stunden und %2$lld Minuten für %3$@ auf diesem Telefon erfasst. Noch nicht von der Verwaltung bestätigt."
           }
         }
       }
@@ -429,6 +495,26 @@
         }
       }
     },
+    "Activate this card" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte jetzt aktivieren"
+          }
+        }
+      }
+    },
+    "All upcoming assignments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle kommenden Einsätze"
+          }
+        }
+      }
+    },
     "Already verified %@." : {
       "localizations" : {
         "de" : {
@@ -489,6 +575,16 @@
         }
       }
     },
+    "Assign a building" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Objekt zuordnen"
+          }
+        }
+      }
+    },
     "At the warehouse" : {
       "localizations" : {
         "de" : {
@@ -541,6 +637,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Objekt"
+          }
+        }
+      }
+    },
+    "Camera unavailable. Allow camera access in Settings and use a device with a camera." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kamera ist nicht verfügbar. Erlauben Sie den Kamerazugriff in den Einstellungen und verwenden Sie ein Gerät mit Kamera."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera unavailable. Allow camera access in Settings and use a device with a camera."
           }
         }
       }
@@ -605,12 +717,32 @@
         }
       }
     },
+    "Choose a zone" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zone auswählen"
+          }
+        }
+      }
+    },
     "Clocked in" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eingestempelt"
+          }
+        }
+      }
+    },
+    "Close" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
           }
         }
       }
@@ -655,6 +787,22 @@
         }
       }
     },
+    "Connect to the internet to check this shift before finishing it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stellen Sie eine Internetverbindung her, damit diese Schicht vor dem Beenden geprüft werden kann."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect to the internet to check this shift before finishing it."
+          }
+        }
+      }
+    },
     "Corrected" : {
       "localizations" : {
         "de" : {
@@ -667,6 +815,58 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corrected"
+          }
+        }
+      }
+    },
+    "Could not finish the shift. Check your connection and try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Schicht konnte nicht beendet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not finish the shift. Check your connection and try again."
+          }
+        }
+      }
+    },
+    "Could not load assignments without a connection." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze konnten ohne Verbindung nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Could not load assignments." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze konnten nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Could not prepare the photo. Check your connection and try again. Your shift has not been finished." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto konnte nicht vorbereitet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut. Ihre Schicht wurde nicht beendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not prepare the photo. Check your connection and try again. Your shift has not been finished."
           }
         }
       }
@@ -807,6 +1007,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Schicht ohne Tag beenden"
+          }
+        }
+      }
+    },
+    "Finish this card" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte fertigstellen"
           }
         }
       }
@@ -1003,6 +1213,16 @@
         }
       }
     },
+    "Loading assignments …" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze werden geladen …"
+          }
+        }
+      }
+    },
     "Loading buildings…" : {
       "localizations" : {
         "de" : {
@@ -1029,6 +1249,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zonen werden geladen…"
+          }
+        }
+      }
+    },
+    "Location access is off. Enable it in Settings to record your shift location." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Standortzugriff ist ausgeschaltet. Aktivieren Sie ihn in den Einstellungen, um Ihren Standort während der Schicht zu erfassen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location access is off. Enable it in Settings to record your shift location."
+          }
+        }
+      }
+    },
+    "Location could not be sent. A fresh location will be tried at the next interval." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Standort konnte nicht gesendet werden. Beim nächsten Intervall wird ein aktueller Standort erneut gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location could not be sent. A fresh location will be tried at the next interval."
+          }
+        }
+      }
+    },
+    "Location is collected during this shift at your company's interval. iOS may delay updates." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Während dieser Schicht wird Ihr Standort im vom Unternehmen festgelegten Abstand erfasst. iOS kann Aktualisierungen verzögern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location is collected during this shift at your company's interval. iOS may delay updates."
+          }
+        }
+      }
+    },
+    "Location is temporarily unavailable. Keep location access enabled." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Standort ist vorübergehend nicht verfügbar. Lassen Sie den Standortzugriff eingeschaltet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location is temporarily unavailable. Keep location access enabled."
           }
         }
       }
@@ -1129,6 +1413,26 @@
         }
       }
     },
+    "My schedule" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Einsätze"
+          }
+        }
+      }
+    },
+    "Next planned assignment" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächster geplanter Einsatz"
+          }
+        }
+      }
+    },
     "NFC TimeSheets" : {
       "localizations" : {
         "de" : {
@@ -1189,6 +1493,16 @@
         }
       }
     },
+    "No assignments planned for the next 31 days." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für die nächsten 31 Tage sind keine Einsätze geplant."
+          }
+        }
+      }
+    },
     "No NFC, no network. A simulator has neither." : {
       "localizations" : {
         "de" : {
@@ -1215,16 +1529,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keine Objekte geladen – mit Empfang erneut versuchen."
-          }
-        }
-      }
-    },
-    "No buildings on this phone yet. Connect to the internet and pull down to refresh." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auf diesem Telefon sind noch keine Objekte gespeichert. Verbinde dich mit dem Internet und ziehe zum Aktualisieren nach unten."
           }
         }
       }
@@ -1279,6 +1583,16 @@
         }
       }
     },
+    "No zones are available. Please refresh first. If your zone is still missing, contact the office." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es sind keine Zonen verfügbar. Bitte zuerst aktualisieren. Fehlt Ihre Zone weiterhin, melden Sie sich bei der Verwaltung."
+          }
+        }
+      }
+    },
     "No zones need a test scan right now." : {
       "localizations" : {
         "de" : {
@@ -1305,6 +1619,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Am Server noch nicht verfügbar – gespeichert und wird später gesendet."
+          }
+        }
+      }
+    },
+    "Not confirmed yet" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht bestätigt"
+          }
+        }
+      }
+    },
+    "Not confirmed yet: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht bestätigt: %@"
           }
         }
       }
@@ -1386,6 +1720,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Only use this when the tag is missing or cannot be read. Pick the zone in the building you are working in now. The shift is flagged for the office as a manual start." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur verwenden, wenn der Tag fehlt oder nicht gelesen werden kann. Wählen Sie die Zone im Objekt, in der Sie jetzt arbeiten. Die Schicht wird für das Büro als manueller Start markiert."
           }
         }
       }
@@ -1481,6 +1825,38 @@
         }
       }
     },
+    "Photo could not be prepared. Please take another photo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto konnte nicht vorbereitet werden. Bitte nehmen Sie ein neues Foto auf."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo could not be prepared. Please take another photo."
+          }
+        }
+      }
+    },
+    "Photo could not be sent. Check your connection and take another photo. Your shift has not been finished." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto konnte nicht gesendet werden. Prüfen Sie Ihre Verbindung und nehmen Sie ein neues Foto auf. Ihre Schicht wurde nicht beendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo could not be sent. Check your connection and take another photo. Your shift has not been finished."
+          }
+        }
+      }
+    },
     "Pick the new object. The card is rewritten, this zone closes with its hours intact, and a fresh zone takes over." : {
       "localizations" : {
         "de" : {
@@ -1501,6 +1877,16 @@
         }
       }
     },
+    "Planned · Clock in separately" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geplant · Arbeitszeit separat erfassen"
+          }
+        }
+      }
+    },
     "Present the card again to overwrite %@." : {
       "localizations" : {
         "de" : {
@@ -1517,6 +1903,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vorherige Seite"
+          }
+        }
+      }
+    },
+    "Proof of work" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeitsnachweis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proof of work"
           }
         }
       }
@@ -1577,6 +1979,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zuletzt"
+          }
+        }
+      }
+    },
+    "Refresh" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        }
+      }
+    },
+    "Refresh assignments" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einsätze aktualisieren"
           }
         }
       }
@@ -1657,6 +2079,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Läuft"
+          }
+        }
+      }
+    },
+    "Saved on this phone · not yet confirmed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Telefon gespeichert · noch nicht bestätigt"
+          }
+        }
+      }
+    },
+    "Show less" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weniger anzeigen"
           }
         }
       }
@@ -2138,12 +2580,12 @@
         }
       }
     },
-    "Tag missing or unreachable? Pick the building instead. The office sees this as a manual entry." : {
+    "Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tag fehlt oder ist nicht erreichbar? Wähle stattdessen das Objekt. Die Verwaltung sieht das als manuelle Erfassung."
+            "value" : "Tag fehlt oder ist nicht erreichbar? Wählen Sie stattdessen die Zone. Die Verwaltung sieht das als manuelle Erfassung."
           }
         }
       }
@@ -2154,6 +2596,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Das Beschreiben von Tags ist in dieser Version nicht aktiviert. Bitten Sie die Entwicklerin, die Funktion „NFC Tag Reading“ in Xcode zu aktivieren – siehe docs/NFC-WRITE-SETUP.md."
+          }
+        }
+      }
+    },
+    "Take a new photo to finish this shift. Your shift has not been finished." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nehmen Sie ein neues Foto auf, um diese Schicht zu beenden. Ihre Schicht wurde nicht beendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a new photo to finish this shift. Your shift has not been finished."
+          }
+        }
+      }
+    },
+    "Take a photo of the completed work now. Gallery photos cannot be used. An internet connection is required." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografieren Sie jetzt die erledigte Arbeit. Fotos aus der Galerie sind nicht zulässig. Eine Internetverbindung ist erforderlich."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a photo of the completed work now. Gallery photos cannot be used. An internet connection is required."
+          }
+        }
+      }
+    },
+    "Take work photo" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeit fotografieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take work photo"
           }
         }
       }
@@ -2264,6 +2754,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Die Karte ist beschrieben, aber das Büro weiß noch nichts davon. Mit Signal erneut versuchen."
+          }
+        }
+      }
+    },
+    "The card is written. One test is still needed before anyone can clock in: open the test and hold the same card to the phone again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Karte ist geschrieben. Zum Einstempeln fehlt noch der Test: Öffnen Sie die Prüfung und halten Sie dieselbe Karte erneut ans Telefon."
           }
         }
       }
@@ -2498,12 +2998,12 @@
         }
       }
     },
-    "This card was reported but nobody has claimed it yet. Ask an admin." : {
+    "This card was reported but isn't a zone yet. Use Test any card to finish it." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Karte wurde gemeldet, aber noch niemand hat sie zugeordnet. Fragen Sie eine Verwaltungsperson."
+            "value" : "Diese Karte wurde gemeldet, ist aber noch keine Zone. Schließen Sie sie unter „Beliebige Karte testen“ ab."
           }
         }
       }
@@ -2678,6 +3178,16 @@
         }
       }
     },
+    "This tag isn't assigned to a building yet. No shift was started. Please contact your administration." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Tag ist noch keinem Objekt zugeordnet. Es wurde keine Schicht gestartet. Bitte bei der Verwaltung melden."
+          }
+        }
+      }
+    },
     "This tag isn't NDEF-formatted." : {
       "localizations" : {
         "de" : {
@@ -2744,6 +3254,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diese Zone ist nicht mehr aktiv."
+          }
+        }
+      }
+    },
+    "Time recorded on this phone" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lokal erfasste Zeit"
           }
         }
       }
@@ -2868,6 +3388,16 @@
         }
       }
     },
+    "View" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ansehen"
+          }
+        }
+      }
+    },
     "We checked your old records" : {
       "localizations" : {
         "de" : {
@@ -2934,6 +3464,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wird geschrieben"
+          }
+        }
+      }
+    },
+    "With a building, this scan also tests the card, so workers can clock in right away." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Objekt gilt dieser Scan zugleich als Test der Karte – Mitarbeiter können danach sofort einstempeln."
           }
         }
       }
@@ -3018,22 +3558,42 @@
         }
       }
     },
+    "Your hours could not be loaded." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Stunden konnten nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Your office needs to review these entries. They remain on this phone and are not sent again. Please tell your office the time shown below." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Verwaltung muss diese Einträge prüfen. Sie bleiben auf diesem Telefon gespeichert und werden nicht erneut gesendet. Bitte nennen Sie der Verwaltung die unten angezeigte Zeit."
+          }
+        }
+      }
+    },
+    "Your shifts from the last 60 days, as stored on the server." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Schichten der letzten 60 Tage, wie vom Server gespeichert."
+          }
+        }
+      }
+    },
     "You were signed out. Sign in again." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sie wurden abgemeldet. Bitte melden Sie sich erneut an."
-          }
-        }
-      }
-    },
-    "Your admin will see that this shift was started without a tag." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deine Verwaltung sieht, dass diese Schicht ohne Tag gestartet wurde."
           }
         }
       }
@@ -3064,6 +3624,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ihre Schicht bei %@ hat 8 Stunden erreicht und wurde automatisch beendet. Öffnen Sie die App und bestätigen Sie, wann Sie tatsächlich fertig waren – sonst wird sie nicht bezahlt."
+          }
+        }
+      }
+    },
+    "Your time is saved on this phone. Open the app and check the message." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Zeit ist auf dem Telefon gespeichert. Öffnen Sie die App und prüfen Sie den Hinweis."
+          }
+        }
+      }
+    },
+    "Zone" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zone"
           }
         }
       }

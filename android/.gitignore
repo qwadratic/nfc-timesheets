@@ -27,6 +27,8 @@ checks/.lib/
 checks/.out/
 # Five-tap operator-entry check, compiled separately from the broad core check.
 checks/.out-version-tap/
+# Finish-a-reported-card check (decision-76), compiled apart from the broad core check.
+checks/.out-reported-zone/
 # The android.nfc stubs compile here, deliberately apart from checks/.out: stub classes
 # named android.nfc.* must never share a classpath with anything else.
 checks/.out-nfc/

@@ -302,8 +302,13 @@ enum OperatorMocks {
     /// ECHOES what the screen sent, rather than deciding for it: that is what makes the two
     /// write scenarios genuinely different runs of the same code and not two canned endings.
     /// Skip really does come back unbound, because the screen really did send no building.
+    ///
+    /// The id is one the canned WORKLIST also holds - the bound row when a building was sent,
+    /// the unbound row when it was skipped - so the test that follows (Write a tag's
+    /// "Activate this card", which opens the zone preselected) finds it in `zones`, as it
+    /// would on the real server.
     static func createdZone(name: String, locationId: String?) -> WireCreatedZone {
-        WireCreatedZone(id: unboundZoneId, locationId: locationId, name: name)
+        WireCreatedZone(id: locationId == nil ? unboundZoneId : boundZoneId, locationId: locationId, name: name)
     }
 
     static func boundZone(zoneId: String, locationId: String) -> WireCreatedZone {
