@@ -2,7 +2,7 @@
 //  ManualStart.swift
 //  NFCTimeSheets
 //
-//  "START WITHOUT A TAG" PICKS A ZONE AND ASKS THE SERVER FIRST (decision-79, which amends
+//  "START WITHOUT A TAG" PICKS A ZONE AND ASKS THE SERVER FIRST (decision-81, which amends
 //  decision-56 §2/§4 and completes decision-69 for the worker phones). Ported from
 //  android/.../ui/TimeSheetViewModel.kt `manualPlaces()` and ManualStartDialog.
 //

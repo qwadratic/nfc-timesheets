@@ -1,12 +1,14 @@
 ---
-id: decision-79
+id: decision-81
 title: >-
   Manual start picks a ZONE and asks the server first - amends decision-56
   sections 2 and 4, completes decision-69 for the worker phones
-date: '2026-10-07 12:23'
+date: '2026-10-12 09:22'
 status: accepted
 ---
 ## Context
+
+(Recorded as decision-79 on branch ios-worker-parity on 2026-10-07, before 79 was taken on main by the agent-integration decision; renumbered 81 before merging. The text below is unchanged.)
 
 decision-56 sections 2 and 4 say the worker "picks a building" for a manual start. Since decision-69 a building UUID is no clock-in target: `activePlace` resolves only zones and tag aliases, so POST /shifts/open with a building id is ALWAYS 422 `unknown_location`.
 

@@ -259,7 +259,7 @@ struct LogView: View {
     @State private var showManualStart = false
     @State private var manualPick: String?
     @State private var confirmingManualStart = false
-    /// decision-79: a request is in flight / the server's last refusal, shown inside the sheet.
+    /// decision-81: a request is in flight / the server's last refusal, shown inside the sheet.
     @State private var manualBusy = false
     @State private var manualError: String?
     /// The foreground scan (TapScanner.swift). One instance for the life of the view, and
@@ -507,7 +507,7 @@ struct LogView: View {
         }
     }
 
-    /// decision-79: the picker lists ZONES (cached roster zones whose building is cached), never
+    /// decision-81: the picker lists ZONES (cached roster zones whose building is cached), never
     /// buildings - a building id is no clock-in target since decision-69, so a manual start
     /// posted with one was refused 422 in the background behind a normal-looking running
     /// screen. An empty list is a real state on a fresh install with no signal, so it says so
@@ -580,7 +580,7 @@ struct LogView: View {
         manualPlaces.first { $0.zoneId == zoneId }?.label ?? ""
     }
 
-    /// decision-79. ASK THE SERVER FIRST, then write. The zone id is posted with `manual: true`
+    /// decision-81. ASK THE SERVER FIRST, then write. The zone id is posted with `manual: true`
     /// under ONE client_uuid and ONE start time fixed here, before the request:
     ///   - accepted           -> the same local-first `handleTap` a tag uses writes the row (the
     ///                           sync pass re-posts the same client_uuid and gets 200 duplicate);
@@ -865,7 +865,7 @@ struct LogView: View {
     private func startShift(at locationId: String, clientUuid: UUID? = nil, startTime: Date? = nil) -> Shift {
         let shift = Shift(workerId: worker.id, workerName: worker.name, locationId: locationId,
                           startTime: startTime ?? .now)
-        // A manual start asked the server FIRST under this exact client_uuid (decision-79), so
+        // A manual start asked the server FIRST under this exact client_uuid (decision-81), so
         // the row must carry it: the sync pass then gets 200 duplicate, never a second open.
         if let clientUuid { shift.clientUuid = clientUuid }
         context.insert(shift)

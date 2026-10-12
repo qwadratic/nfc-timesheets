@@ -4,7 +4,7 @@ title: 'iOS worker parity with Android PRs 3-7 (8aafbf1..60f6886): epic'
 status: To Do
 assignee: []
 created_date: '2026-10-07 12:20'
-updated_date: '2026-10-07 12:59'
+updated_date: '2026-10-12 09:23'
 labels:
   - ios
   - parity
@@ -51,4 +51,6 @@ After the implementation tasks, a dedicated review agent reads ALL backlog/decis
 DECISION NUMBERS (2026-10-07): the plan proposed decisions 77-80. Branch admin-declutter already holds decision-77 (retire /product) and decision-78 (web-admin SMS controls), so: manual start = decision-79 (recorded). The remaining proposals (planned assignments, delivery wording, My hours) get the next free numbers when their task starts - use backlog decision create, which assigns them, and quote the number in the task.
 
 decision-80 (2026-10-07): the iOS worker app shows the signed-in worker's planned assignments, read-only and display-only (amends decision-73 and docs/product-launch-and-scheduling.md line 36). This is the planned 'decision-78' of P4 (TASK-365.5); 77 and 78 belong to branch admin-declutter. Recorded BEFORE the P4 code.
+
+DECISION RENUMBER (2026-10-12): the manual-start decision recorded as decision-79 in TASK-365.3 / .7 / .22 and in this epic is decision-81 (79 was taken on main by the agent-integration decision, Company-bound agent REST and stdio MCP). Read "decision-79" in those tasks as 81. The decision file was renumbered before the merge of origin/main; its text is unchanged.
 <!-- SECTION:NOTES:END -->

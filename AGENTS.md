@@ -178,7 +178,7 @@ Decision checklist (keep updated as decisions are added):
   and posts the ZONE uuid with `manual: true`; iOS asks the server FIRST under one client_uuid, a
   refusal is shown in the sheet and writes no row, only a transport failure / 408 / 429 / 5xx falls
   back to the local-first queue with the SAME client_uuid. A building id is never posted by a manual
-  start (decision-79, amends decision-56 §2/§4, completes decision-69 for the worker phones)
+  start (decision-81, amends decision-56 §2/§4, completes decision-69 for the worker phones)
 - The iOS worker app shows the signed-in worker's planned assignments (`GET /me/schedule`),
   READ-ONLY and DISPLAY-ONLY: in memory, fetched fresh on each shift-screen appearance, never read
   by tap handling, sync, signals or navigation, never able to delay a clock-in; Europe/Vienna
