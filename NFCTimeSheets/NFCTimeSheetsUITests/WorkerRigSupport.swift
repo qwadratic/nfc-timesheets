@@ -206,10 +206,19 @@ extension XCTestCase {
                       "the idle Shift screen (heading 'Your working day')", file: file, line: line)
     }
 
+    /// The running screen's state heading, in WHICHEVER state it is: 'Shift in progress' (running), 'Not
+    /// confirmed yet' (the start is only on this phone) or 'Over 8 hours'. There is no navigation title to
+    /// look for any more (TASK-365.11), and a pending or overdue screen must still count as "running".
+    func runningHeading(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label IN %@",
+                                             ["Shift in progress", "Not confirmed yet", "Over 8 hours"])).firstMatch
+    }
+
     /// Waits for the running screen (a shift is open).
     func waitForRunning(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(app.navigationBars["Shift running"].waitForExistence(timeout: Rig.timeout),
-                      "the running screen is up ('Shift running')", file: file, line: line)
+        XCTAssertTrue(runningHeading(app).waitForExistence(timeout: Rig.timeout),
+                      "the running screen is up (a state heading: 'Shift in progress' / 'Not confirmed yet' / 'Over 8 hours')",
+                      file: file, line: line)
     }
 
     /// A PNG of the whole screen into $TS_RIG_SHOTS (and an XCTAttachment, so it also lands in

@@ -48,15 +48,33 @@ struct ScheduleSummary: View {
             } label: {
                 // The action is spelled in words (View / Close), never a bare chevron: a label that
                 // says what the control does is the one a VoiceOver user and a glove both get.
-                HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text("Next planned assignment")
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if expanded {
-                        Text("Close").fixedSize()
-                    } else {
-                        Text("View").fixedSize()
+                //
+                // ONE LINE when it fits; stacked when it does not. At the largest accessibility text sizes
+                // the action word (never shrunk, it is the control's name) leaves the title a column a few
+                // letters wide and "Einsatz" wraps one character per line - so the row falls back to the
+                // title with the action under it instead.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 16) {
+                        Text("Next planned assignment")
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if expanded {
+                            Text("Close").fixedSize()
+                        } else {
+                            Text("View").fixedSize()
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Next planned assignment")
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if expanded {
+                            Text("Close")
+                        } else {
+                            Text("View")
+                        }
                     }
                 }
                 .frame(minHeight: 44)

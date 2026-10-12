@@ -60,7 +60,17 @@ struct ShiftScreen: View {
 
     @Environment(ShiftSignalCenter.self) private var signals
     @Environment(\.openURL) private var openURL
+    /// The phone's appearance. The field's pieces are drawn in a DARK one (`onField`) while the neutral
+    /// cards and everything that presents a sheet are NOT - on a light phone the cards are light cards
+    /// with dark text on a dark field, exactly like Android's neutral WorkerCards on ShiftBrand.Container.
+    @Environment(\.colorScheme) private var systemScheme
+    /// The animated gradient (the flag-gated option) holds still under Reduce Motion: the field is
+    /// already a complete screen without it.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var confirmingStop = false
+    /// Shift help is an inline disclosure, not a dialog: SwiftUI drops an alert (and a second sheet) that
+    /// presents while the decision-10 resolver sheet does, and help must never be the thing that eats it.
+    @State private var showHelp = false
     /// The grace before "Not confirmed yet" may be CLAIMED (ShiftSignal.isPending): iOS writes the
     /// row before the POST, so an online tap is unacknowledged for one request and must not flash
     /// a warning. Set by the .task(id:) below after PendingNotice.grace; a sync error or an old
@@ -81,8 +91,8 @@ struct ShiftScreen: View {
     /// screen kept a green "Clocked in" header above a stopped timer until something else
     /// happened to redraw the body.
     ///
-    /// Once a minute, not once a second: the digits are ticked by the SYSTEM inside
-    /// Text(timerInterval:), so nothing here needs to keep up with them.
+    /// Once a minute, not once a second: the digits tick in their OWN small timeline
+    /// (ShiftTimeDisplay.swift), so nothing here needs to keep up with them.
     var body: some View {
         TimelineView(.periodic(from: running.startTime, by: 60)) { context in
             // overdue > pending > running (ShiftSignal.presentation). The tick's date decides
@@ -97,20 +107,36 @@ struct ShiftScreen: View {
             // Colour is the SECOND signal, never the only one - the state is spelled out
             // in words directly under the clock, so this screen still reads in greyscale.
             //
-            // decision-60: GREEN IS RETIRED. "Running" is a named blue token from
-            // Assets.xcassets (never a raw .blue literal, never conditional on
-            // fun_shift_screen). RED for overdue is untouched and is still the only colour
-            // on this screen that carries a consequence.
-            let tint: Color = overdue ? .red : Self.running
+            // THE FIELD IS FIXED (decision-60 section 2, Android ShiftBrand): a dark blue that is the same
+            // in light and in dark mode, with light ink, as NAMED colour sets - never a literal, never
+            // the system's palette, never conditional on fun_shift_screen. GREEN IS RETIRED (decision-60
+            // section 1): nothing in this file is `.green`, and no raw `.blue` stands for "running".
+            //
+            // OVERDUE keeps its own consequence and is still a colour AND words: red ink - on the
+            // neutral error field with the flag off (Android errorContainer / onErrorContainer), over
+            // the animated blue with it on (FunShift.Overdue is the dark variant of the same ink).
+            // `tint` is the INK on the field; its name is kept because the three pieces below take it.
+            let neutral = overdue && !funTheme
+            let tint: Color = overdue ? Self.overdueInk : Self.onField
+            let field: Color = neutral ? Self.overdueField : Self.field
 
             // ScrollView, not a fixed stack: at 200% Dynamic Type this content is far
             // taller than the screen, and a locked screen that clips its own instructions
             // is worse than no lock at all.
+            //
+            // THE FIELD'S INK IS APPLIED PIECE BY PIECE (`onField`), never to the whole stack: the delivery
+            // rows present a sheet and the cards are neutral, and a sheet inherits its presenter's
+            // foreground style and colour scheme while its background stays the PHONE's - light ink on a
+            // light sheet. So only the pieces that sit directly on the field are drawn in its ink and in a
+            // dark scheme (the semantic colours inside PendingNoticeView carry no colour of their own).
+            let scheme: ColorScheme = neutral ? systemScheme : .dark
             ScrollView {
                 VStack(spacing: 24) {
                     header(presentation: presentation, tint: tint)
+                        .onField(ink: tint, field: field, scheme: scheme)
                     clock(presentation: presentation, now: context.date)
-                    // A SEPARATE view, AFTER the clock card and not inside it: the card is one
+                        .onField(ink: tint, field: field, scheme: scheme)
+                    // A SEPARATE view, AFTER the clock block and not inside it: the block is one
                     // accessibility element (children: .ignore), which would swallow a Refresh
                     // button put in there - VoiceOver could not focus it and the line would be
                     // read as part of the time. Separate, it is its own element and the button
@@ -118,23 +144,33 @@ struct ShiftScreen: View {
                     if let content = PendingNotice.content(for: running, graceElapsed: graceOver,
                                                            syncError: syncError, syncBlocked: syncBlocked) {
                         PendingNoticeView(content: content, onRefresh: onRefresh)
+                            .onField(ink: tint, field: field, scheme: scheme)
                     }
                     instruction(tint: tint)
+                        .onField(ink: tint, field: field, scheme: scheme)
                     scanButton
+                        .onField(ink: tint, field: field, scheme: scheme)
                     stopButton
+                        .onField(ink: tint, field: field, scheme: scheme)
                     if let notice { noticeCard(notice) }
                     if unresolvedCount > 0 { resolverCard }
                     // decision-82. Not conditional HERE: the view draws nothing when the phone holds
                     // nothing, and the running stack keeps exactly the four conditionals it had.
+                    // Directly on the field, and it presents a sheet - so the ink reaches it as its TINT only
+                    // (the bordered rows read in it) and nothing else is inherited by what it presents.
                     DeliveryStatusRows(rows: deliveryRows, signedOut: false)
+                        .tint(tint)
                     if signals.outOfAppSignalsSilenced { notificationsOffCard }
                     scheduleCard
-                    helpCard
+                    helpButton
+                        .onField(ink: tint, field: field, scheme: scheme)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(24)
             }
-            .background(background(tint: tint).ignoresSafeArea())
+            .background(background(overdue: overdue, field: field).ignoresSafeArea())
+            // Light status-bar icons over the dark field, even in light mode (Android WorkerStatusBar).
+            .toolbarColorScheme(neutral ? nil : .dark, for: .navigationBar)
         }
         // The permission moment. AFTER the first clock-in, from the screen that is already
         // explaining what the reminder buys, and never on the tap path itself - the gate
@@ -161,25 +197,30 @@ struct ShiftScreen: View {
 
     // MARK: - Background
 
-    /// The one blue this screen means "running" with, and the same family as AccentColor
-    /// (decision-60 §1, and the missing-accent gap the 2026-08-29 UX audit filed as B5).
-    /// A NAMED asset, so there is exactly one place to change it.
+    /// The fixed field ink and the two overdue colours - named sets, one place to change each.
+    private static let field = Color("ShiftField")
+    private static let onField = Color("ShiftOnField")
+    private static let overdueField = Color("ShiftOverdueField")
+    private static let overdueInk = Color("ShiftOverdueInk")
+
+    /// The one blue the animated gradient is drawn in (the same family as AccentColor, decision-60
+    /// section 1). Only BlueDrift uses it now: the plain screen is `field`.
     private static let running = Color("ShiftRunning")
 
-    /// Flag OFF: a flat wash of the running blue - the shape this screen has always had,
-    /// only never green again. Flag ON: the same blue, animated dark-to-light
-    /// (decision-60 §3).
-    ///
-    /// It is a BACKGROUND and stays one. Everything that says what state the shift is in -
-    /// the header words, the clock card, "Running", the resolver - is drawn on top of it in
-    /// its own opaque card, so nothing here can sit between the worker and the words.
+    /// Flag OFF: the solid field. Flag ON: the same field with the slow dark-to-light blue breathing
+    /// over it (decision-60 section 3). It is a BACKGROUND and stays one: everything that says what
+    /// state the shift is in - the heading words, the time, "Running", the resolver - is drawn over it,
+    /// so nothing here can sit between the worker and the words.
     @ViewBuilder
-    private func background(tint: Color) -> some View {
-        if funTheme {
-            BlueDrift(tint: tint)
-                .accessibilityHidden(true)     // decoration; VoiceOver reads the words
+    private func background(overdue: Bool, field: Color) -> some View {
+        if funTheme && !reduceMotion {
+            ZStack {
+                field
+                BlueDrift(tint: overdue ? .red : Self.running)
+                    .accessibilityHidden(true)     // decoration; VoiceOver reads the words
+            }
         } else {
-            tint.opacity(0.14)
+            field
         }
     }
 
@@ -194,7 +235,7 @@ struct ShiftScreen: View {
         switch presentation {
         case .overdue: return Text("Over 8 hours")
         case .pending: return Text("Not confirmed yet")
-        case .running: return Text("Clocked in")
+        case .running: return Text("Shift in progress")
         }
     }
 
@@ -221,62 +262,54 @@ struct ShiftScreen: View {
 
     // MARK: - Pieces
 
+    /// A QUIET state heading, the site name one step smaller than it used to be, the start time
+    /// (Android: labelLarge at 80% ink, the building at 24 sp medium, "Begonnen um HH:mm"). The state is
+    /// still said here AND under the clock AND to VoiceOver - the heading just no longer shouts it.
     private func header(presentation: ShiftPresentation, tint: Color) -> some View {
         VStack(spacing: 6) {
             headingText(presentation)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(tint)
+                .font(WorkerStyle.Typeface.label)
+                .foregroundStyle(tint.opacity(0.8))
                 .accessibilityAddTraits(.isHeader)
             Text(running.locationName)
-                .font(.largeTitle.bold())
+                .font(.title2.weight(.medium))
+                .foregroundStyle(tint)
                 .multilineTextAlignment(.center)
             Text("Started \(running.startTime.formatted(date: .omitted, time: .shortened))")
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(tint.opacity(0.8))
         }
     }
 
-    /// The dominant element on the screen, and the whole reason this screen exists.
+    /// The dominant element on the screen, and the whole reason this screen exists - now typography
+    /// on the field, with no card behind it: the label "TIME WORKED", HH:MM large, the seconds small
+    /// (ShiftTimeDigits), then the state word.
     ///
-    /// The digits are ticked by the SYSTEM (Text(timerInterval:)) - no timer of ours, no
-    /// battery, no redraw loop. The whole card is ONE accessibility element and the digits
-    /// are inside it rather than beside it, because a per-second change under VoiceOver is
-    /// unusable. Its label is recomputed once a minute from `now`; updating a label is not
-    /// an announcement, so nothing is interrupted.
+    /// The digits tick once a second in their OWN small TimelineView. The whole block is ONE
+    /// accessibility element and the digits are inside it rather than beside it, because a per-second
+    /// change under VoiceOver is unusable; its label is recomputed once a minute from `now`, and
+    /// updating a label is not an announcement, so nothing is interrupted.
     ///
-    /// A PENDING start is drawn exactly like a running one - the same ticking digits, counting
-    /// from the local start - and only the word under them and the spoken label change.
+    /// A PENDING start is drawn exactly like a running one - the same ticking digits, counting from
+    /// the local start - and only the word under them and the spoken label change.
     private func clock(presentation: ShiftPresentation, now: Date) -> some View {
         let elapsed = ShiftSignal.elapsed(from: running.startTime, to: now)
         return VStack(spacing: 10) {
-            if presentation == .overdue {
-                // No running clock on a shift the 8h timer has closed (or is about to):
-                // a ticking number there would be a lie about a row that is already out
-                // of payroll until a human fixes it.
-                Text("8:00:00+")
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.4)
-                    .lineLimit(1)
-                stateWord(presentation)
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-            } else {
-                Text(timerInterval: running.startTime...ShiftSignal.autoCloseDeadline(after: running.startTime),
-                     countsDown: false)
-                    .font(.system(size: 64, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.4)
-                    .lineLimit(1)
-                stateWord(presentation)
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-            }
+            Text("TIME WORKED")
+                .font(WorkerStyle.Typeface.caption)
+                .opacity(0.8)
+            // No running clock on a shift the 8h timer has closed (or is about to): a ticking number
+            // there would be a lie about a row that is already out of payroll until a human fixes it.
+            ShiftTimeDigits(startTime: running.startTime, overdue: presentation == .overdue)
+            stateWord(presentation)
+                .font(.callout)
+                .multilineTextAlignment(.center)
+                .opacity(0.8)
         }
         // decision-83 (P7): the one-shot ring-then-check over the digits, ONLY after a clean server
         // acknowledgement of THIS start (ShiftSignal.isConfirmed: the open landed, no error, not past
         // 8 hours) and only for an event under 45 s old, once per start. Presentation only: the
-        // digits still tick, the card is still one accessibility element, nothing waits on it. The
+        // digits still tick, the block is still one accessibility element, nothing waits on it. The
         // animation clock lives in the modifier, a child, so this minute tick cannot restart it.
         .confirmationMotion(
             kind: .clockIn,
@@ -285,8 +318,7 @@ struct ShiftScreen: View {
             eventTime: running.startTime,
             ink: .primary)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
+        .padding(.vertical, 12)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spokenState(presentation, elapsed: elapsed))
     }
@@ -304,42 +336,41 @@ struct ShiftScreen: View {
     /// produced the row. Prevention was never on the table (a worker with a broken tag had
     /// no way to clock out at all); visibility is.
     private func instruction(tint: Color) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "wave.3.right")
-                .font(.system(size: 40))
-                .foregroundStyle(tint)
+        VStack(spacing: 16) {
+            // Android's HorizontalDivider at 25% ink: the line between "what is happening" and "what to do".
+            Rectangle()
+                .fill(tint.opacity(0.25))
+                .frame(height: 1)
                 .accessibilityHidden(true)
             Text("Hold your phone to the tag again to finish.")
-                .font(.title3.weight(.medium))
+                .font(.callout)
+                .foregroundStyle(tint.opacity(0.85))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(20)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))
         .accessibilityElement(children: .combine)
     }
 
     /// The in-app way to present the same card, for a phone that is already open in the
     /// worker's hand (TapScanner.swift). THE ONE FILLED BUTTON ON THIS SCREEN: everything
-    /// else here is corrective and is bordered.
+    /// else here is a quiet text button or a bordered corrective one. On the field it inverts
+    /// against the field (WorkerField): the ink is its fill and the field is its label.
     private var scanButton: some View {
         Button(action: onScan) {
             Label("Scan a tag", systemImage: "wave.3.right")
-                .frame(maxWidth: .infinity)
         }
         .buttonStyle(.workerPrimary)
     }
 
     /// SECONDARY, and below the tap instruction on purpose: the tag is still the normal way
-    /// out. `.bordered` + a confirmation dialog, never a single destructive tap - decision-56
-    /// §4 requires the confirmation on both new paths, and the dialog NAMES the building so
+    /// out. A quiet text button + a confirmation dialog, never a single destructive tap - decision-56
+    /// section 4 requires the confirmation on both new paths, and the dialog NAMES the building so
     /// a mis-tap on the wrong phone is caught before it costs somebody an afternoon.
     private var stopButton: some View {
         Button(role: .destructive) { confirmingStop = true } label: {
             Label("Finish shift without a tag", systemImage: "stop.circle")
-                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.workerQuiet)
         .confirmationDialog(Text("Finish your shift at \(running.locationName) now?"),
                             isPresented: $confirmingStop,
                             titleVisibility: .visible) {
@@ -397,16 +428,27 @@ struct ShiftScreen: View {
         }
     }
 
-    /// The escape that is not a gesture. Sign-out lives one tab away in Settings and the
-    /// materials tab is next to it; this says so out loud, because a worker who believes
-    /// they are stuck is the failure this whole screen is not allowed to cause.
-    private var helpCard: some View {
-        card(icon: "questionmark.circle", tint: .secondary) {
+    /// The escape that is not a gesture - now one tap away instead of printed on the screen. Sign-out
+    /// lives one tab away in More and the materials tab is next to it; the sentence says so out loud,
+    /// because a worker who believes they are stuck is the failure this whole screen is not allowed to
+    /// cause. A labelled disclosure, so it works with VoiceOver and Dynamic Type for free and - unlike
+    /// Android's AlertDialog - cannot collide with the resolver sheet.
+    private var helpButton: some View {
+        DisclosureGroup(isExpanded: $showHelp) {
             Text("Something wrong? Ask what to do — hours, locations and payroll are managed by your admin on the web. You can still request material and sign out from the tabs below.")
-                .font(.footnote)
+                .font(.callout)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 8)
+        } label: {
+            Text("Shift help")
+                .font(.body)
+                .frame(maxWidth: .infinity, minHeight: WorkerStyle.quietButtonMinHeight, alignment: .leading)
         }
     }
 
+    /// A NEUTRAL card on the field (Android: notice, resolver and notification blocks stay WorkerCards).
+    /// It is simply NOT drawn with `onField`: it keeps the phone's appearance and the plain ink, and the
+    /// views and buttons inside are the same ones the idle screen shows.
     @ViewBuilder
     private func card(icon: String, tint: Color, @ViewBuilder content: () -> some View) -> some View {
         HStack(alignment: .top, spacing: 12) {
@@ -417,6 +459,20 @@ struct ShiftScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .workerCard()
+        .tint(Color.primary)
+    }
+}
+
+private extension View {
+    /// Draws one piece of the running screen in the FIELD's ink: the ink is its foreground and tint, the
+    /// field/ink pair is what a primary or quiet button inverts against, and the scheme is the dark one
+    /// (the phone's own on the overdue-neutral field), so semantic colours resolve against the field.
+    func onField(ink: Color, field: Color, scheme: ColorScheme) -> some View {
+        self
+            .foregroundStyle(ink)
+            .tint(ink)
+            .environment(\.workerField, WorkerField(field: field, ink: ink))
+            .environment(\.colorScheme, scheme)
     }
 }
 

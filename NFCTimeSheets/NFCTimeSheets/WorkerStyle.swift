@@ -109,41 +109,60 @@ extension View {
 
 // MARK: - Buttons
 
+/// A field a worker control sits on when it is NOT the page: the running screen's fixed dark-blue (or its
+/// neutral overdue field) and the ink drawn on it. Set once on that screen's content; the two button
+/// styles below read it, so a primary button placed on a field inverts AGAINST that field exactly as
+/// Android's does (`containerColor = onContainer, contentColor = container`) without every call site
+/// passing colours.
+struct WorkerField {
+    let field: Color
+    let ink: Color
+}
+
+extension EnvironmentValues {
+    @Entry var workerField: WorkerField? = nil
+}
+
 /// The primary action: a full-width, inverse-filled, 16 pt-rounded button at least 56 pt tall.
 ///
-/// `fill` and `ink` default to the inverse pair; the running screen, which is a fixed dark-blue
-/// field in BOTH appearances, passes its own pair (Android: `containerColor = onContainer,
-/// contentColor = container`) so the button inverts against the field it is on.
+/// On the page it is the inverse pair (`WorkerInverse` fill, `WorkerOnInverse` label). Inside a
+/// `workerField` it takes the field's ink as its fill and the field as its label; `fill` / `ink` are an
+/// explicit override and are nil for every ordinary call site.
 struct WorkerPrimaryButtonStyle: ButtonStyle {
-    var fill: Color = WorkerStyle.inverse
-    var ink: Color = WorkerStyle.onInverse
+    var fill: Color? = nil
+    var ink: Color? = nil
 
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workerField) private var onField
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let fillColor = fill ?? onField?.ink ?? WorkerStyle.inverse
+        let labelColor = ink ?? onField?.field ?? WorkerStyle.onInverse
+        return configuration.label
             .font(.headline)
-            .foregroundStyle(ink)
+            .foregroundStyle(labelColor)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: WorkerStyle.buttonMinHeight)
             .padding(.horizontal, 16)
-            .background(fill, in: RoundedRectangle(cornerRadius: WorkerStyle.buttonRadius, style: .continuous))
+            .background(fillColor, in: RoundedRectangle(cornerRadius: WorkerStyle.buttonRadius, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: WorkerStyle.buttonRadius, style: .continuous))
             .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.4)
     }
 }
 
-/// The quiet action under a primary one ("Start without a tag", "Finish without a tag"): a text
-/// button in the surrounding ink, at least 48 pt tall. Still a real button with a real label.
+/// The quiet action under a primary one ("Start without a tag", "Finish shift without a tag"): a text
+/// button in the surrounding ink (the field's, when there is one), at least 48 pt tall. Still a real
+/// button with a real label.
 struct WorkerQuietButtonStyle: ButtonStyle {
-    var ink: Color = Color.secondary
+    var ink: Color? = nil
 
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.workerField) private var onField
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body)
-            .foregroundStyle(ink)
+            .foregroundStyle(ink ?? onField?.ink ?? Color.secondary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: WorkerStyle.quietButtonMinHeight)
             .contentShape(Rectangle())

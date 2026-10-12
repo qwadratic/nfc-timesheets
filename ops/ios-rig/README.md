@@ -48,6 +48,7 @@ API process by environment only; it is never written to `$RIG_HOME`. Every OTHER
 | `up.sh` / `down.sh` | bring the rig up / take it down and leave nothing behind (each external call is wrapped in a timeout) |
 | `rig.sh` | state flips and reads: `zone`, `zone-add`, `building`, `schedule-set`, `shift-open-elsewhere`, `revoke-sessions`, `server-stop/start`, `net-down/up`, `fault`, `wire-*`, `new-code`, `reset-data`, `shifts`, `sim-uninstall`, `sim-shot`, `build`, `test` |
 | `walk.sh` | the DRIVERS: set state, run one XCUITest, flip state at the test's named rendezvous points, then assert on the database and the wire |
+| `reskin-walk.sh` | the PRESENTATION walks of the Blue Hour worker reskin (TASK-365.9/.10/.11): `WorkerRigReskinUITests` across appearance x language x text size (`light-en-m dark-de-xxxl ...`, set on the clone with `simctl ui` and restored on exit), one PNG per step in `$RIG_HOME/shots`. Asserts nothing about the server; `STEPS="testB3RunningField" reskin-walk.sh dark-en-m` runs one step |
 | `seed.sql`, `serve.mjs`, `front.mjs`, `wire.mjs`, `lib.sh` | the pieces above |
 | `NFCTimeSheets/NFCTimeSheetsUITests/WorkerRig*.swift` | the XCUITests: `WorkerRigSupport` (sign-in through the REAL code form, rendezvous, screenshots), `...SignIn`, `...ManualStart` (P2), `...SharedPhone` (P3 + P6 device-wide), `...Schedule` (P4), `...Delivery` (P5, P6), `...Zones` (P1 + two defect probes) |
 
@@ -104,5 +105,6 @@ WITHOUT the route", a held slow answer, and a `GET /auth/session` that answers a
   `simctl` call on the app container.
 - Killing the app in the FOREGROUND right after sign-in loses the session cookie (the next
   launch's first call is a 401). The harness goes Home and waits ten seconds before it kills.
-- The idle list is lazy: "Start without a tag" is below the fold when rows are on screen, so
-  the idle check is the navigation title `TimeSheet`.
+- The idle screen has no navigation title (TASK-365.10); the idle check is its first row, the
+  heading "Your working day" (and the running one's is the state heading "Shift in progress").
+  History is not a tab: `openHistory(app)` goes More > History.

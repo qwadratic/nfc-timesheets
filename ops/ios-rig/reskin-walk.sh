@@ -26,7 +26,9 @@ SYNC="$RIG_HOME/sync"
 CLASS=WorkerRigReskinUITests
 
 DEFAULT_COMBOS="light-en-m dark-en-m light-de-m dark-de-xxxl light-en-xxxl"
-DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB2UnsentRowSaysWaiting testB1RunningStillThreeTabsAndNoHistoryRow"
+DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB3RunningField"
+# Steps that need a server flip, or only one pair of combinations to prove: STEPS="testB2UnsentRowSaysWaiting
+# testB3PendingAndDeliverySheet testB3OverdueNeutralField" reskin-walk.sh light-en-m dark-de-xxxl
 
 size_category() {
   case "$1" in
@@ -37,7 +39,15 @@ size_category() {
   esac
 }
 
+# ONE driver at a time: two of these share one simulator, one database and one sync directory, and
+# each starts by uninstalling the app and resetting the data - the second would pull the first's
+# phone out from under a running test.
+LOCK="$RUN_DIR/reskin-walk.lock"
+mkdir -p "$RUN_DIR"
+mkdir "$LOCK" 2>/dev/null || die "another reskin walk is running (or died: remove $LOCK)"
+
 restore_phone() {
+  rmdir "$LOCK" 2>/dev/null
   xcrun simctl ui "$SIM_UDID" appearance light >/dev/null 2>&1
   xcrun simctl ui "$SIM_UDID" content_size large >/dev/null 2>&1
   [ -f "$RUN_DIR/front.pid" ] && pid_alive "$(cat "$RUN_DIR/front.pid")" || "$RIG" net-up >/dev/null 2>&1
@@ -51,6 +61,9 @@ flip() {
     net-up) "$RIG" net-up >/dev/null ;;
     server-stop) "$RIG" server-stop >/dev/null ;;
     server-start) "$RIG" server-start >/dev/null ;;
+    open-elsewhere) "$RIG" shift-open-elsewhere A A_VER '9 hours' >/dev/null ;;
+    hold-close) "$RIG" fault set '[{"path":"/shifts/close","method":"POST","hold_ms":30000}]' >/dev/null ;;
+    fault-clear) "$RIG" fault clear >/dev/null ;;
     new-code-A) "$RIG" new-code A >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_A" > "$SYNC/code_A.txt" ;;
     *) log "unknown rendezvous '$1' (ignored)" ;;
   esac

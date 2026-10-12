@@ -99,7 +99,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
             usleep(100_000)
         }
         XCTAssertFalse(flashed, "an acknowledged tap never says 'Not confirmed yet' (2 s grace)")
-        XCTAssertTrue(app.staticTexts["Clocked in"].exists, "heading 'Clocked in'")
+        XCTAssertTrue(app.staticTexts["Shift in progress"].exists, "heading 'Shift in progress'")
         XCTAssertTrue(app.staticTexts["Running"].exists)
         XCTAssertFalse(app.buttons["Refresh"].exists, "no notice, so no Refresh button")
         shot("p5-01-running-online")
@@ -151,8 +151,8 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         XCTAssertTrue(refresh.waitForExistence(timeout: 5))
         Rig.mark("refresh-pressed")
         refresh.tap()
-        XCTAssertTrue(app.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout),
-                      "after Refresh the heading flips to 'Clocked in'")
+        XCTAssertTrue(app.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout),
+                      "after Refresh the heading flips to 'Shift in progress'")
         XCTAssertFalse(app.buttons["Refresh"].exists, "the notice disappears")
         XCTAssertFalse(app.staticTexts["Not confirmed yet"].exists)
         shot("p5-03-recovered")
@@ -195,7 +195,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         let app = Rig.launch()
         ensureSignedIn(app, as: "A")
         // the driver gave A an open shift started 9 h ago ("another device"); refresh adopts it
-        XCTAssertTrue(app.navigationBars["Shift running"].waitForExistence(timeout: Rig.timeout),
+        XCTAssertTrue(runningHeading(app).waitForExistence(timeout: Rig.timeout),
                       "the server's open shift is adopted and shown")
         XCTAssertTrue(app.staticTexts["Over 8 hours"].waitForExistence(timeout: 5), "heading 'Over 8 hours'")
         XCTAssertFalse(app.staticTexts["Not confirmed yet"].exists)
@@ -300,7 +300,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         app = Rig.launch(tap: Rig.zone("A_VER"))
         waitForRunning(app)
         sleep(4)
-        XCTAssertTrue(app.staticTexts["Clocked in"].exists, "the new shift is acknowledged")
+        XCTAssertTrue(app.staticTexts["Shift in progress"].exists, "the new shift is acknowledged")
         var swipes = 0
         while !deliveryRow(app, "your office").exists, swipes < 6 { app.swipeUp(); swipes += 1 }
         XCTAssertTrue(deliveryRow(app, "your office").exists, "the previous unsent (blocked) row DOES show on the running screen")

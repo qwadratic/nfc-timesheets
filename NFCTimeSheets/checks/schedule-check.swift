@@ -508,9 +508,9 @@ let recent = idle.range(of: "Section(\"Recent\")")
 check(banner != nil && row != nil && recent != nil && banner!.upperBound < row!.lowerBound && row!.upperBound < recent!.lowerBound,
       "idle: the 'Next planned assignment' section sits between the unresolved banner and Recent")
 let stack = between(shiftScreen, "VStack(spacing: 24) {", ".frame(maxWidth: .infinity)")
-let off = stack.range(of: "notificationsOffCard"), card = stack.range(of: "scheduleCard"), help = stack.range(of: "helpCard")
+let off = stack.range(of: "notificationsOffCard"), card = stack.range(of: "scheduleCard"), help = stack.range(of: "helpButton")
 check(off != nil && card != nil && help != nil && off!.upperBound < card!.lowerBound && card!.upperBound < help!.lowerBound,
-      "running: the schedule card sits after the notifications-off card and before the help card")
+      "running: the schedule card sits after the notifications-off card and before the help button")
 let shiftMentions = shiftScreen.components(separatedBy: "\n")
     .map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0.lowercased().contains("schedule") }
 check(shiftMentions.allSatisfy { !$0.contains("ScheduleStore") && !$0.contains(".load(") },

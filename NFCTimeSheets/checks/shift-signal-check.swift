@@ -157,6 +157,24 @@ check(spoken == sameMinute,
 check(ShiftSignal.elapsed(from: start, to: start.addingTimeInterval(-60)) == (0, 0),
       "a phone whose clock jumped backwards reads 0h 0m, never a negative duration")
 
+// THE TYPOGRAPHIC CLOCK (TASK-365.11): "HH:MM" large and "SS" small, zero-padded, locale-free, clamped to
+// 0...8 h. The same arithmetic Android's ElegantTime splits ("%d:%02d:%02d" -> padStart(2) hours + minutes).
+func parts(_ seconds: Double) -> String {
+    let p = ShiftSignal.clockParts(from: start, to: start.addingTimeInterval(seconds))
+    return "\(p.main)|\(p.seconds)"
+}
+check(parts(0) == "00:00|00", "a start that is this second reads 00:00 00 (got \(parts(0)))")
+check(parts(22) == "00:00|22", "22 s in is 00:00 22 (got \(parts(22)))")
+check(parts(3 * 3600 + 7 * 60 + 5) == "03:07|05", "3 h 7 min 5 s in is 03:07 05, hours zero-padded (got \(parts(3 * 3600 + 7 * 60 + 5)))")
+check(parts(7 * 3600 + 59 * 60 + 59) == "07:59|59", "one second short of the boundary is 07:59 59")
+check(parts(8 * 3600) == "08:00|00", "the boundary itself is 08:00 00")
+check(parts(8 * 3600 + 5 * 60 + 31) == "08:00|00" && parts(30 * 3600) == "08:00|00",
+      "a stale tick past the boundary is CLAMPED: the clock never reads 08:05 31 (past 8 h the screen is overdue)")
+check(parts(-90) == "00:00|00", "a phone whose clock jumped backwards reads 00:00 00, never a negative run")
+check(parts(59.9) == "00:00|59", "fractions are floored, not rounded: a second is only shown once it has passed")
+check(ShiftSignal.overdueClock.main == "08:00" && ShiftSignal.overdueClock.seconds == "00+",
+      "overdue reads Android's '8:00:00+' split the same way: a padded 08:00 and a small 00+")
+
 // ---------------------------------------------------------------------------------
 // 6. THE TAP IS NEVER BLOCKED (audit R2), read out of ContentView.swift as text
 // ---------------------------------------------------------------------------------

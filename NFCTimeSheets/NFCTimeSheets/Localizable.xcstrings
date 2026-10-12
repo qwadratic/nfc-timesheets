@@ -711,16 +711,6 @@
         }
       }
     },
-    "Clocked in" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eingestempelt"
-          }
-        }
-      }
-    },
     "Close" : {
       "localizations" : {
         "de" : {
@@ -2247,16 +2237,6 @@
         }
       }
     },
-    "Shift running" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schicht läuft"
-          }
-        }
-      }
-    },
     "Shift running for %lld hours %lld minutes at %@" : {
       "localizations" : {
         "de" : {
@@ -3750,6 +3730,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not attempted yet"
+          }
+        }
+      }
+    },
+    "Shift in progress" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schicht läuft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift in progress"
+          }
+        }
+      }
+    },
+    "TIME WORKED" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SEIT BEGINN"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TIME WORKED"
+          }
+        }
+      }
+    },
+    "Shift help" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hilfe zur Schicht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift help"
           }
         }
       }

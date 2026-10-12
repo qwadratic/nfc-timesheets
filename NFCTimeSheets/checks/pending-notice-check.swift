@@ -156,12 +156,15 @@ check(clockBody.contains(".accessibilityElement(children: .ignore)"),
 check(noticeView.contains("Button(\"Refresh\", action: onRefresh)") && noticeView.contains(".buttonStyle(.bordered)"),
       "Refresh is a bordered Button calling the closure it was given")
 
-// A pending start's clock COUNTS: the ticking digits are in the same branch as a running one's, from the LOCAL start.
-let elseBranch = clockBody.components(separatedBy: "} else {")
-check(clockBody.contains("if presentation == .overdue {") && elseBranch.count == 2
-      && elseBranch[1].contains("Text(timerInterval: running.startTime...ShiftSignal.autoCloseDeadline(after: running.startTime),")
-      && elseBranch[1].contains("countsDown: false"),
-      "everything that is not overdue - pending included - draws the system-ticked clock from the local start")
+// A pending start's clock COUNTS: ONE call, and its only input besides the start is whether the shift is OVERDUE -
+// so everything that is not overdue, pending included, draws the ticking digits from the LOCAL start.
+// (TASK-365.11: Text(timerInterval:) drew one size; ShiftTimeDigits draws HH:MM large and the seconds small,
+// ticking in its own per-second TimelineView, from the same start and clamped at the same 8 h deadline.)
+check(clockBody.components(separatedBy: "ShiftTimeDigits(").count - 1 == 1
+      && clockBody.contains("ShiftTimeDigits(startTime: running.startTime, overdue: presentation == .overdue)"),
+      "everything that is not overdue - pending included - draws the ticking digits from the local start")
+check(!clockBody.contains("Text(timerInterval:") && !clockBody.contains("8:00:00+"),
+      "...and the old one-size system clock and its literal are gone from the clock block")
 check(!clockBody.contains(".pending"), "clock() never branches on .pending: the digits are identical, only the words differ")
 
 // The three words are three small functions of the presentation, strongest first.
@@ -177,8 +180,8 @@ func inOrder(_ s: String, _ needles: [String]) -> Bool {
     return true
 }
 check(inOrder(heading, ["case .overdue: return Text(\"Over 8 hours\")", "case .pending: return Text(\"Not confirmed yet\")",
-                        "case .running: return Text(\"Clocked in\")"]),
-      "the heading is 'Over 8 hours' / 'Not confirmed yet' / 'Clocked in', overdue > pending > running")
+                        "case .running: return Text(\"Shift in progress\")"]),
+      "the heading is 'Over 8 hours' / 'Not confirmed yet' / 'Shift in progress' (Android worker_active_title), overdue > pending > running")
 check(inOrder(word, ["case .overdue: return Text(\"This shift passed 8 hours and was closed automatically.",
                      "case .pending: return Text(\"Time recorded on this phone\")", "case .running: return Text(\"Running\")"]),
       "the word under the clock is the overdue sentence / 'Time recorded on this phone' / 'Running'")

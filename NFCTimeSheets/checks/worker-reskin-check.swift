@@ -11,10 +11,19 @@
 // Reads the Swift sources, the asset catalogue, the string catalogue and ../android/.../ui/Theme.kt
 // off disk, so it cannot be cat-ed together with them (same reason as localisation-check.swift).
 //
-// RED CASES reproduced before this was trusted (see the commits): the History tab put back into the
+// WHAT IT GUARDS, by section: 1 the shared tokens (WorkerStyle.swift, Android's inverse pair in the asset
+// catalogue); 2 three tabs always and the tap-arrival rule; 3 History under More; 3b the idle screen (day
+// heading, start block, order, row cards, "Waiting for a connection", the per-row attempt stamp); 3c the
+// running screen (the fixed field, the typographic time, the quiet header, help behind a button); 4 every
+// string this reskin adds, in both languages, as Android's own words.
+//
+// RED CASES reproduced before this was trusted (see the three commits): the History tab put back into the
 // ForEach; `.borderedProminent` back on the idle Scan button; `Label("Log"` restored; `selection = .log`
-// dropped from the tap arrival; the WorkerInverse colour set edited to another hex; a NavigationStack
-// back inside HistoryView; one of the new keys left without its English entry.
+// dropped from the tap arrival; a WorkerInverse / ShiftField colour edited to another hex; a NavigationStack
+// back inside HistoryView; the History row shown mid-shift; "Sending..." back in a row; the idle footer or a
+// Refresh button back; the stamp dropped from pushOpen; a card behind the time; `Text(timerInterval:)` back;
+// a green or raw-blue literal on the running screen; the digits' timeline slowed to a minute; the neutral
+// cards drawn in the field's scheme; the help sentence printed again; one new key left without its English.
 
 import Foundation
 
@@ -65,8 +74,9 @@ check(style.contains("static let buttonRadius: CGFloat = 16") && style.contains(
 check(style.contains("static let quietButtonMinHeight: CGFloat = 48"), "a quiet text button is at least 48 pt tall")
 
 let primary = between(style, "struct WorkerPrimaryButtonStyle: ButtonStyle {", "\n}\n")
-check(!primary.isEmpty && primary.contains("var fill: Color = WorkerStyle.inverse") && primary.contains("var ink: Color = WorkerStyle.onInverse"),
-      "the primary button is INVERSE-FILLED by default (the owner's proxy's design call), with the page colour as its label")
+check(!primary.isEmpty && primary.contains("let fillColor = fill ?? onField?.ink ?? WorkerStyle.inverse")
+      && primary.contains("let labelColor = ink ?? onField?.field ?? WorkerStyle.onInverse"),
+      "the primary button is INVERSE-FILLED by default (the owner's proxy's design call), with the page colour as its label - and inverts against a field when it sits on one")
 check(primary.contains("minHeight: WorkerStyle.buttonMinHeight") && primary.contains("cornerRadius: WorkerStyle.buttonRadius"),
       "the primary button takes its height and radius from the tokens, and its height is a MINIMUM (it grows with Dynamic Type)")
 for banned in ["AccentColor", "accentColor", ".tint(", "borderedProminent", ".bordered", "Color(red:", "Color(hex", "UIColor(red", "#"] {
@@ -193,10 +203,10 @@ check(inOrder(idle, ["WorkerDayHeading()", "if !unresolved.isEmpty {", "if let r
       && inOrder(between(content, "private var idleList: some View {", ".workerListPage()"),
                  ["Section(\"Recent\") {", "manualMockSection", "This app has no push. Everything you see here updates when you open it."]),
       "idle order: day heading, unresolved banner, receipt or start card, delivery rows, planned assignment, Recent, (debug mocks), no-push note - the ACTION first")
-check(content.contains("private var navigationTitle: LocalizedStringKey {\n        running == nil ? \"\" : \"Shift running\"\n    }")
-      && content.contains(".navigationTitle(navigationTitle)") && !content.contains("\"TimeSheet\""),
-      "the idle navigation title is EMPTY (the first row is the heading) and the running title is a LocalizedStringKey, never a ternary of two literals (TASK-298)")
-check(inOrder(between(content, "private var idleList: some View {", ".onChange(of: recent.first?.receiptIdentity"), [".workerListPage()", ".tint(.primary)"]),
+check(content.contains(".navigationTitle(\"\")\n            .navigationBarTitleDisplayMode(.inline)")
+      && !content.contains("\"TimeSheet\"") && !content.contains("\"Shift running\""),
+      "neither screen has a navigation title (the idle heading and the running state heading are the titles) and the bar stays, empty and inline")
+check(inOrder(between(content, "private var idleList: some View {", ".onChange(of: recent.first?.receiptIdentity"), [".workerListPage()", ".tint(Color.primary)"]),
       "the idle list is monochrome chrome: its text buttons are the ink, not the system accent")
 check(!idle.contains("Button(\"Refresh\"") && !idle.contains("Button(\"Refresh"),
       "no Refresh button on the idle list: pull-to-refresh is the refresh control (Android has the button, iOS has the gesture)")
@@ -244,6 +254,109 @@ for name in ["ShiftReceipt.swift", "PendingNotice.swift", "ShiftSignal.swift", "
 }
 
 // ---------------------------------------------------------------------------------
+// 3c. THE RUNNING SCREEN (TASK-365.11: running-field-fixed-dark-blue, running-time-display,
+//     running-header-hierarchy, running-help-dialog)
+// ---------------------------------------------------------------------------------
+
+let digitsFile = code(source("ShiftTimeDisplay.swift"))
+let clockBlock = between(shiftScreen, "private func clock(presentation: ShiftPresentation, now: Date) -> some View {",
+                         "\n    private func instruction(tint: Color) -> some View {")
+
+// THE FIELD: fixed named colours, Android's values, the same in light and dark.
+func androidBrand(_ name: String) -> String? {
+    guard let kt = try? String(contentsOfFile: "../android/app/src/main/kotlin/io/github/qwadratic/nfctimesheets/ui/Theme.kt", encoding: .utf8),
+          let shiftBrand = kt.range(of: "object ShiftBrand {"),
+          let r = kt.range(of: "val \(name) = Color(0xFF", range: shiftBrand.upperBound..<kt.endIndex) else { return nil }
+    return String(kt[r.upperBound...].prefix(6)).uppercased()
+}
+check(assetHex("ShiftField", dark: false) == "10243D" && assetHex("ShiftField", dark: true) == "10243D" && androidBrand("Container") == "10243D",
+      "the field is ShiftBrand.Container #10243D in BOTH appearances (got \(assetHex("ShiftField", dark: false) ?? "nil")/\(assetHex("ShiftField", dark: true) ?? "nil"))")
+check(assetHex("ShiftOnField", dark: false) == "E6ECF5" && assetHex("ShiftOnField", dark: true) == "E6ECF5" && androidBrand("OnContainer") == "E6ECF5",
+      "the ink is ShiftBrand.OnContainer #E6ECF5 in BOTH appearances")
+check(assetHex("ShiftOverdueField", dark: false) == androidTheme("BgOverlayLight") && assetHex("ShiftOverdueField", dark: true) == androidTheme("BgRaisedDark"),
+      "the overdue field is Android's errorContainer: BgOverlayLight / BgRaisedDark")
+check(assetHex("ShiftOverdueInk", dark: false) == androidTheme("ErrorLight") && assetHex("ShiftOverdueInk", dark: true) == androidTheme("ErrorDark"),
+      "the overdue ink is Android's onErrorContainer: ErrorLight / ErrorDark - the one colour that still carries a consequence")
+for named in ["ShiftField", "ShiftOnField", "ShiftOverdueField", "ShiftOverdueInk", "ShiftRunning"] {
+    check(shiftScreen.contains("Color(\"\(named)\")"), "ShiftScreen draws with the NAMED set '\(named)' (decision-60 section 1: never a literal)")
+}
+// decision-60: no green, no raw blue, no literal colour for the field.
+for banned in [".green", "Color.green", ".blue", "Color.blue", "Color(red:", "Color(white:", "Color(hue:", "UIColor(", "Color(.sRGB"] {
+    check(!shiftScreen.contains(banned) && !digitsFile.contains(banned), "the running screen has no '\(banned)' (decision-60: never green, the field is a named set)")
+}
+let onFieldHelper = between(shiftScreen, "func onField(ink: Color, field: Color, scheme: ColorScheme) -> some View {", "\n    }\n}")
+check(inOrder(onFieldHelper, [".foregroundStyle(ink)", ".tint(ink)", ".environment(\\.workerField, WorkerField(field: field, ink: ink))",
+                              ".environment(\\.colorScheme, scheme)"])
+      && shiftScreen.contains("let scheme: ColorScheme = neutral ? systemScheme : .dark")
+      && shiftScreen.contains(".toolbarColorScheme(neutral ? nil : .dark, for: .navigationBar)"),
+      "a piece on the field is drawn in its ink, tint and field/ink pair (what the buttons invert against) in a DARK scheme - the phone's own only on the overdue-neutral field - and the status bar icons are light")
+// ...applied PIECE BY PIECE: the stack itself and the ScrollView carry no foreground style, tint or scheme, because the delivery
+// rows' sheet and the neutral cards would inherit them (a sheet keeps the phone's light background under light ink).
+let runningStack = between(shiftScreen, "VStack(spacing: 24) {", ".frame(maxWidth: .infinity)")
+check(count(runningStack, ".onField(ink: tint, field: field, scheme: scheme)") == 7,
+      "seven pieces are drawn on the field: header, time, notice, instruction, scan, quiet finish, help (got \(count(runningStack, ".onField(")))")
+let afterStack = between(shiftScreen, ".padding(24)\n            }", ".toolbarColorScheme")
+check(!afterStack.contains(".foregroundStyle(") && !afterStack.contains(".tint(") && !afterStack.contains(".environment(\\.colorScheme"),
+      "nothing is applied to the whole ScrollView: a sheet presented from inside it would inherit light ink and a dark scheme over the phone's light sheet")
+check(inOrder(runningStack, ["DeliveryStatusRows(rows: deliveryRows, signedOut: false)", ".tint(tint)", "if signals.outOfAppSignalsSilenced { notificationsOffCard }"])
+      && !between(runningStack, "DeliveryStatusRows(rows: deliveryRows, signedOut: false)", "if signals.outOfAppSignalsSilenced").contains(".onField("),
+      "the delivery rows get the ink as their TINT only, so the sheet they present reads in the phone's own appearance")
+check(shiftScreen.contains("let neutral = overdue && !funTheme") && shiftScreen.contains("let tint: Color = overdue ? Self.overdueInk : Self.onField")
+      && shiftScreen.contains("let field: Color = neutral ? Self.overdueField : Self.field"),
+      "overdue is red ink (on the neutral field with the flag off, over the blue with it on); running is the fixed field and light ink")
+check(shiftScreen.contains("@Environment(\\.accessibilityReduceMotion) private var reduceMotion") && shiftScreen.contains("if funTheme && !reduceMotion {"),
+      "Reduce Motion: the animated gradient holds still (the field alone is a complete screen)")
+check(shiftScreen.contains("BlueDrift(tint: overdue ? .red : Self.running)") && shiftScreen.contains("@AppStorage(FeatureFlags.defaultsKey(FeatureFlags.funShiftScreen))"),
+      "the flag-gated animated gradient is kept (decision-60 section 3), drawn over the field")
+// NO TIMER CARD, no card behind the instruction: the only surfaces left are the neutral cards.
+check(!clockBlock.isEmpty && !clockBlock.contains(".background(") && !clockBlock.contains("RoundedRectangle") && !clockBlock.contains("workerCard"),
+      "the time has no card behind it (the white timer card is gone)")
+let instructionBlock = between(shiftScreen, "private func instruction(tint: Color) -> some View {", "\n    private var scanButton: some View {")
+check(!instructionBlock.isEmpty && !instructionBlock.contains(".background(") && !instructionBlock.contains("RoundedRectangle") && !instructionBlock.contains("workerCard"),
+      "the tap instruction has no card behind it either")
+let cardHelper = between(shiftScreen, "private func card(icon: String, tint: Color, @ViewBuilder content: () -> some View) -> some View {", "\n    }\n}")
+check(cardHelper.contains(".workerCard()") && !cardHelper.contains(".onField(") && !cardHelper.contains("colorScheme"),
+      "the notice, resolver, notifications and plan blocks stay NEUTRAL cards in the phone's own appearance, with no field-relative buttons inside")
+check(count(shiftScreen, "private func card(") == 1 && count(shiftScreen, ".workerCard()") == 1,
+      "one card helper, built on the shared worker card")
+check(shiftScreen.contains(".buttonStyle(.workerPrimary)") && shiftScreen.contains(".buttonStyle(.workerQuiet)") && !shiftScreen.contains("borderedProminent"),
+      "Scan is the one filled button (inverted against the field); finishing without a tag is a quiet text button behind its confirmation dialog")
+check(shiftScreen.contains(".confirmationDialog(Text(\"Finish your shift at \\(running.locationName) now?\")") && shiftScreen.contains("Button(\"Finish now\", role: .destructive, action: onManualStop)"),
+      "decision-56: the manual stop still asks first and names the building")
+
+// THE TIME: label, HH:MM large, seconds small, one accessibility element, ticking in its own timeline.
+check(inOrder(clockBlock, ["Text(\"TIME WORKED\")", "ShiftTimeDigits(startTime: running.startTime, overdue: presentation == .overdue)",
+                           "stateWord(presentation)", ".confirmationMotion(", ".accessibilityElement(children: .ignore)",
+                           ".accessibilityLabel(spokenState(presentation, elapsed: elapsed))"]),
+      "the time block reads: 'TIME WORKED', the digits, the state word - one accessibility element with the spoken label, the confirmation motion untouched")
+check(digitsFile.contains("TimelineView(.periodic(from: startTime, by: 1))") && digitsFile.contains(".accessibilityHidden(true)")
+      && digitsFile.contains("@ScaledMetric(relativeTo: .largeTitle)") && digitsFile.contains(".monospacedDigit()")
+      && digitsFile.contains("size * 0.32") && digitsFile.contains(".minimumScaleFactor(0.4)"),
+      "the digits tick once a second in their OWN timeline, are hidden from VoiceOver, tabular, follow Dynamic Type and fit the width, the seconds at 32%")
+check(digitsFile.contains("ShiftSignal.clockParts(from: startTime, to: context.date)") && digitsFile.contains("ShiftSignal.overdueClock"),
+      "the digits are ShiftSignal.clockParts (clamped at 8 h) or the overdue clock")
+check(!digitsFile.contains("Text(\"") && !digitsFile.contains("String(localized:") && !digitsFile.contains(".background(") && !digitsFile.contains("foregroundStyle"),
+      "the digits carry no words, no surface and no ink of their own")
+
+// THE HEADER: a quiet state heading, the building one step down, the start time.
+let headerBlock = between(shiftScreen, "private func header(presentation: ShiftPresentation, tint: Color) -> some View {", "\n    /// The dominant element")
+check(inOrder(headerBlock, ["headingText(presentation)", ".font(WorkerStyle.Typeface.label)", ".accessibilityAddTraits(.isHeader)",
+                            "Text(running.locationName)", ".font(.title2.weight(.medium))", "Text(\"Started \\(running.startTime.formatted(date: .omitted, time: .shortened))\")"]),
+      "the header is a quiet label-weight state heading, the site at title2 medium, then 'Started HH:mm'")
+check(shiftScreen.contains("case .running: return Text(\"Shift in progress\")"), "running says 'Shift in progress' (Android worker_active_title), not 'Clocked in'")
+
+// THE HELP: behind a labelled button, never printed, never an alert.
+check(shiftScreen.contains("DisclosureGroup(isExpanded: $showHelp) {") && shiftScreen.contains("Text(\"Shift help\")")
+      && inOrder(shiftScreen, ["DisclosureGroup(isExpanded: $showHelp) {", "Something wrong? Ask what to do", "Text(\"Shift help\")"]),
+      "the help sentence is inside a disclosure labelled 'Shift help'")
+check(count(shiftScreen, "Something wrong? Ask what to do") == 1 && !shiftScreen.contains("helpCard"),
+      "the sentence is printed in exactly one place and the always-visible help card is gone")
+check(!shiftScreen.contains(".alert(") && !shiftScreen.contains(".sheet("),
+      "help is not an alert or a second sheet: SwiftUI drops one of those when the decision-10 resolver sheet presents")
+check(inOrder(between(shiftScreen, "VStack(spacing: 24) {", ".frame(maxWidth: .infinity)"), ["scheduleCard", "helpButton"]),
+      "the help button is the last thing on the running screen, after the plan")
+
+// ---------------------------------------------------------------------------------
 // 4. STRINGS: BOTH LANGUAGES, in the same commit (AGENTS.md i18n)
 // ---------------------------------------------------------------------------------
 
@@ -281,6 +394,10 @@ let added: [(String, String)] = [
     ("Waiting for a connection", "sync_waiting"),
     ("Last tried %@", "sync_last_try"),
     ("Not attempted yet", "sync_never_tried"),
+    // B3
+    ("Shift in progress", "worker_active_title"),
+    ("TIME WORKED", "worker_elapsed"),
+    ("Shift help", "worker_help"),
 ]
 for (key, androidName) in added {
     check(value(key, "de") != nil && value(key, "de") == androidString(androidName),
@@ -289,6 +406,8 @@ for (key, androidName) in added {
           "'\(key)' has an explicit English entry that is Android's '\(androidString(androidName, en: true) ?? "?")' (\(androidName)); got '\(value(key, "en") ?? "nil")'")
 }
 check(catalogue["Log"] == nil, "the dead tab label 'Log' is gone from the catalogue")
+check(catalogue["Clocked in"] == nil && catalogue["Shift running"] == nil,
+      "the retired running heading 'Clocked in' and the nav title 'Shift running' are gone (nothing uses them; 'eingestempelt' lives on elsewhere)")
 check(catalogue["TimeSheet"] == nil, "the idle navigation title 'TimeSheet' is gone from the catalogue (nothing uses it)")
 check(catalogue["Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry."] == nil,
       "the manual start's idle footer is gone: the explanation lives in the sheet and the confirmation dialog")

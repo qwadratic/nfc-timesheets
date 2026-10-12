@@ -108,7 +108,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         ensureSignedIn(app, as: "A")
         waitForRunning(app)
         allowNotificationsIfAsked()
-        XCTAssertTrue(app.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout))
+        XCTAssertTrue(app.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout))
         sleep(2)
         signOut(app)
         return app
@@ -121,7 +121,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         ensureSignedIn(app, as: "A")
         waitForRunning(app)
         allowNotificationsIfAsked()
-        XCTAssertTrue(app.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout))
+        XCTAssertTrue(app.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout))
         sleep(2)
         let before = badge(app)          // observed, not asserted (see the header)
         Rig.mark("badge-before-signout-\(before)")
@@ -139,7 +139,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         let app = aStartsAShiftAndSignsOut()
         XCTAssertTrue(ensureSignedIn(app, as: "B"))
         waitForIdle(app)
-        XCTAssertFalse(app.navigationBars["Shift running"].exists, "B gets the idle Shift screen, not A's running screen")
+        XCTAssertFalse(runningHeading(app).exists, "B gets the idle Shift screen, not A's running screen")
         XCTAssertEqual(app.tabBars.buttons.count, 3, "three tabs, always (TASK-365.9): Shift, Materials, More - History is never one")
         XCTAssertTrue(app.staticTexts["No completed shifts yet."].waitForExistence(timeout: Rig.timeout),
                       "Recent holds none of A's rows")
@@ -164,7 +164,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         backgroundAndKill(app)
         let tapped = Rig.launch(tap: Rig.zone("A_VER"))
         waitForRunning(tapped)
-        XCTAssertTrue(tapped.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout),
+        XCTAssertTrue(tapped.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout),
                       "B gets B's OWN running shift")
         XCTAssertFalse(anyElement(tapped, containing: "Finished your open shift").exists, "no switch card")
         XCTAssertFalse(anyElement(tapped, containing: "unfinished shift").exists, "and nothing is flagged for resolution")
@@ -198,7 +198,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         XCTAssertTrue(Rig.rendezvous("new-code-A"), "driver: a fresh code for A")
         XCTAssertTrue(ensureSignedIn(app, as: "A"))
         waitForRunning(app)
-        XCTAssertTrue(app.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout),
+        XCTAssertTrue(app.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout),
                       "A's running screen is back: the local row was kept")
         sleep(3)
         Rig.mark("badge-after-return-\(badge(app))")   // observed, not asserted (see the header)

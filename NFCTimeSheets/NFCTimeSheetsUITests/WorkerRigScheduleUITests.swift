@@ -181,9 +181,11 @@ final class WorkerRigScheduleUITests: XCTestCase {
         var swipes = 0
         while !summaryButton(app).exists, swipes < 8 { app.swipeUp(); swipes += 1 }
         XCTAssertTrue(summaryButton(app).waitForExistence(timeout: Rig.timeout), "the same row on the running screen")
-        let help = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Something wrong?")).firstMatch
-        XCTAssertTrue(help.exists, "the help card is on screen")
-        XCTAssertLessThan(summaryButton(app).frame.minY, help.frame.minY, "the schedule row sits before the help card")
+        // The help sentence is behind its "Shift help" button now (TASK-365.11): the plan still sits before it.
+        let help = anyElement(app, containing: "Shift help")
+        while !help.exists, swipes < 12 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(help.exists, "the 'Shift help' button is on screen")
+        XCTAssertLessThan(summaryButton(app).frame.minY, help.frame.minY, "the schedule row sits before the help button")
         summaryButton(app).tap()
         XCTAssertTrue(app.staticTexts["My schedule"].waitForExistence(timeout: 5))
         shot("p4-09-running-expanded")
@@ -299,7 +301,7 @@ final class WorkerRigScheduleUITests: XCTestCase {
         backgroundAndKill(app)
         app = Rig.launch(tap: Rig.zone("A_VER"))
         waitForRunning(app)
-        XCTAssertTrue(app.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout),
+        XCTAssertTrue(app.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout),
                       "the clock-in is acknowledged although the schedule request fails")
         XCTAssertFalse(app.staticTexts["Not confirmed yet"].exists)
         var swipes = 0

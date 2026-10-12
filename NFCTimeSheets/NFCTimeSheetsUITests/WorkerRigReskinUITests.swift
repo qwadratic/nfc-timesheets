@@ -75,8 +75,10 @@ final class WorkerRigReskinUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Shift"].waitForExistence(timeout: Rig.timeout), "signed in (testSignInOnce)")
         // A shift finished in the last two minutes (the previous step) is offered as a receipt first,
         // and the receipt REPLACES the start card: Continue brings it back.
-        if app.buttons["Continue"].waitForExistence(timeout: 4) { app.buttons["Continue"].tap() }
-        let start = idleScreen(app)
+        dismissReceiptIfShown(app, shifted: "Shift finished", cont: "Continue")
+        let start = app.buttons["Start without a tag"]
+        var swipes = 0
+        while !start.isHittable, swipes < 14 { app.swipeUp(); swipes += 1 }
         XCTAssertTrue(start.waitForExistence(timeout: Rig.timeout), "'Start without a tag' is on the idle screen")
         start.tap()
         XCTAssertTrue(app.navigationBars["Start without a tag"].waitForExistence(timeout: Rig.timeout))
@@ -111,9 +113,8 @@ final class WorkerRigReskinUITests: XCTestCase {
         let now = app.buttons["Finish now"]
         XCTAssertTrue(now.waitForExistence(timeout: Rig.timeout), "the confirmation dialog")
         now.tap()
-        XCTAssertTrue(app.buttons["Scan a tag"].waitForExistence(timeout: Rig.timeout)
-                        || app.buttons["Continue"].waitForExistence(timeout: 5),
-                      "back on the idle screen (the receipt or the start card)")
+        XCTAssertTrue(app.staticTexts["Your working day"].waitForExistence(timeout: Rig.timeout),
+                      "back on the idle screen (heading 'Your working day'; the receipt or the start card below it)")
         if killAfter { sleep(3); backgroundAndKill(app) }
         return app
     }
@@ -147,6 +148,21 @@ final class WorkerRigReskinUITests: XCTestCase {
         for _ in 0..<steps { app.swipeUp() }
     }
 
+    private func scrollToTop(_ app: XCUIApplication, steps: Int = 4) {
+        for _ in 0..<steps { app.swipeDown() }
+    }
+
+    /// The receipt of a shift finished in the last two minutes REPLACES the start card; at the largest text
+    /// sizes its Continue button is below the fold of the lazy list, so it is scrolled to before it is tapped.
+    private func dismissReceiptIfShown(_ app: XCUIApplication, shifted: String, cont: String) {
+        guard app.staticTexts[shifted].waitForExistence(timeout: 4) else { return }
+        let button = app.buttons[cont]
+        var swipes = 0
+        while !button.isHittable, swipes < 10 { app.swipeUp(); swipes += 1 }
+        if button.exists { button.tap() }
+        scrollToTop(app)
+    }
+
     /// Idle with no receipt: the day heading first, then ONE start block; the start question, the
     /// hint, one filled button and a quiet manual start; no Refresh button; no navigation bar.
     func testB2IdleStartCard() throws {
@@ -154,7 +170,7 @@ final class WorkerRigReskinUITests: XCTestCase {
         let w = idleWords
         XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout), "the day heading '\(w.heading)'")
         // A shift finished in the last two minutes (the previous step) is offered as a receipt first.
-        if app.buttons[w.cont].waitForExistence(timeout: 3) { app.buttons[w.cont].tap() }
+        dismissReceiptIfShown(app, shifted: w.shiftFinished, cont: w.cont)
         XCTAssertTrue(app.staticTexts[w.heading].isHittable || app.staticTexts[w.heading].exists)
         XCTAssertTrue(app.navigationBars.allElementsBoundByIndex.allSatisfy { $0.staticTexts.count == 0 },
                       "the idle screen's navigation bar carries no title (the heading is the first row)")
@@ -164,6 +180,7 @@ final class WorkerRigReskinUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(app.buttons[w.scan].frame.height, 56, "the primary button is at least 56 pt tall: \(app.buttons[w.scan].frame.height)")
         XCTAssertTrue(app.buttons[w.scan].frame.minY < app.buttons[w.manual].frame.minY, "scan above manual")
         XCTAssertFalse(app.buttons["Refresh"].exists || app.buttons["Aktualisieren"].exists, "no Refresh button on the idle list")
+        scrollToTop(app)
         snap("b2-01-idle-top")
         scrollToBottom(app)
         snap("b2-02-idle-bottom")
@@ -182,42 +199,157 @@ final class WorkerRigReskinUITests: XCTestCase {
         sleep(3)                                 // the ring-then-check finishes on its own
         snap("b2-03-idle-receipt")
         let cont = app.buttons[w.cont]
+        var swipes = 0
+        while !cont.exists, swipes < 10 { app.swipeUp(); swipes += 1 }
         XCTAssertTrue(cont.waitForExistence(timeout: Rig.timeout), "Continue")
         XCTAssertGreaterThanOrEqual(cont.frame.height, 56, "Continue is the shared primary button")
         cont.tap()
+        scrollToTop(app)
         XCTAssertTrue(app.staticTexts[w.ready].waitForExistence(timeout: Rig.timeout), "Continue brings the start card back")
-        XCTAssertTrue(app.staticTexts[w.recent].exists || anyElement(app, containing: w.recent).exists, "Recent lists the finished row")
         snap("b2-04-idle-after-continue")
-        scrollToBottom(app)
+        // At the largest text sizes the start card alone is a screen: scroll until the Recent header is drawn.
+        var scrolled = 0
+        while !app.staticTexts[w.recent].exists, scrolled < 12 { app.swipeUp(); scrolled += 1 }
+        XCTAssertTrue(app.staticTexts[w.recent].exists, "Recent lists the finished row")
+        // The row is a few swipes below its header at the largest sizes.
+        var below = 0
+        while !app.staticTexts["Rig Haus Alpha"].exists, below < 8 { app.swipeUp(); below += 1 }
+        XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].exists, "the row names the building")
         snap("b2-05-idle-recent-card")
-        XCTAssertTrue(anyElement(app, containing: "Rig Haus Alpha").exists, "the row names the building")
     }
 
-    /// Offline finish: the row says it is WAITING for a connection and when it last tried - never
-    /// 'Sending...' - and the delivery row is there; back online it says Sent.
+    /// A finished row whose close is IN FLIGHT and unanswered (the front holds POST /shifts/close): it is
+    /// neither refused nor delivered, so it carries no failure sentence - it says it is WAITING for a
+    /// connection and when it last tried, never "Sending...". (A row that FAILED says the failure instead:
+    /// Android's markFailed always leaves a sentence, and so does this port.)
+    ///
+    /// The finish is done in English; the phone is put away mid-request and relaunched in the WALK's
+    /// language, where the same row is still unsent (the relaunch's own push is held by the same fault).
     func testB2UnsentRowSaysWaiting() throws {
         startShiftManuallyInEnglish()
-        let app = Rig.launch()
-        let finish = app.buttons["Finish shift without a tag"]
+        let app0 = Rig.launch()
+        let finish = app0.buttons["Finish shift without a tag"]
         XCTAssertTrue(finish.waitForExistence(timeout: Rig.timeout))
-        XCTAssertTrue(Rig.rendezvous("net-down"), "driver flip: front stopped")
+        XCTAssertTrue(Rig.rendezvous("hold-close"), "driver flip: POST /shifts/close is held for 30 s")
         var swipes = 0
-        while !finish.isHittable, swipes < 8 { app.swipeUp(); swipes += 1 }
+        while !finish.isHittable, swipes < 8 { app0.swipeUp(); swipes += 1 }
         finish.tap()
-        app.buttons["Finish now"].tap()
-        XCTAssertTrue(app.buttons["Continue"].waitForExistence(timeout: Rig.timeout), "the receipt is up")
-        sleep(3)
-        snap("b2-06-offline-receipt")
-        app.buttons["Continue"].tap()
-        scrollToBottom(app)
-        XCTAssertTrue(anyElement(app, containing: "Waiting for a connection").waitForExistence(timeout: Rig.timeout),
-                      "the unsent row says 'Waiting for a connection'")
-        XCTAssertFalse(anyElement(app, containing: "Sending").exists, "never 'Sending…'")
-        XCTAssertTrue(anyElement(app, containing: "Last tried").exists || anyElement(app, containing: "Not attempted yet").exists,
-                      "and when it last tried, or that it has not")
-        snap("b2-07-offline-row")
+        app0.buttons["Finish now"].tap()
+        XCTAssertTrue(app0.staticTexts["Shift finished"].waitForExistence(timeout: Rig.timeout), "the receipt is up")
+        sleep(1)
+        backgroundAndKill(app0)
+
+        let app = launch()                       // the walk's language; the receipt is still offered (< 2 min)
+        let w = idleWords
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout))
+        dismissReceiptIfShown(app, shifted: w.shiftFinished, cont: w.cont)
+        sleep(3)                                 // past the delivery grace
+        let waitingText = language == "de" ? "Wartet auf Verbindung" : "Waiting for a connection"
+        let waiting = anyElement(app, containing: waitingText)
+        var scrolled = 0
+        while !(waiting.exists && waiting.isHittable), scrolled < 10 { app.swipeUp(); scrolled += 1 }
+        snap("b2-07-waiting-row")
+        XCTAssertTrue(waiting.exists, "the unsent row says '\(waitingText)'")
+        XCTAssertFalse(anyElement(app, containing: language == "de" ? "Wird gesendet" : "Sending").exists, "never 'Sending…'")
+        XCTAssertTrue(anyElement(app, containing: language == "de" ? "Zuletzt versucht" : "Last tried").exists, "and when it last tried")
+        XCTAssertTrue(Rig.rendezvous("fault-clear"), "driver flip: faults cleared")
+        sleep(2)
+        backgroundAndKill(app)
+    }
+
+    // MARK: - B3: the running screen
+
+    private struct RunWords {
+        let heading, scan, finish, help, helpSentence: String
+    }
+    private var runWords: RunWords {
+        language == "de"
+            ? RunWords(heading: "Schicht läuft", scan: "Tag scannen", finish: "Schicht ohne Tag beenden",
+                       help: "Hilfe zur Schicht", helpSentence: "Etwas stimmt nicht?")
+            : RunWords(heading: "Shift in progress", scan: "Scan a tag", finish: "Finish shift without a tag",
+                       help: "Shift help", helpSentence: "Something wrong?")
+    }
+
+    /// A running shift on the fixed dark-blue field: the quiet heading, the typographic time with no
+    /// card, ONE filled scan button, a quiet finish, the plan, and the help behind its button.
+    func testB3RunningField() throws {
+        startShiftManuallyInEnglish()
+        let app = launch()
+        let w = runWords
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout), "the quiet state heading '\(w.heading)'")
+        XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].exists, "the building")
+        sleep(3)                                  // past the confirmation ring-then-check, digits settled
+        snap("b3-01-running-top")
+        let scan = app.buttons[w.scan]
+        XCTAssertTrue(scan.exists, "the one filled button '\(w.scan)'")
+        XCTAssertGreaterThanOrEqual(scan.frame.height, 56, "the primary button is at least 56 pt tall: \(scan.frame.height)")
+        XCTAssertTrue(app.buttons[w.finish].exists, "finishing without a tag is a button, quiet")
+        XCTAssertFalse(anyElement(app, containing: w.helpSentence).exists, "the help sentence is not printed on the screen")
+        // the help is behind its button
+        let help = app.buttons[w.help]
+        var swipes = 0
+        while !help.isHittable, swipes < 10 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(help.waitForExistence(timeout: Rig.timeout), "the help button '\(w.help)'")
+        snap("b3-02-running-bottom-help-closed")
+        help.tap()
+        XCTAssertTrue(anyElement(app, containing: w.helpSentence).waitForExistence(timeout: Rig.timeout),
+                      "tapping it shows the unchanged help sentence")
+        sleep(1)
+        snap("b3-03-running-help-open")
+        backgroundAndKill(app)
+        _ = finishShiftManuallyInEnglish()
+    }
+
+    /// An UNACKNOWLEDGED start (the server is unreachable): the same field with the pending heading, the
+    /// notice line and Refresh, the delivery row on the field and its details sheet - which must read in
+    /// the phone's own appearance, not the field's.
+    func testB3PendingAndDeliverySheet() throws {
+        let app0 = launch()
+        XCTAssertTrue(app0.staticTexts[idleWords.heading].waitForExistence(timeout: Rig.timeout), "idle first")
+        XCTAssertTrue(Rig.rendezvous("net-down"), "driver flip: front stopped")
+        backgroundAndKill(app0)
+        startShiftManuallyInEnglish()             // offline: the start is queued on the phone
+        let app = launch()
+        let w = runWords
+        let pending = language == "de" ? "Noch nicht bestätigt" : "Not confirmed yet"
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout)
+                        || app.staticTexts[pending].waitForExistence(timeout: Rig.timeout), "the running screen is up")
+        XCTAssertTrue(app.staticTexts[pending].waitForExistence(timeout: 8), "past the 2 s grace: '\(pending)'")
+        snap("b3-06-pending-top")
+        let row = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", language == "de" ? "Telefon" : "on this phone")).firstMatch
+        var swipes = 0
+        while !row.exists, swipes < 8 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(row.waitForExistence(timeout: Rig.timeout), "the 'still on this phone' delivery row")
+        XCTAssertGreaterThanOrEqual(row.frame.height, 44, "tappable: at least 44 pt tall")
+        snap("b3-07-pending-delivery-row")
+        row.tap()
+        XCTAssertTrue(app.buttons[language == "de" ? "Schließen" : "Close"].waitForExistence(timeout: Rig.timeout), "the details sheet")
+        sleep(1)
+        snap("b3-08-delivery-sheet-on-field")
+        app.buttons[language == "de" ? "Schließen" : "Close"].tap()
         XCTAssertTrue(Rig.rendezvous("net-up"), "driver flip: front started")
         backgroundAndKill(app)
+        _ = finishShiftManuallyInEnglish()
+    }
+
+    /// OVERDUE: a shift past 8 h (the driver opens one "from another device" 9 hours ago and the phone
+    /// adopts it). Neutral error field with red ink, the words still say it, no ticking number.
+    func testB3OverdueNeutralField() throws {
+        let app = launch()
+        XCTAssertTrue(app.staticTexts[idleWords.heading].waitForExistence(timeout: Rig.timeout), "idle first")
+        XCTAssertTrue(Rig.rendezvous("open-elsewhere"), "driver: a 9 h old open shift for this worker on the server")
+        pullToRefresh(app)
+        let over = language == "de" ? "Über 8 Stunden" : "Over 8 hours"
+        XCTAssertTrue(app.staticTexts[over].waitForExistence(timeout: Rig.timeout), "the overdue heading '\(over)'")
+        // The first clock-in asks for notifications (the permission moment): answer it, so the shots are of the screen.
+        sleep(2)
+        dismissSystemAlerts()
+        sleep(1)
+        snap("b3-04-overdue")
+        let help = app.buttons[runWords.help]
+        var swipes = 0
+        while !help.isHittable, swipes < 10 { app.swipeUp(); swipes += 1 }
+        snap("b3-05-overdue-bottom")
     }
 
     // MARK: - B1: three tabs, More, History

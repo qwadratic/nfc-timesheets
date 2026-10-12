@@ -445,10 +445,6 @@ struct LogView: View {
             .onAppear { loadSchedule() }
     }
 
-    private var navigationTitle: LocalizedStringKey {
-        running == nil ? "" : "Shift running"
-    }
-
     private var content: some View {
         NavigationStack {
             // TWO SHAPES, and which one is on screen is the entire point of this work.
@@ -479,14 +475,15 @@ struct LogView: View {
                     Text(message).font(.footnote).padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
                 }
             }
-            // The idle screen has its own heading (today's date and "Your working day", the first row of
-            // the list), so its navigation title is EMPTY and inline: Android's worker screens have no top
-            // app bar either. The bar itself stays (an empty inline bar draws nothing) because it is what
-            // gives a scrolling list its edge treatment under the status bar. The running screen keeps its
-            // title until the running reskin (TASK-365.11) takes it away. A LocalizedStringKey, not a
-            // ternary of two literals, so the running title is looked up in the catalogue (TASK-298).
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(running == nil ? .inline : .large)
+            // NEITHER SCREEN HAS A NAVIGATION TITLE. The idle screen opens with its own heading (today's
+            // date and "Your working day", the first row of the list) and the running one with its state
+            // heading ("Shift in progress"): Android's worker screens have no top app bar either, and the
+            // old bar repeated "Shift running" over a screen that already says so. The BAR itself stays -
+            // an empty inline bar draws nothing - because it is what gives a scrolling list its edge
+            // treatment under the status bar and what carries the running screen's light status icons
+            // (ShiftScreen's toolbarColorScheme).
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .refreshable { await refresh() }
             // THE IN-APP SCAN IS BACK, and on NFCTagReaderSession, not the retired
             // NFCNDEFReaderSession: `NDEF` in com.apple.developer.nfc.readersession.formats
@@ -702,7 +699,7 @@ struct LogView: View {
         // Blue Hour is monochrome chrome: the text buttons inside the cards (the plan's "View", "Try again",
         // the delivery rows) are the ink, like Android's TextButtons in onSurface, and the one coloured
         // control on this screen is the red of a blocked delivery row (it sets its own .tint(.red)).
-        .tint(.primary)
+        .tint(Color.primary)
         // decision-83: remember the offer, so a receipt entered within two minutes outlives the
         // window and stays until Continue. `initial: true` is the first appearance after a finish.
         // It only records which receipt was shown; the screen above already derived it.

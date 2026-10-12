@@ -187,7 +187,7 @@ final class WorkerRigManualStartUITests: XCTestCase {
             usleep(150_000)
         }
         XCTAssertFalse(flashed, "an acknowledged manual start never says 'Not confirmed yet'")
-        XCTAssertTrue(app.staticTexts["Clocked in"].exists, "heading 'Clocked in'")
+        XCTAssertTrue(app.staticTexts["Shift in progress"].exists, "heading 'Shift in progress'")
         XCTAssertTrue(app.staticTexts["Running"].exists, "word under the clock 'Running'")
         shot("p2-04-running-online")
         // "'Manual' pill later": finish it WITH THE TAG (a plain tap-out at the same zone, so the
@@ -283,7 +283,7 @@ final class WorkerRigManualStartUITests: XCTestCase {
         Rig.mark("pull")
         pullToRefresh(app)
         var deliveredBy = "none"
-        if app.staticTexts["Clocked in"].waitForExistence(timeout: 12) {
+        if app.staticTexts["Shift in progress"].waitForExistence(timeout: 12) {
             deliveredBy = "pull"
         } else {
             shot("p2-08-after-pull-not-delivered")
@@ -291,12 +291,12 @@ final class WorkerRigManualStartUITests: XCTestCase {
             if refresh.exists {
                 Rig.mark("refresh-button")
                 refresh.tap()
-                if app.staticTexts["Clocked in"].waitForExistence(timeout: Rig.timeout) { deliveredBy = "button" }
+                if app.staticTexts["Shift in progress"].waitForExistence(timeout: Rig.timeout) { deliveredBy = "button" }
             }
         }
         Rig.mark("delivered-by-\(deliveredBy)")
         XCTAssertNotEqual(deliveredBy, "none", "after the server is back the queued start is delivered")
-        XCTAssertTrue(app.staticTexts["Clocked in"].exists, "the heading flips to 'Clocked in'")
+        XCTAssertTrue(app.staticTexts["Shift in progress"].exists, "the heading flips to 'Shift in progress'")
         XCTAssertFalse(app.staticTexts["Not confirmed yet"].exists)
         shot("p2-08-delivered-after-pull")
     }
@@ -340,7 +340,7 @@ final class WorkerRigManualStartUITests: XCTestCase {
         XCTAssertTrue(dialog.waitForExistence(timeout: Rig.timeout), "the confirmation names the building")
         app.buttons["Finish now"].tap()
         waitForIdle(app)
-        XCTAssertFalse(app.navigationBars["Shift running"].exists)
+        XCTAssertFalse(runningHeading(app).exists)
         XCTAssertTrue(app.staticTexts["Manual"].waitForExistence(timeout: Rig.timeout),
                       "the finished row carries the 'Manual' pill")
         shot("p2-11-manual-stop")

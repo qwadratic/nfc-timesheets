@@ -292,4 +292,23 @@ enum ShiftSignal {
         let seconds = max(0, Int(now.timeIntervalSince(startTime)))
         return (seconds / 3600, (seconds % 3600) / 60)
     }
+
+    // MARK: The typographic clock (presentation only)
+
+    /// The elapsed time as the TWO runs the running screen draws (Android ShiftTimeDisplay.kt
+    /// `ElegantTime`): `main` is "HH:MM" with the hours zero-padded to two digits, drawn large, and
+    /// `seconds` is "SS", drawn at about a third of its size on the same baseline. Locale-independent on
+    /// purpose - these are digits, not prose, and Austria reads 03:07 the same way everywhere.
+    ///
+    /// CLAMPED to 0...8 h: a phone whose clock jumped backwards reads 00:00 00 and a stale tick past the
+    /// boundary never draws 08:00 01 (past 8 h the screen is `.overdue` and draws `overdueClock`).
+    static func clockParts(from startTime: Date, to now: Date) -> (main: String, seconds: String) {
+        let total = min(max(0, Int(now.timeIntervalSince(startTime))), Int(autoCloseAfter))
+        let hours = total / 3600, minutes = (total % 3600) / 60, seconds = total % 60
+        return (String(format: "%02d:%02d", hours, minutes), String(format: "%02d", seconds))
+    }
+
+    /// What the clock reads once the 8 h boundary has passed: Android's "8:00:00+", split the same way
+    /// (`8` padded to `08`, the `00+` as the small run). Not a running number.
+    static let overdueClock: (main: String, seconds: String) = ("08:00", "00+")
 }
