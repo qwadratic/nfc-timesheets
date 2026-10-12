@@ -23,7 +23,10 @@ load_state
 [ -f "$STATE_ENV" ] || die "the rig is not up (run up.sh, then rig.sh build)"
 RIG="$HERE/rig.sh"
 SYNC="$RIG_HOME/sync"
-CLASS=WorkerRigReskinUITests
+# The class to drive. WorkerRigLanguageUITests (TASK-365.14/.15/.16) uses this same driver: its combinations are
+# <appearance>-<PHONE language>-<size>, and it is run as
+#   CLASS=WorkerRigLanguageUITests STEPS="testL1SignedOutSwitchesLiveAndKeepsTheChoice ..." reskin-walk.sh light-en-m light-de-m
+CLASS="${CLASS:-WorkerRigReskinUITests}"
 
 DEFAULT_COMBOS="light-en-m dark-en-m light-de-m dark-de-xxxl light-en-xxxl"
 DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB3RunningField testB4MaterialsComposerAndDialog testB5MoreIdentityCardAndSignOutDialog testB5VersionLineFiveTapsOpenTheOperatorGate"
@@ -68,6 +71,15 @@ flip() {
     fault-clear) "$RIG" fault clear >/dev/null ;;
     new-code-A) "$RIG" new-code A >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_A" > "$SYNC/code_A.txt" ;;
     new-code-O) "$RIG" new-code O >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_O" > "$SYNC/code_O.txt" ;;
+    # The language walks' assertions about SERVER state: a language switch must not touch a shift or a request.
+    check-open-shift)
+      n="$(rig_sql "SELECT count(*) FROM shifts WHERE end_time IS NULL")"
+      if [ "$n" = "1" ]; then log "      PASS server: exactly one open shift ($n) after the switch"
+      else log "      FAIL server: $n open shifts after the switch (expected 1)"; FAILS=$((FAILS+1)); fi ;;
+    check-no-material-request)
+      n="$(rig_sql "SELECT count(*) FROM material_requests")"
+      if [ "$n" = "0" ]; then log "      PASS server: no material request was posted by the switch ($n)"
+      else log "      FAIL server: $n material request(s) exist (expected 0: a draft is not sent by switching language)"; FAILS=$((FAILS+1)); fi ;;
     *) log "unknown rendezvous '$1' (ignored)" ;;
   esac
 }

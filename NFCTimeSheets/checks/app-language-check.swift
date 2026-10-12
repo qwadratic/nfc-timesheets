@@ -373,5 +373,78 @@ let center = code(source("ShiftSignalCenter.swift"))
 check(center.contains("let language = AppLanguage.effective") && count(center, "language: language") == 6,
       "every reminder string (a title and a body for each of the three kinds) is built in the language in force at arm time, not the process's")
 
+// ---------------------------------------------------------------------------------
+// 10. THE CONTROL (TASK-365.15, decision-74 rules 1, 2, 5)
+// ---------------------------------------------------------------------------------
+
+let picker = code(source("LanguagePicker.swift"))
+let content = code(source("ContentView.swift"))
+check(!picker.isEmpty, "LanguagePicker.swift exists: ONE view for both places, so they can never disagree")
+// Three options, in Android's order, from the resolver's own list - and nothing but the model is called by a tap.
+check(picker.contains("ForEach(AppLanguage.options, id: \\.self)") && picker.contains("model.select(value)")
+      && count(picker, "model.select(") == 1,
+      "the options are AppLanguage.options (de, en, follow the phone) and a tap calls model.select(value) and nothing else")
+check(picker.contains("case \"de\": return Text(\"Deutsch\")") && picker.contains("case \"en\": return Text(\"English\")")
+      && picker.contains("default: return Text(\"Use phone language\")") && picker.contains("Text(\"Language\")"),
+      "the words are literals (LocalizedStringKey): Deutsch, English, Use phone language, under the title Language")
+for forbidden in ["Session", "ModelContext", "@Query", "Shift", "MaterialStore", "signOut", "syncPending", "URLSession", "apiPost",
+                  "ShiftSignalCenter", "TapInbox", "exit(", "UserDefaults"] {
+    check(!picker.contains(forbidden), "LanguagePicker mentions '\(forbidden)': a tap on it changes the words and nothing else (decision-74 rule 5)")
+}
+check(picker.contains(".accessibilityAddTraits(selected ? [.isSelected] : [])") && picker.contains(".accessibilityIdentifier(identifier(value))"),
+      "the selected option is exposed as selected (Android: Role.RadioButton), and each option has an identifier")
+check(picker.contains("typeSize.isAccessibilitySize") && picker.contains("minHeight: WorkerStyle.quietButtonMinHeight")
+      && picker.contains("WorkerStyle.inverse") && picker.contains("WorkerStyle.onInverse") && picker.contains("WorkerStyle.soft"),
+      "it is drawn in the worker tokens (inverse fill on a soft track, 48 pt minimum) and stacks at the accessibility sizes")
+// Placement: the signed-out screen under the brand block (before everything else), and More after the identity card.
+let signedOut = between2(content, "struct SignInView: View {", "struct LogView: View {")
+check(count(signedOut, "LanguagePicker()") == 1, "the signed-out screen has the picker once")
+check(inOrder(signedOut, ["Image(\"BrandMark\")", "LanguagePicker()", "DeliveryStatusRows(rows: deliveryRows, signedOut: true)",
+                          "CodeSignInSection(role: .worker"]),
+      "...under the brand block and before the delivery rows and the sign-in form (Android SignInScreen)")
+let settingsView = between2(content, "struct SettingsView: View {", "private func cardRow(")
+check(inOrder(settingsView, ["identityCard", "LanguagePicker()", ".workerCard()", "Button(\"Sign out\")"]),
+      "More: the language card follows the identity card and comes before Sign out")
+// The OPERATOR screens are not a second place: they take the language from the same environment.
+check(count(content, "LanguagePicker()") == 2, "exactly two places carry the control: the signed-out screen and More")
+
+// Android's words, verbatim, in both languages (TASK-365.15 AC1): title, Deutsch, English, Wie am Telefon / Use phone language.
+func androidWord(_ name: String, en: Bool) -> String? {
+    let file = en ? "values-en" : "values"
+    guard let xml = try? String(contentsOfFile: "../android/app/src/main/res/\(file)/strings.xml", encoding: .utf8) else { return nil }
+    let open = "<string name=\"\(name)\">"
+    guard let start = xml.range(of: open), let end = xml.range(of: "</string>", range: start.upperBound..<xml.endIndex) else { return nil }
+    return String(xml[start.upperBound..<end.lowerBound])
+}
+if let data = FileManager.default.contents(atPath: "NFCTimeSheets/Localizable.xcstrings"),
+   let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+   let strings = root["strings"] as? [String: Any] {
+    func word(_ key: String, _ language: String) -> String? {
+        let unit = (((strings[key] as? [String: Any])?["localizations"] as? [String: Any])?[language] as? [String: Any])?["stringUnit"] as? [String: Any]
+        return unit?["value"] as? String
+    }
+    for (key, android) in [("Language", "language_title"), ("Deutsch", "language_de"), ("English", "language_en"),
+                           ("Use phone language", "language_system")] {
+        check(word(key, "de") != nil && word(key, "de") == androidWord(android, en: false),
+              "'\(key)' has Android's German (\(android)) verbatim: '\(androidWord(android, en: false) ?? "?")', got '\(word(key, "de") ?? "nil")'")
+        check(word(key, "en") != nil && word(key, "en") == androidWord(android, en: true),
+              "'\(key)' has an explicit English entry that is Android's (\(android)): '\(androidWord(android, en: true) ?? "?")', got '\(word(key, "en") ?? "nil")'")
+    }
+}
+
+func between2(_ s: String, _ from: String, _ to: String) -> String {
+    let parts = s.components(separatedBy: from)
+    guard parts.count > 1 else { return "" }
+    return parts[1].components(separatedBy: to)[0]
+}
+func inOrder(_ s: String, _ needles: [String]) -> Bool {
+    var from = s.startIndex
+    for needle in needles {
+        guard let r = s.range(of: needle, range: from..<s.endIndex) else { return false }
+        from = r.upperBound
+    }
+    return true
+}
+
 if failed { exit(1) }
 print("app-language-check: OK")

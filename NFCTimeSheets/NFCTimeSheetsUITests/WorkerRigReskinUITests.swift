@@ -506,7 +506,11 @@ final class WorkerRigReskinUITests: XCTestCase {
         XCTAssertLessThan(myHours.frame.minY, history.frame.minY, "My hours above History")
         XCTAssertFalse(anyElement(app, containing: w.adminSentence).exists, "the 'managed by your admin on the web' sentence is gone")
         XCTAssertFalse(app.buttons[w.operatorRow].exists || app.staticTexts[w.operatorRow].exists, "no visible operator row")
-        XCTAssertFalse(app.pickers.firstMatch.exists, "no language picker (blocked on the E1-E3 tasks)")
+        // decision-74 (TASK-365.15): the language is its OWN card after the identity card - three options, as
+        // buttons (a worker control, not a UIPickerView) - and WorkerRigLanguageUITests walks what it does.
+        XCTAssertTrue(app.buttons["language-de"].exists && app.buttons["language-en"].exists && app.buttons["language-system"].exists,
+                      "More has the language card: Deutsch, English, follow the phone")
+        XCTAssertLessThan(history.frame.maxY, app.buttons["language-de"].frame.minY, "...after the identity card")
         let signOut = app.buttons[w.signOut]
         XCTAssertTrue(signOut.exists, "Sign out")
         let version = app.buttons["version-line"]

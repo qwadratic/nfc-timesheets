@@ -224,6 +224,15 @@ struct SignInView: View {
                 }
                 .listRowBackground(Color.clear)
 
+                // THE LANGUAGE CONTROL (decision-74, Android SignInScreen `LanguagePicker()` under the brand
+                // block): on THIS screen because a worker who cannot read German needs a visible door before
+                // they have signed in. It is device-local and survives sign-in and sign-out; choosing here
+                // changes nothing but the words, the refusal above included (SignInView.reason is said again).
+                Section {
+                    LanguagePicker()
+                }
+                .listRowBackground(Color.clear)
+
                 // What the phone still holds (decision-82): nothing at all when it holds nothing.
                 // `signedOut: true` puts the sign-in sentence in the sheet, never "open the app".
                 DeliveryStatusRows(rows: deliveryRows, signedOut: true)
@@ -1399,7 +1408,7 @@ struct HistoryView: View {
 /// identity card - initials, name, then My hours and (idle only) History -, a text-button Sign out
 /// that ASKS first and states the consequences, and the version line last, which is the five-tap
 /// operator door. There is no "managed by your admin on the web" sentence and no visible operator
-/// row. NOT here, on purpose: the language card (blocked on the E1-E3 tasks, decision-74) and the
+/// row. The language card follows the identity card (decision-74, TASK-365.15). NOT here, on purpose: the
 /// delivery card (Android's push section - this app has no push, decision-23).
 struct SettingsView: View {
     @Environment(Session.self) private var session
@@ -1430,6 +1439,10 @@ struct SettingsView: View {
                         .font(WorkerStyle.Typeface.title)
                         .accessibilityAddTraits(.isHeader)
                     identityCard
+                    // THE LANGUAGE CARD (decision-74, Android SettingsScreen: a WorkerCard after the identity
+                    // card). Switching it signs nobody out and touches no shift, draft or queue.
+                    LanguagePicker()
+                        .workerCard()
                     Divider()
                     // Destructive, so it asks; and a text button in the full ink, never red-filled
                     // (Android: TextButton in onSurface). Disabled while the session is busy.

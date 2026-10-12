@@ -16,8 +16,8 @@
 // heading, start block, order, row cards, "Waiting for a connection", the per-row attempt stamp); 3c the
 // running screen (the fixed field, the typographic time, the quiet header, help behind a button); 3d Materials
 // (the flat composer, the visible example, the short no-push line and its dialog, localised status words);
-// 3e More (the identity card, sign out that asks, the version line last, no admin sentence, no language
-// picker); 4 every string this reskin adds, in both languages, as Android's own words. The five-tap gate and
+// 3e More (the identity card, the language card after it (TASK-365.15), sign out that asks, the version line
+// last, no admin sentence); 4 every string this reskin adds, in both languages, as Android's own words. The five-tap gate and
 // the absence of visible operator rows are checks/version-tap-gate-check.swift's.
 //
 // RED CASES reproduced before this was trusted (see the three commits): the History tab put back into the
@@ -196,10 +196,12 @@ check(count(content, "HistoryView(worker: worker)") == 1, "History is built in e
 
 let settingsBody = between(settings, "var body: some View {", "private var identityCard: some View {")
 check(!settingsBody.isEmpty, "found More's body")
-// ORDER: heading, the identity card, a divider, Sign out, a divider, the version line - and nothing else.
-check(inOrder(settingsBody, ["Text(\"Settings\")", "identityCard", "Divider()", "Button(\"Sign out\") { confirmingSignOut = true }",
+// ORDER: heading, the identity card, the language card (decision-74), a divider, Sign out, a divider, the version
+// line - and nothing else (Android's push card is not here: this app has no push, decision-23).
+check(inOrder(settingsBody, ["Text(\"Settings\")", "identityCard", "LanguagePicker()", ".workerCard()", "Divider()",
+                             "Button(\"Sign out\") { confirmingSignOut = true }",
                              ".buttonStyle(.workerQuietLeading)", "Divider()", "VersionGateRow(openOperator: $showOperator)"]),
-      "More reads: heading, identity card, Sign out (a quiet text button that only ASKS), the version line last")
+      "More reads: heading, identity card, language card, Sign out (a quiet text button that only ASKS), the version line last")
 // THE IDENTITY CARD: initials circle (decoration) and name, then My hours and, idle only, History - one card.
 let identityCard = between(settings, "private var identityCard: some View {", "private func cardRow(")
 check(identityCard.contains(".workerCard()") && count(identityCard, "NavigationLink") == 2 && count(identityCard, "Divider()") == 2,
@@ -220,10 +222,11 @@ check(signOutMessage.contains("stay on the server") && signOutMessage.contains("
       "the dialog states the consequences: sent shifts stay, unsent ones wait, and a NEW code (or an SMS code) is needed to sign back in")
 check(!settings.contains(".bordered") && !settings.contains("role: .destructive) { confirmingSignOut"),
       "no filled or bordered destructive button on the page itself: the page row is a quiet text button")
-// THE ADMIN SENTENCE IS GONE (Android left settings_admin_note unreferenced), and so is every language control (decision-74).
+// THE ADMIN SENTENCE IS GONE (Android left settings_admin_note unreferenced). The language control is its OWN card
+// after the identity card (decision-74, TASK-365.15) and is the shared LanguagePicker view, never a stock Picker.
 check(!settings.contains("managed by your admin"), "More no longer prints 'managed by your admin on the web'")
-check(!settings.contains("Picker(") && !settings.lowercased().contains("language"),
-      "More has no language picker or card: that is blocked on the E1-E3 tasks (decision-74) and is not built here")
+check(!settings.replacingOccurrences(of: "LanguagePicker(", with: "").contains("Picker(") && count(settings, "LanguagePicker()") == 1,
+      "More has the ONE shared LanguagePicker as its own card, and no stock Picker (decision-74)")
 check(!settings.contains("NavigationLink(\"") , "More has no title-literal NavigationLink: every row is a card row")
 
 // ---------------------------------------------------------------------------------
