@@ -3,9 +3,10 @@ id: TASK-365.9
 title: >-
   iOS B1: Reskin foundation: worker design tokens and navigation (three tabs,
   bar style, labels, History under More)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:22'
+updated_date: '2026-10-12 20:12'
 labels:
   - ios
   - parity
@@ -71,15 +72,29 @@ Part of the Blue Hour reskin (docs/ANDROID-WORKER-DESIGN.md, TASK-363). Shared t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Shared worker visual language: 18dp cards, 16dp inverse-filled buttons, heavier titles
-- [ ] #2 Bottom navigation is always three destinations (Shift, Materials, More); History is never a tab
+- [x] #1 Shared worker visual language: 18dp cards, 16dp inverse-filled buttons, heavier titles
+- [x] #2 Bottom navigation is always three destinations (Shift, Materials, More); History is never a tab
 - [ ] #3 Navigation bar restyle: rounded top, dark selection pill, hand-drawn icons
-- [ ] #4 Tab labels renamed: Schicht/Shift and Mehr/More
-- [ ] #5 Local History is a row under More, shown only while no shift is open
+- [x] #4 Tab labels renamed: Schicht/Shift and Mehr/More
+- [x] #5 Local History is a row under More, shown only while no shift is open
 - [ ] #6 A tap arriving on Materials or More switches to the Shift tab and is handled once
-- [ ] #7 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
-- [ ] #8 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
-- [ ] #9 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
-- [ ] #10 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
-- [ ] #11 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
+- [x] #7 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
+- [x] #8 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
+- [x] #9 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
+- [x] #10 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
+- [x] #11 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented in e4e8bf8 on branch ios-blue-hour-reskin (worktree cleaning-timesheets-ios-reskin).
+DESIGN CALL (owner's proxy, not reopened): primary buttons are INVERSE-FILLED like Android's Blue Hour (named sets WorkerInverse/WorkerOnInverse = Theme.kt inverseSurface/inverseOnSurface), 56 pt min height, 16 pt radius - not the system AccentColor.
+Files: WorkerStyle.swift (tokens, card, primary/quiet button styles, one SF-symbol mark), ContentView.swift (TabView(selection:), three tabs, History row under More, tap arrival selects Shift), Assets (2 colour sets), worker-reskin-check.swift (new, in run.sh), localisation-check (Label in the extractor).
+Collisions with P1-P7: ShiftScreen's one-off card helper became the shared card; DeliveryDetailsSheet Close and ShiftReceiptView Continue use the shared primary style (style only); HistoryView lost its NavigationStack (worker-scope-check TabView pin re-pinned); the P1-P6 rig tests were renamed to the Shift/More tabs and open History under More.
+Left open: #6 (a tap arriving on Materials/More): the simulator cannot receive a universal-link tap and the only hook (--ts-demo-tap) is cold-launch only; adding a delayed DEBUG hook would be product code for the rig's sake (owner rule). Pinned as text (the onChange selects .log from the closure value, take() stays LogView's) and left for a device.
+#3: scoped as the port notes say (system TabView kept, symbols swapped to clock/box/ellipsis); rounded top and the dark selection pill are Android Material parts the system TabView does not draw and are deliberately not ported.
+Evidence: screenshots under the rig's shots dir (light-en-m, dark-en-m, light-de-m, dark-de-xxxl, light-en-xxxl; b1-*), driven by ops/ios-rig/reskin-walk.sh.
+
+#3 left UNTICKED on purpose: the criterion text is Android's (rounded top, dark selection pill, hand-drawn icons). The iOS port notes scope it to keeping the system TabView and swapping the symbols to match meaning (Shift: clock, Materials: box, More: ellipsis) - that is done and pinned - but the rounded top and the dark selection pill are not drawn on the system tab bar and were deliberately not ported. Tick it if the owner accepts the scoped port.
+<!-- SECTION:NOTES:END -->

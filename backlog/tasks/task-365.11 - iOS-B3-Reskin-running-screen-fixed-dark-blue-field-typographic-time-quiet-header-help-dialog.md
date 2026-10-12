@@ -3,9 +3,10 @@ id: TASK-365.11
 title: >-
   iOS B3: Reskin: running screen (fixed dark-blue field, typographic time, quiet
   header, help dialog)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:22'
+updated_date: '2026-10-12 21:08'
 labels:
   - ios
   - parity
@@ -59,13 +60,25 @@ Part of the Blue Hour reskin (docs/ANDROID-WORKER-DESIGN.md, TASK-363). iOS alre
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Running screen is a solid fixed dark-blue field with light ink
-- [ ] #2 Elapsed time is typographic: 'SEIT BEGINN' label, large HH:MM, small seconds, no timer card
-- [ ] #3 Running header: quiet state heading 'Schicht läuft', smaller site name, start time
-- [ ] #4 Shift help moves behind a 'Hilfe zur Schicht' button
-- [ ] #5 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
-- [ ] #6 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
-- [ ] #7 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
-- [ ] #8 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
-- [ ] #9 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
+- [x] #1 Running screen is a solid fixed dark-blue field with light ink
+- [x] #2 Elapsed time is typographic: 'SEIT BEGINN' label, large HH:MM, small seconds, no timer card
+- [x] #3 Running header: quiet state heading 'Schicht läuft', smaller site name, start time
+- [x] #4 Shift help moves behind a 'Hilfe zur Schicht' button
+- [x] #5 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
+- [x] #6 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
+- [x] #7 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
+- [x] #8 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
+- [x] #9 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented in 7f27e26 (branch ios-blue-hour-reskin). Design call (owner's proxy): inverse-filled primary button; on the field it inverts against the field (WorkerField).
+Field: ShiftField #10243D / ShiftOnField #E6ECF5 (Theme.kt ShiftBrand, same in light and dark), overdue = ShiftOverdueField / ShiftOverdueInk (errorContainer / onErrorContainer) with the flag off, red ink over the blue with it on; BlueDrift kept, still behind fun_shift_screen, and holds still under Reduce Motion; no .green / raw .blue in ShiftScreen (pinned). Time: ShiftTimeDigits (own per-second TimelineView, HH:MM large + seconds at 32%, @ScaledMetric, hidden from VoiceOver; ShiftSignal.clockParts clamped to 8 h, run in shift-signal-check). Header: quiet label-weight state heading 'Schicht läuft' / 'Shift in progress', site at title2 medium; the navigation title is gone on both screens. Help: 'Shift help' DisclosureGroup (not an alert/sheet: SwiftUI drops one that presents with the decision-10 resolver sheet) - Android's AlertDialog is the only deviation.
+Collisions with P1-P7: P5 (pending-notice-check re-pinned: heading word and ShiftTimeDigits instead of Text(timerInterval:); PendingNoticeView itself untouched and inherits the field ink), P7 (confirmationMotion call and its pins untouched, now over a card-less block), P4 (schedule-check helpCard -> helpButton; ScheduleSummary's title/action row now stacks at the largest text sizes - it broke 'Einsatz' one letter per line at AX5), P6 (delivery rows sit on the field with the ink as their tint ONLY, so their details sheet reads in the phone's appearance; driven).
+Not proven: VoiceOver itself (the one spoken label is unchanged and pinned, the rig cannot run VoiceOver), the home-screen badge / reminders / Live Activity (unchanged, the Simulator cannot show them).
+Evidence: /private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad/rig-reskin/shots (b3-*: running field in light-en-m, dark-en-m, light-de-m, dark-de-xxxl, light-en-xxxl; pending + delivery sheet in light-en-m and dark-de-m; overdue in light-en-m and dark-de-xxxl), driven by ops/ios-rig/reskin-walk.sh.
+
+Commit: 25165ed (the first hash above was amended to add the rig-test fixes below). Existing rig walks re-run on the final tree, all PASS: signin, p1-same-building, p2-online-verified, p2-stop, p3-signout, p3-b-signin, p3-swipe-delete, p4-idle, p4-running, p5-online / -unreachable / -refused / -blocked / -overdue, p6-empty / -waiting / -blocked / -signin / -dynamic-type. The rig tests follow the new tab names, the idle heading and the three running state headings (runningHeading); p4-running asserts the 'Shift help' button where it asserted the printed help card.
+<!-- SECTION:NOTES:END -->

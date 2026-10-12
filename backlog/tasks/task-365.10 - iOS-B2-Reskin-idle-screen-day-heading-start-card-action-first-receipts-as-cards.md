@@ -3,9 +3,10 @@ id: TASK-365.10
 title: >-
   iOS B2: Reskin: idle screen (day heading, start card, action first, receipts
   as cards)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:22'
+updated_date: '2026-10-12 20:48'
 labels:
   - ios
   - parity
@@ -65,14 +66,24 @@ Part of the Blue Hour reskin (docs/ANDROID-WORKER-DESIGN.md, TASK-363). Idle ope
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Idle Shift screen opens with today's date and the heading 'Ihr Arbeitstag'
-- [ ] #2 Idle start block: glyph, 'Bereit für die Schicht?', hint, one filled scan button, quiet manual start
-- [ ] #3 Idle screen order: action first, recent shifts after
-- [ ] #4 Shift rows become cards with the time range as the dominant line
-- [ ] #5 Unsent rows say 'Wartet auf Verbindung' plus the last attempt time, never 'Sending…'
-- [ ] #6 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
-- [ ] #7 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
-- [ ] #8 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
-- [ ] #9 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
-- [ ] #10 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
+- [x] #1 Idle Shift screen opens with today's date and the heading 'Ihr Arbeitstag'
+- [x] #2 Idle start block: glyph, 'Bereit für die Schicht?', hint, one filled scan button, quiet manual start
+- [x] #3 Idle screen order: action first, recent shifts after
+- [x] #4 Shift rows become cards with the time range as the dominant line
+- [x] #5 Unsent rows say 'Wartet auf Verbindung' plus the last attempt time, never 'Sending…'
+- [x] #6 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
+- [x] #7 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
+- [x] #8 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
+- [x] #9 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
+- [x] #10 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented in 9e0d435 (branch ios-blue-hour-reskin). Design call (owner's proxy): inverse-filled primary button, as in B1.
+Idle screen: WorkerDayHeading (EEEE · d MMMM in the app locale, TimelineView.everyMinute) + 'Your working day'; order = heading, unresolved banner, receipt OR start card, delivery rows, planned assignment, Recent, no-push note. Start card = SF-symbol mark (hidden from VoiceOver), 'Ready for your shift?', the existing hint, ONE inverse-filled Scan button, a quiet 'Start without a tag'. The idle footer under the manual start is gone (the explanation lives in the sheet and the confirmation dialog, per the port notes); decision-56/81 behaviour untouched. Pull-to-refresh stays the refresh control. ShiftRow is a worker card with the time range as the lead line. Shift.lastAttemptAt (optional) is stamped next to DeliveryAttempt.stamp() in pushOpen / pushClose / the proof close; display only.
+Android parity note for #5: a row that FAILED keeps its failure sentence (Android markFailed always leaves one, so an offline row says 'No connection - will send when you're back online'); 'Wartet auf Verbindung + Zuletzt versucht HH:mm / Noch kein Sendeversuch' is the row neither failed nor delivered. Driven by holding POST /shifts/close in the rig front (reskin-walk.sh hold-close).
+Collisions with P1-P7: P7 receipt (shift-receipt-check's ORDER pin moved with the start block; the receipt's own rule untouched), P4 ScheduleSummary and P6 DeliveryStatusRows only gained a container (card / list row), the idle footer of decision-56 section 4 removed, rig tests identify the idle screen by its heading (no navigation title any more).
+Evidence: /private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad/rig-reskin/shots (b2-*; light-en-m, dark-en-m, light-de-m on the B2 build, dark-de-xxxl and light-en-xxxl on the final tree - the idle code path is identical), driven by ops/ios-rig/reskin-walk.sh.
+<!-- SECTION:NOTES:END -->
