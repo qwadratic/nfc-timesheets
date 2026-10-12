@@ -182,9 +182,11 @@ struct SignInView: View {
     /// used for nothing but the delivery summary below.
     @Query private var allShifts: [Shift]
     private var deliveryRows: [PendingRow] { allShifts.deviceWide().map { $0.deliveryRow() } }
+    /// The fifth tap on the version line (VersionGateRow) flips this and pushes the operator gate.
+    @State private var showOperator = false
 
     var body: some View {
-        // OperatorHomeScreen is pushed from operatorSection below, so whatever presents
+        // OperatorHomeScreen is pushed by the fifth version-line tap below, so whatever presents
         // this view needs a NavigationStack ancestor - Settings already has one; this is
         // the second, and now the ONLY one that does not require a worker session first.
         NavigationStack {
@@ -233,9 +235,17 @@ struct SignInView: View {
                                   requestSms: { try await session.requestSmsCode(phone: $0) },
                                   verifySms: { try await session.verifySmsCode(phone: $0, code: $1) },
                                   submitCode: { try await session.signInWithCode($0) })
-                operatorSection
+
+                // THE VERSION LINE, last, and the only way into the operator tools from here: five
+                // taps (VersionTapGate), then OperatorHomeScreen - which is still the gate. There is
+                // no visible operator row any more (TASK-365.13; Android removed its twin).
+                Section {
+                    VersionGateRow(openOperator: $showOperator)
+                }
+                .listRowBackground(Color.clear)
             }
             .scrollDismissesKeyboard(.interactively)
+            .navigationDestination(isPresented: $showOperator) { OperatorHomeScreen() }
             // EVERY APPEARANCE AND EVERY RESUME, not once per process (decision-59 §2,
             // and the same reasoning TASK-276 applied to the operator gate). Android reads
             // this at launch because its sign-in screen IS the launch screen; on iOS this
@@ -257,21 +267,12 @@ struct SignInView: View {
     // Settings, which only exists inside .eligible(worker): a phone that is operator-only
     // had no way in at all (found 2026-08-24, TASK-252).
     //
-    // ONE LINK INTO A GATE, not two direct links (decision-54 §4). This reverses what the
-    // comment here used to say: the two-direct-link design let anyone with the app
-    // installed SEE the operator interface, and gated only the action, inside each screen.
-    // decision-54 gates reaching it at all, so OperatorHomeScreen.swift is the retired
-    // OperatorSignInScreen back in substance, and WriteTagScreen/VerifyZoneScreen no
-    // longer carry a code field of their own. Settings keeps its own identical link for a
-    // phone that is already signed in as a worker and also mounts tags.
-    private var operatorSection: some View {
-        Section {
-            NavigationLink("Write or test tags") { OperatorHomeScreen() }
-        } footer: {
-            Text("Operator? Write or test tags without signing in as a worker.")
-                .font(.footnote)
-        }
-    }
+    // THE DOOR IS THE VERSION LINE (TASK-365.13, Android 4a8ac3d and its siblings): this
+    // screen printed "Write or test tags" and a sentence about operators to every worker who
+    // ever signed in, and decision-54 gates REACHING the operator interface at all. The row
+    // and its footer are gone; five taps on "Installed: ..." (VersionGateRow / VersionTapGate)
+    // push OperatorHomeScreen, whose own gate is unchanged. Settings has the same line with
+    // its own counter, for a phone that is already signed in as a worker and also mounts tags.
 
     // The SMS door, the enrolment-code door and every per-outcome error sentence they
     // showed all moved, verbatim, into CodeSignInSection.swift - nothing was dropped in
@@ -1373,7 +1374,14 @@ struct HistoryView: View {
 // MARK: - Settings tab
 
 /// No picker any more (decision-22). "Who are you" is not a setting a worker gets to
-/// choose - it is the server's answer to their Apple ID, shown here read-only.
+/// choose - it is the server's answer to their sign-in, shown here read-only.
+///
+/// THE BLUE HOUR "MORE" (TASK-365.13 / iOS B5, Android `SettingsScreen` at 60f6886): a heading, one
+/// identity card - initials, name, then My hours and (idle only) History -, a text-button Sign out
+/// that ASKS first and states the consequences, and the version line last, which is the five-tap
+/// operator door. There is no "managed by your admin on the web" sentence and no visible operator
+/// row. NOT here, on purpose: the language card (blocked on the E1-E3 tasks, decision-74) and the
+/// delivery card (Android's push section - this app has no push, decision-23).
 struct SettingsView: View {
     @Environment(Session.self) private var session
     let worker: WireWorker
@@ -1382,85 +1390,108 @@ struct SettingsView: View {
     @Query private var allShifts: [Shift]
     /// What this stack has pushed that a shift starting must take back. Only History is value-based.
     @State private var path: [SettingsRoute] = []
+    /// Sign out is ASKED for: one press opens the alert, the alert's destructive button signs out
+    /// (Android: AlertDialog titled "Abmelden" with settings_sign_out_note).
+    @State private var confirmingSignOut = false
+    /// The fifth tap on the version line (VersionGateRow) flips this and pushes the operator gate.
+    @State private var showOperator = false
 
     private enum SettingsRoute: Hashable { case history }
 
     private var shiftOpen: Bool { allShifts.openShift(for: worker.id) != nil }
 
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-    }
-    private var appBuild: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-    }
-
     var body: some View {
         NavigationStack(path: $path) {
-            Form {
-                Section("Signed in as") {
-                    LabeledContent("Name", value: worker.name)
-                        .accessibilityLabel("Signed in as \(worker.name)")
-                    // decision-83: the server's last 60 days, read-only (Android: More > "Meine Stunden",
-                    // in the identity card). A pushed screen that asks the server on every entry and
-                    // keeps nothing; it takes the worker so its request is made as THEM and dropped if
-                    // somebody else holds the session by the time it lands.
-                    NavigationLink("My hours") { MyHoursView(worker: worker) }
-                    // The phone's own log of what it wrote, only while no shift is open (Android:
-                    // `if (log.open == null)` in the same card). It was a tab; nothing in it is
-                    // time-critical, so it is not offered mid-shift and is popped if a shift starts.
-                    if !shiftOpen {
-                        NavigationLink("History", value: SettingsRoute.history)
-                    }
-                }
-                Section {
-                    Text("Hours, locations and payroll are managed by your admin on the web.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                // decision-45: a SEPARATE identity for a SEPARATE credential. Reachable
-                // from here because a worker's own phone may also be the one an operator
-                // uses to mount or test a tag — it is additive, and touches nothing above.
-                //
-                // Through the SAME gate as the sign-in screen's link, never straight into
-                // WriteTagScreen: those screens no longer carry a code field of their own
-                // (decision-54 §4), so a direct link from here would be the one unguarded
-                // way in left.
-                Section {
-                    NavigationLink("Write or test tags") { OperatorHomeScreen() }
-                } footer: {
-                    Text("For staff who mount and test NFC tags. This never opens a shift.")
-                        .font(.footnote)
-                }
-                Section {
-                    // Destructive, so BORDERED and never filled or borderless (2026-08-29
-                    // UX audit): a plain text row reads like a label until it is pressed.
-                    Button("Sign out", role: .destructive) { Task { await session.signOut() } }
-                        .buttonStyle(.bordered)
+            // A ScrollView of blocks, like Android's Column - there is nothing here to swipe or lazily
+            // load, so no List: a NavigationLink inside a List row would draw a second, system chevron
+            // inside the card.
+            ScrollView {
+                VStack(alignment: .leading, spacing: WorkerStyle.blockSpacing) {
+                    Text("Settings")
+                        .font(WorkerStyle.Typeface.title)
+                        .accessibilityAddTraits(.isHeader)
+                    identityCard
+                    Divider()
+                    // Destructive, so it asks; and a text button in the full ink, never red-filled
+                    // (Android: TextButton in onSurface). Disabled while the session is busy.
+                    Button("Sign out") { confirmingSignOut = true }
+                        .buttonStyle(.workerQuietLeading)
                         .disabled(session.busy)
-                } footer: {
-                    Text("Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in.")
-                        .font(.footnote)
+                    Divider()
+                    // decision-52: the same wording Android's UpdateSection renders. The fifth tap is the
+                    // operator door; its counter belongs to THIS screen.
+                    VersionGateRow(openOperator: $showOperator)
                 }
-                // decision-52: same wording Android's Settings → UpdateSection already
-                // renders. Reads the native fields Xcode already writes into the built
-                // Info.plist from project.pbxproj's MARKETING_VERSION/
-                // CURRENT_PROJECT_VERSION — no build-setting edit needed or made.
-                Section {
-                    Text("Installed: \(appVersion) (\(appBuild))")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                .padding(.horizontal, WorkerStyle.screenMargin)
+                .padding(.vertical, WorkerStyle.blockSpacing)
             }
-            .navigationTitle("Settings")
+            .background(WorkerStyle.page.ignoresSafeArea())
+            // The heading above is the title (Android's headlineSmall), so the bar stays, empty and
+            // inline - the same arrangement as the idle, running and Materials screens.
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: SettingsRoute.self) { route in
                 switch route {
                 case .history: HistoryView(worker: worker)
                 }
             }
+            // Pushed from the fifth version tap. The operator screens REPLACE the worker's scaffold:
+            // OperatorHomeScreen hides the tab bar (Android's SignedInScaffold returns before it
+            // composes the bar), and Back returns here with the worker still signed in.
+            .navigationDestination(isPresented: $showOperator) { OperatorHomeScreen() }
+            // AN ALERT, like Android's AlertDialog (title, the consequences, Cancel, Sign out) - and not a
+            // confirmationDialog: on iOS 26 that is a narrow popover anchored to the row with NO Cancel, and at
+            // the largest text sizes its message was clipped to a few words per line. An alert is full width,
+            // scrolls its message and always shows both buttons.
+            .alert("Sign out", isPresented: $confirmingSignOut) {
+                Button("Cancel", role: .cancel) {}
+                Button("Sign out", role: .destructive) { Task { await session.signOut() } }
+            } message: {
+                Text("Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in. Signing back in needs a NEW code from your admin or, where available, an SMS code - the old one no longer works.")
+            }
             // A shift that starts while History is open takes it away (Android dismisses it too): the
-            // row is gone from the form above, and a pushed copy must not outlive it.
+            // row is gone from the card above, and a pushed copy must not outlive it.
             .onChange(of: shiftOpen) { _, open in
                 if open { path.removeAll() }
             }
         }
+    }
+
+    /// Card 1 (Android): the initials circle and the name, then "My hours" and, idle only, "History".
+    private var identityCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            WorkerIdentity(name: worker.name)
+            Divider()
+            // decision-83: the server's last 60 days, read-only (Android: More > "Meine Stunden", in the
+            // identity card). A pushed screen that asks the server on every entry and keeps nothing; it
+            // takes the worker so its request is made as THEM and dropped if somebody else holds the
+            // session by the time it lands.
+            NavigationLink { MyHoursView(worker: worker) } label: { cardRow("My hours") }
+            // The phone's own log of what it wrote, only while no shift is open (Android:
+            // `if (log.open == null)` in the same card). It was a tab; nothing in it is time-critical,
+            // so it is not offered mid-shift and is popped if a shift starts.
+            if !shiftOpen {
+                Divider()
+                NavigationLink(value: SettingsRoute.history) { cardRow("History") }
+            }
+        }
+        // Plain links: the row's own ink, not the system accent; the chevron is drawn by cardRow.
+        .buttonStyle(.plain)
+        .workerCard()
+    }
+
+    /// One link row: its title, a chevron that is decoration, at least 48 pt tall, the whole width tappable.
+    private func cardRow(_ title: LocalizedStringKey) -> some View {
+        HStack {
+            Text(title)
+                .font(.body)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: WorkerStyle.quietButtonMinHeight)
+        .contentShape(Rectangle())
     }
 }

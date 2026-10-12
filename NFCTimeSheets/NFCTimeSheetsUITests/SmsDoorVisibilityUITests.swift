@@ -105,9 +105,8 @@ final class SmsDoorVisibilityUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        let gate = app.buttons["Write or test tags"]
-        XCTAssertTrue(gate.waitForExistence(timeout: 10), "the operator gate link is on the sign-in screen")
-        gate.tap()
+        // The door is the version line (TASK-365.13): five taps, no visible operator row.
+        openOperatorGate(app, timeout: 10)
 
         XCTAssertTrue(app.staticTexts["Operator sign-in"].waitForExistence(timeout: 10)
                         || app.navigationBars["Operator"].waitForExistence(timeout: 5),

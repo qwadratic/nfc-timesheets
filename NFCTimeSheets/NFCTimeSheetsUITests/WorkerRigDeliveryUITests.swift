@@ -335,9 +335,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         waitForIdle(app)
         sleep(3)
         app.tabBars.buttons["More"].tap()
-        let signOut = app.buttons["Sign out"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: Rig.timeout))
-        signOut.tap()
+        signOutFromMore(app)
         XCTAssertTrue(app.textFields["Access code"].waitForExistence(timeout: Rig.timeout), "signed out")
         let row = deliveryRow(app, "still on this phone")
         XCTAssertTrue(row.waitForExistence(timeout: Rig.timeout), "the sign-in screen shows the phone's unsent shift")

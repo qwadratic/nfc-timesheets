@@ -289,6 +289,22 @@
         }
       }
     },
+    "Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in. Signing back in needs a NEW code from your admin or, where available, an SMS code - the old one no longer works." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereits gesendete Schichten bleiben am Server. Alles, was noch nicht gesendet wurde, bleibt blockiert, bis Sie sich wieder anmelden. Zum erneuten Anmelden brauchen Sie einen neuen Anmeldecode von Ihrer Verwaltung oder, wo verfügbar, einen SMS-Code – der alte gilt nicht mehr."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in. Signing back in needs a NEW code from your admin or, where available, an SMS code - the old one no longer works."
+          }
+        }
+      }
+    },
     "Sign in with the same account so these entries can be delivered." : {
       "localizations" : {
         "de" : {
@@ -1275,16 +1291,6 @@
         }
       }
     },
-    "Hours, locations and payroll are managed by your admin on the web." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Stunden, Objekte und Abrechnung werden von Ihrer Verwaltung im Web verwaltet."
-          }
-        }
-      }
-    },
     "In progress" : {
       "localizations" : {
         "de" : {
@@ -1547,16 +1553,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "NFC TimeSheets"
-          }
-        }
-      }
-    },
-    "Name" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name"
           }
         }
       }
@@ -1879,16 +1875,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Betreiber-Anmeldung"
-          }
-        }
-      }
-    },
-    "Operator? Write or test tags without signing in as a worker." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Betreiber? Tags beschreiben oder prüfen, ohne sich als Mitarbeiter anzumelden."
           }
         }
       }
@@ -2407,16 +2393,6 @@
         }
       }
     },
-    "Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bereits gesendete Schichten bleiben am Server. Alles, was noch nicht gesendet wurde, bleibt blockiert, bis Sie sich wieder anmelden."
-          }
-        }
-      }
-    },
     "Sign in" : {
       "localizations" : {
         "de" : {
@@ -2483,16 +2459,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Abmelden"
-          }
-        }
-      }
-    },
-    "Signed in as" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Angemeldet als"
           }
         }
       }
@@ -3608,16 +3574,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Weitere Karte schreiben"
-          }
-        }
-      }
-    },
-    "Write or test tags" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Karten schreiben oder prüfen"
           }
         }
       }

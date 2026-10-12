@@ -73,7 +73,9 @@ back as App Store error 90778 days later.
    ```
 
 4. **Check the array says `TAG` and only `TAG`.** If Xcode also adds `NDEF`, delete that line.
-5. Build. Run on a real iPhone. Open Settings → the operator row → Write a tag.
+5. Build. Run on a real iPhone. There is no visible operator row (TASK-365.13): tap the version line
+   ("Installed: 1.0 (11)") five times - at the bottom of the signed-out screen, or of More once a worker is
+   signed in - sign in with an operator code, then Write a tag.
 
 ### `NDEF` is a rejection, not a preference
 

@@ -105,10 +105,8 @@ final class WriteTagRestartUITests: XCTestCase {
     /// `ts_operator` cookie, so this signs in for real against the stub. Any code is
     /// accepted there; the credential is not what this file is testing.
     private func openWriteTagScreen(_ app: XCUIApplication) {
-        let gate = app.buttons["Write or test tags"]
-        XCTAssertTrue(gate.waitForExistence(timeout: timeout),
-                      "the operator gate link is on the sign-in screen")
-        gate.tap()
+        // The door is the version line (TASK-365.13): five taps, no visible operator row.
+        openOperatorGate(app, timeout: timeout)
 
         let code = app.textFields["Access code"]
         XCTAssertTrue(code.waitForExistence(timeout: timeout),

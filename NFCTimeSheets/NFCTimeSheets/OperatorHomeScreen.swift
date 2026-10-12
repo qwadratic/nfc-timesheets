@@ -69,6 +69,12 @@ struct OperatorHomeScreen: View {
             }
         }
         .navigationTitle("Operator")
+        // THE OPERATOR SCREENS REPLACE THE WORKER'S SCAFFOLD (TASK-365.13, Android SignedInScaffold:
+        // `showOperator` returns before the Scaffold composes, so no tab bar and no worker tab content
+        // while the operator screen is up). Pushed from More, this would otherwise leave the worker's
+        // three tabs tappable underneath a tag write. Back restores More with the worker still signed
+        // in. A no-op on the signed-out screen, which has no tab bar.
+        .toolbarVisibility(.hidden, for: .tabBar)
         .scrollDismissesKeyboard(.interactively)
         .onAppear { operatorSession.refresh() }
         // The capability is asked the same way and on the same schedule as the cookie above

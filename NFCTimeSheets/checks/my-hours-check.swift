@@ -464,9 +464,9 @@ check(!screen.contains("? Text(") && !screen.contains("Text(offline ?") && !scre
 
 // THE SETTINGS ROW: one, in the identity section, pushing the screen for THIS worker.
 let settings = between(content, "struct SettingsView: View {", "\n}\n")
-check(count(settings, "NavigationLink(\"My hours\") { MyHoursView(worker: worker) }") == 1
-      && inOrder(settings, ["Section(\"Signed in as\") {", "LabeledContent(\"Name\", value: worker.name)", "NavigationLink(\"My hours\")", "Hours, locations and payroll are managed"]),
-      "Settings has exactly one 'My hours' row, in the identity section, built for the signed-in worker")
+check(count(settings, "NavigationLink { MyHoursView(worker: worker) } label: { cardRow(\"My hours\") }") == 1
+      && inOrder(settings, ["WorkerIdentity(name: worker.name)", "NavigationLink { MyHoursView(worker: worker) }", "NavigationLink(value: SettingsRoute.history)"]),
+      "More has exactly one 'My hours' row, in the identity card after the name and before History, built for the signed-in worker")
 check(count(content, "MyHoursView(") == 1, "ContentView.swift builds the screen in exactly one place")
 // NOTHING ELSE KNOWS ABOUT IT: not the tap path, the sync pass, the signals, the session, the caches.
 for (name, from, to) in [

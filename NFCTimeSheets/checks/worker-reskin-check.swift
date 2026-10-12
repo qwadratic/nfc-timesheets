@@ -1,4 +1,4 @@
-// Runnable check: the "Blue Hour" worker reskin (TASK-365.9 / .10 / .11 / .12, iOS B1-B4).
+// Runnable check: the "Blue Hour" worker reskin (TASK-365.9 / .10 / .11 / .12 / .13, iOS B1-B5).
 //
 //   cd NFCTimeSheets && swift checks/worker-reskin-check.swift
 //
@@ -16,7 +16,9 @@
 // heading, start block, order, row cards, "Waiting for a connection", the per-row attempt stamp); 3c the
 // running screen (the fixed field, the typographic time, the quiet header, help behind a button); 3d Materials
 // (the flat composer, the visible example, the short no-push line and its dialog, localised status words);
-// 4 every string this reskin adds, in both languages, as Android's own words.
+// 3e More (the identity card, sign out that asks, the version line last, no admin sentence, no language
+// picker); 4 every string this reskin adds, in both languages, as Android's own words. The five-tap gate and
+// the absence of visible operator rows are checks/version-tap-gate-check.swift's.
 //
 // RED CASES reproduced before this was trusted (see the three commits): the History tab put back into the
 // ForEach; `.borderedProminent` back on the idle Scan button; `Label("Log"` restored; `selection = .log`
@@ -26,7 +28,8 @@
 // a green or raw-blue literal on the running screen; the digits' timeline slowed to a minute; the neutral
 // cards drawn in the field's scheme; the help sentence printed again; one new key left without its English;
 // Materials: the long no-push sentence printed as a footer again, the example caption dropped, a stock
-// Section around the composer, `borderedProminent` back on Send, statusText back to String.
+// Section around the composer, `borderedProminent` back on Send, statusText back to String; More: Sign out
+// signing out on one press, the admin sentence printed again, the identity card's rows reordered.
 
 import Foundation
 
@@ -176,14 +179,52 @@ check(history.contains(".navigationTitle(\"History\")") && history.contains(".on
 let settings = between(content, "struct SettingsView: View {", "\n}\n")
 check(settings.contains("@Query private var allShifts: [Shift]") && settings.contains("private var shiftOpen: Bool { allShifts.openShift(for: worker.id) != nil }"),
       "More asks WorkerScope whether THIS worker has an open shift (never another account's forgotten row)")
-check(inOrder(settings, ["NavigationLink(\"My hours\") { MyHoursView(worker: worker) }", "if !shiftOpen {",
-                         "NavigationLink(\"History\", value: SettingsRoute.history)", "Hours, locations and payroll are managed"]),
-      "the History row sits in the identity section after My hours and exists only while no shift is open")
+check(inOrder(settings, ["WorkerIdentity(name: worker.name)", "NavigationLink { MyHoursView(worker: worker) } label: { cardRow(\"My hours\") }",
+                         "if !shiftOpen {", "NavigationLink(value: SettingsRoute.history) { cardRow(\"History\") }"]),
+      "the History row sits in the identity card after My hours and exists only while no shift is open")
 check(inOrder(settings, ["NavigationStack(path: $path) {", ".navigationDestination(for: SettingsRoute.self) { route in", "case .history: HistoryView(worker: worker)",
                          ".onChange(of: shiftOpen) { _, open in", "if open { path.removeAll() }"]),
       "a shift that starts pops History")
-check(settings.contains(".navigationTitle(\"Settings\")"), "the heading inside More stays 'Settings' (Android settings_title)")
+check(inOrder(settings, ["Text(\"Settings\")", ".font(WorkerStyle.Typeface.title)", ".accessibilityAddTraits(.isHeader)", ".navigationTitle(\"\")"]),
+      "the heading inside More stays 'Settings' (Android settings_title), as the shared title style and a VoiceOver header, with an empty inline bar")
 check(count(content, "HistoryView(worker: worker)") == 1, "History is built in exactly one place")
+
+// ---------------------------------------------------------------------------------
+// 3e. MORE (TASK-365.13: more-identity-card, settings-admin-note-removed, sign-out-confirmation)
+//     The five-tap door and the absence of operator rows are version-tap-gate-check.swift's.
+// ---------------------------------------------------------------------------------
+
+let settingsBody = between(settings, "var body: some View {", "private var identityCard: some View {")
+check(!settingsBody.isEmpty, "found More's body")
+// ORDER: heading, the identity card, a divider, Sign out, a divider, the version line - and nothing else.
+check(inOrder(settingsBody, ["Text(\"Settings\")", "identityCard", "Divider()", "Button(\"Sign out\") { confirmingSignOut = true }",
+                             ".buttonStyle(.workerQuietLeading)", "Divider()", "VersionGateRow(openOperator: $showOperator)"]),
+      "More reads: heading, identity card, Sign out (a quiet text button that only ASKS), the version line last")
+// THE IDENTITY CARD: initials circle (decoration) and name, then My hours and, idle only, History - one card.
+let identityCard = between(settings, "private var identityCard: some View {", "private func cardRow(")
+check(identityCard.contains(".workerCard()") && count(identityCard, "NavigationLink") == 2 && count(identityCard, "Divider()") == 2,
+      "the identity card is ONE worker card holding the name, My hours and History, with dividers between")
+check(!settings.contains("LabeledContent") && !settings.contains("Section(\"Signed in as\")") && !settings.contains("Form {"),
+      "no stock grouped Form and no 'Signed in as' header: the card is the identity")
+check(settings.contains(".foregroundStyle(.tertiary)") && inOrder(settings, ["Image(systemName: \"chevron.right\")", ".accessibilityHidden(true)"]),
+      "a row's chevron is decoration, hidden from VoiceOver")
+// SIGN OUT ASKS: one press opens the dialog; only the dialog's destructive button signs out; the message states the consequences.
+check(count(settings, "session.signOut()") == 1
+      && inOrder(settings, [".alert(\"Sign out\", isPresented: $confirmingSignOut) {", "Button(\"Cancel\", role: .cancel) {}",
+                            "Button(\"Sign out\", role: .destructive) { Task { await session.signOut() } }", "} message: {"])
+      && !settings.contains(".confirmationDialog("),
+      "Sign out is an alert (Android's AlertDialog; a popover has no Cancel and clips at the largest text): Cancel and the destructive 'Sign out', and signOut() is called nowhere else")
+let signOutMessage = between(settings, "} message: {\n                Text(\"", "\")\n            }")
+check(signOutMessage.contains("stay on the server") && signOutMessage.contains("blocked until you sign back in")
+      && signOutMessage.contains("NEW code from your admin") && signOutMessage.contains("SMS code"),
+      "the dialog states the consequences: sent shifts stay, unsent ones wait, and a NEW code (or an SMS code) is needed to sign back in")
+check(!settings.contains(".bordered") && !settings.contains("role: .destructive) { confirmingSignOut"),
+      "no filled or bordered destructive button on the page itself: the page row is a quiet text button")
+// THE ADMIN SENTENCE IS GONE (Android left settings_admin_note unreferenced), and so is every language control (decision-74).
+check(!settings.contains("managed by your admin"), "More no longer prints 'managed by your admin on the web'")
+check(!settings.contains("Picker(") && !settings.lowercased().contains("language"),
+      "More has no language picker or card: that is blocked on the E1-E3 tasks (decision-74) and is not built here")
+check(!settings.contains("NavigationLink(\"") , "More has no title-literal NavigationLink: every row is a card row")
 
 // ---------------------------------------------------------------------------------
 // 3b. THE IDLE SCREEN (TASK-365.10: idle-day-heading, idle-start-card, idle-layout-order,
@@ -509,6 +550,20 @@ check(catalogue["Log"] == nil, "the dead tab label 'Log' is gone from the catalo
 check(catalogue["Clocked in"] == nil && catalogue["Shift running"] == nil,
       "the retired running heading 'Clocked in' and the nav title 'Shift running' are gone (nothing uses them; 'eingestempelt' lives on elsewhere)")
 check(catalogue["TimeSheet"] == nil, "the idle navigation title 'TimeSheet' is gone from the catalogue (nothing uses it)")
+// B5: the sign-out dialog's message is ONE new sentence in both languages (the old footer plus the new-code
+// sentence, with the SMS door named); the sentences the reskin retired are gone.
+let signOutKey = "Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in. "
+    + "Signing back in needs a NEW code from your admin or, where available, an SMS code - the old one no longer works."
+check(value(signOutKey, "en") == signOutKey, "the sign-out message has an explicit English entry equal to its key")
+check((value(signOutKey, "de") ?? "").contains("neuen Anmeldecode von Ihrer Verwaltung") && (value(signOutKey, "de") ?? "").contains("SMS-Code")
+      && (value(signOutKey, "de") ?? "").contains("bleiben am Server"),
+      "...and a German one that names the new code, the office and the SMS door (got '\(value(signOutKey, "de") ?? "nil")')")
+for retired in ["Shifts already sent stay on the server. Anything still waiting to send will be blocked until you sign back in.",
+                "Hours, locations and payroll are managed by your admin on the web.", "Write or test tags",
+                "Operator? Write or test tags without signing in as a worker.", "Name", "Signed in as"] {
+    check(catalogue[retired] == nil, "the retired key '\(retired)' is gone from the catalogue (nothing uses it)")
+}
+check(value("Signed in as %@", "de") != nil, "the identity's spoken label 'Signed in as %@' is still translated")
 check(catalogue["Write it in your own words, for example: two mops and a large bottle of glass cleaner"] == nil,
       "the long VoiceOver hint is gone: the example is a visible caption under the field now")
 check(catalogue["Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry."] == nil,

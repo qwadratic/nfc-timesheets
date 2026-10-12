@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ops/ios-rig/reskin-walk.sh - the PRESENTATION walks of the "Blue Hour" worker reskin
-# (TASK-365.9 / .10 / .11 / .12). Where walk.sh drives BEHAVIOUR and asks Postgres and the wire what
+# (TASK-365.9 / .10 / .11 / .12 / .13). Where walk.sh drives BEHAVIOUR and asks Postgres and the wire what
 # happened, this puts the worker's screens in front of the camera across the matrix the backlog
 # asks for - appearance x language x text size - and leaves a PNG per step. It asserts nothing
 # about the server; the structural assertions are the XCUITests' (WorkerRigReskinUITests).
@@ -26,9 +26,11 @@ SYNC="$RIG_HOME/sync"
 CLASS=WorkerRigReskinUITests
 
 DEFAULT_COMBOS="light-en-m dark-en-m light-de-m dark-de-xxxl light-en-xxxl"
-DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB3RunningField testB4MaterialsComposerAndDialog"
+DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB3RunningField testB4MaterialsComposerAndDialog testB5MoreIdentityCardAndSignOutDialog testB5VersionLineFiveTapsOpenTheOperatorGate"
 # Steps that need a server flip, or only one pair of combinations to prove: STEPS="testB2UnsentRowSaysWaiting
-# testB3PendingAndDeliverySheet testB3OverdueNeutralField testB4MaterialsForTheBuilding" reskin-walk.sh light-en-m dark-de-xxxl
+# testB3PendingAndDeliverySheet testB3OverdueNeutralField testB4MaterialsForTheBuilding
+# testB5SignedOutVersionLineAndGate testB5OperatorToolsKeepTheTabBarHidden" reskin-walk.sh light-en-m dark-en-m
+# (the signed-out one signs out and back in; the operator one signs the seeded operator in - English labels only)
 
 size_category() {
   case "$1" in
@@ -65,6 +67,7 @@ flip() {
     hold-close) "$RIG" fault set '[{"path":"/shifts/close","method":"POST","hold_ms":30000}]' >/dev/null ;;
     fault-clear) "$RIG" fault clear >/dev/null ;;
     new-code-A) "$RIG" new-code A >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_A" > "$SYNC/code_A.txt" ;;
+    new-code-O) "$RIG" new-code O >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_O" > "$SYNC/code_O.txt" ;;
     *) log "unknown rendezvous '$1' (ignored)" ;;
   esac
 }
@@ -102,6 +105,8 @@ sim_boot
 "$RIG" sim-uninstall >/dev/null
 "$RIG" reset-data >/dev/null 2>&1
 "$RIG" new-code A >/dev/null
+# A code a PREVIOUS driver handed over mid-walk (code_A.txt wins over the exported one in Rig.code) is spent.
+rm -f "$SYNC"/code_*.txt
 xcrun simctl ui "$SIM_UDID" appearance light >/dev/null 2>&1
 xcrun simctl ui "$SIM_UDID" content_size large >/dev/null 2>&1
 log "sign in once (English)"

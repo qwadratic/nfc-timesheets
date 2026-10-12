@@ -164,8 +164,8 @@ for key in ["%lld shifts need your office", "%lld shifts still on this phone"] {
 // TASK-365.9: `Label("Shift", systemImage:)` is in the list too - the tab items are Labels, and a
 // tab title that ships English on a German phone is the first thing a worker sees.
 //
-// RED CASE: delete 'Write or test tags' from the catalogue and this fails naming
-// ContentView.swift.
+// RED CASE: delete 'Start without a tag' from the catalogue and this fails naming
+// ContentView.swift. (It was 'Write or test tags' until TASK-365.13 removed that row.)
 let literal = try! NSRegularExpression(
     pattern: #"(?:Text|Button|NavigationLink|Section|navigationTitle|Label)\("([^"\\%]{4,})"\)?"#)
 let sources = (try? FileManager.default.contentsOfDirectory(atPath: "NFCTimeSheets"))?

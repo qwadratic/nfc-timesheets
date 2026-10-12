@@ -8,7 +8,7 @@
 #   build                          xcodebuild build-for-testing, app pointed at 127.0.0.1:$RIG_FRONT_PORT
 #   test CLASS/method [VAR=VALUE]  one XCUITest on the clone; VARs reach the test as TS_RIG_* env
 #
-#   new-code A|B                   fresh single-use enrolment code -> codes.env
+#   new-code A|B|O                 fresh single-use enrolment code -> codes.env (O = the seeded operator)
 #   reset-data                     no shifts, no requests, no sessions; zones/buildings/plan back to seed
 #   zone KEY verified|unverified|inactive|active      KEY = A_VER A_UNV A_DEACT B_VER NEW
 #   zone-add [NAME]                a NEW verified zone in building A (after the phone's roster); id -> ZONE_NEW
@@ -67,7 +67,7 @@ case "$cmd" in
   sql) need_up; rig_sql "$1" ;;
   psql) need_up; rig_psql "$@" ;;
 
-  new-code) need_up; issue_code "$1"; log "new code for worker $1 written to $CODES_ENV" ;;
+  new-code) need_up; issue_code "$1"; log "new code for $1 written to $CODES_ENV" ;;
 
   reset-data)
     need_up

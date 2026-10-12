@@ -185,11 +185,16 @@ front_stop() { stop_pidfile "$RUN_DIR/front.pid" "tls front"; }
 
 # ---- enrolment codes (decision-26/63: five digits, 15 minutes, single use, stored as SHA-256) --
 # Written to codes.env (0600), NEVER to the repo and never to stdout.
-issue_code() { # issue_code A|B
-  local who="$1" name code
-  case "$who" in A) name="Anna Rig" ;; B) name="Bernd Rig" ;; *) die "worker must be A or B" ;; esac
+issue_code() { # issue_code A|B|O   (O = the seeded operator, for the operator gate behind the version line)
+  local who="$1" name code table="workers"
+  case "$who" in
+    A) name="Anna Rig" ;;
+    B) name="Bernd Rig" ;;
+    O) name="Olga Operator"; table="operators" ;;   # same enrolment columns as workers (migration 007)
+    *) die "who must be A, B or O (operator)" ;;
+  esac
   code="$(printf '%05d' $(( $(od -An -N4 -tu4 /dev/urandom | tr -d ' ') % 100000 )))"
-  rig_sql "UPDATE workers SET enrolment_code_hash = encode(sha256(convert_to('$code','UTF8')),'hex'),
+  rig_sql "UPDATE $table SET enrolment_code_hash = encode(sha256(convert_to('$code','UTF8')),'hex'),
              enrolment_code_expires_at = now() + interval '14 minutes', enrolment_code_issued_at = now(),
              enrolment_code_redeemed_at = NULL WHERE name = '$name'" >/dev/null
   touch "$CODES_ENV"; chmod 600 "$CODES_ENV"

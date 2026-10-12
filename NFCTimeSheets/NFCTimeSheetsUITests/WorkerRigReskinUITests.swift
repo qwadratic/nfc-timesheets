@@ -2,7 +2,7 @@
 //  WorkerRigReskinUITests.swift
 //  NFCTimeSheetsUITests
 //
-//  THE "BLUE HOUR" SCREEN WALKS (TASK-365.9 / .10 / .11 / .12, iOS B1-B4) on the worker rig. Where the
+//  THE "BLUE HOUR" SCREEN WALKS (TASK-365.9 / .10 / .11 / .12 / .13, iOS B1-B5) on the worker rig. Where the
 //  other WorkerRig* classes walk BEHAVIOUR (what a tap does to the server's rows), this one walks
 //  PRESENTATION: it puts the worker's screens in front of the camera in one language, one
 //  appearance and one text size and writes a PNG of each. Nothing here asserts a server row; the
@@ -465,6 +465,186 @@ final class WorkerRigReskinUITests: XCTestCase {
         app.alerts.firstMatch.buttons[w.dismiss].tap()
         backgroundAndKill(app)
         _ = finishShiftManuallyInEnglish()
+    }
+
+    // MARK: - B5: More, sign out, the version line
+
+    private struct MoreWords {
+        let heading, signOut, cancel, consequence, newCode, adminSentence, operatorRow, operatorTitle, installed: String
+    }
+    private var moreWords: MoreWords {
+        language == "de"
+            ? MoreWords(heading: "Einstellungen", signOut: "Abmelden", cancel: "Abbrechen",
+                        consequence: "bleiben am Server", newCode: "neuen Anmeldecode",
+                        adminSentence: "von Ihrer Verwaltung im Web", operatorRow: "Karten schreiben oder prüfen",
+                        operatorTitle: "Betreiber", installed: "Installiert:")
+            : MoreWords(heading: "Settings", signOut: "Sign out", cancel: "Cancel",
+                        consequence: "stay on the server", newCode: "NEW code",
+                        adminSentence: "managed by your admin", operatorRow: "Write or test tags",
+                        operatorTitle: "Operator", installed: "Installed:")
+    }
+
+    /// Brings `element` into view on a ScrollView that is longer than the screen (the largest text sizes).
+    private func scrollTo(_ element: XCUIElement, _ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        var swipes = 0
+        while !element.isHittable, swipes < 8 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(element.isHittable, "\(element) is on screen", file: file, line: line)
+    }
+
+    /// More, idle: the heading, ONE identity card (initials circle + name, My hours, History), no admin
+    /// sentence, no operator row anywhere, Sign out as a quiet text button and the version line last. Sign out
+    /// ASKS: the dialog states the consequences and Cancel leaves the worker signed in.
+    func testB5MoreIdentityCardAndSignOutDialog() throws {
+        let app = launch()
+        let w = moreWords
+        app.tabBars.buttons[words.more].tap()
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout), "the heading '\(w.heading)'")
+        XCTAssertTrue(anyElement(app, containing: "Anna Rig").exists, "the identity card names the worker")
+        let myHours = app.buttons[words.myHours], history = app.buttons[words.history]
+        XCTAssertTrue(myHours.exists && history.exists, "the card holds '\(words.myHours)' and '\(words.history)'")
+        XCTAssertGreaterThanOrEqual(myHours.frame.height, 44, "a card row is a real target: \(myHours.frame.height)")
+        XCTAssertLessThan(myHours.frame.minY, history.frame.minY, "My hours above History")
+        XCTAssertFalse(anyElement(app, containing: w.adminSentence).exists, "the 'managed by your admin on the web' sentence is gone")
+        XCTAssertFalse(app.buttons[w.operatorRow].exists || app.staticTexts[w.operatorRow].exists, "no visible operator row")
+        XCTAssertFalse(app.pickers.firstMatch.exists, "no language picker (blocked on the E1-E3 tasks)")
+        let signOut = app.buttons[w.signOut]
+        XCTAssertTrue(signOut.exists, "Sign out")
+        let version = app.buttons["version-line"]
+        scrollTo(version, app)
+        XCTAssertTrue(version.label.contains(w.installed), "the version line says '\(w.installed)': \(version.label)")
+        XCTAssertGreaterThanOrEqual(version.frame.height, 44, "the version line is a real target: \(version.frame.height)")
+        XCTAssertGreaterThan(version.frame.minY, signOut.frame.minY, "the version line is last, after Sign out")
+        app.swipeDown()
+        snap("b5-01-more")
+
+        // Sign out ASKS: one press opens an alert with the consequences; Cancel closes it WITHOUT signing out.
+        signOut.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: Rig.timeout), "one press opens an alert")
+        XCTAssertTrue(anyElement(app, containing: w.consequence).waitForExistence(timeout: 3), "it states the consequences")
+        XCTAssertTrue(anyElement(app, containing: w.newCode).exists, "...including that signing back in needs a new code")
+        XCTAssertTrue(alert.buttons[w.signOut].exists && alert.buttons[w.cancel].exists, "Sign out and Cancel, both visible")
+        sleep(1)
+        snap("b5-02-signout-dialog")
+        alert.buttons[w.cancel].tap()
+        XCTAssertTrue(app.tabBars.buttons[words.shift].waitForExistence(timeout: Rig.timeout), "Cancel leaves the worker signed in")
+        XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 2), "...and the alert is gone")
+        XCTAssertTrue(app.staticTexts[w.heading].exists, "...on More")
+    }
+
+    /// The version line is the operator door: five taps - not four, and no time window - push the operator
+    /// gate, which REPLACES the worker's scaffold (no tab bar); Back returns to More, signed in, and the
+    /// counter starts again.
+    func testB5VersionLineFiveTapsOpenTheOperatorGate() throws {
+        let app = launch()
+        let w = moreWords
+        app.tabBars.buttons[words.more].tap()
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout))
+        let version = app.buttons["version-line"]
+        scrollTo(version, app)
+        func operatorIsUp() -> Bool { app.navigationBars[w.operatorTitle].waitForExistence(timeout: 3) }
+
+        version.tap(); version.tap()
+        sleep(12)                              // no time window: two taps, a pause, two more
+        version.tap(); version.tap()
+        XCTAssertFalse(operatorIsUp(), "four taps open nothing, whatever the pause between them")
+        XCTAssertTrue(app.tabBars.buttons[words.shift].isHittable, "the worker's tab bar is still there after four taps")
+        snap("b5-03-four-taps")
+        version.tap()
+        XCTAssertTrue(operatorIsUp(), "the fifth tap opens the operator gate")
+        XCTAssertFalse(app.tabBars.buttons[words.shift].isHittable, "the operator screen replaces the worker scaffold: no tab bar")
+        sleep(1)
+        snap("b5-04-operator-gate-no-tab-bar")
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()                // Back
+        XCTAssertTrue(app.tabBars.buttons[words.more].waitForExistence(timeout: Rig.timeout), "Back restores the tab bar")
+        XCTAssertTrue(app.staticTexts[w.heading].exists, "...and More: the worker never signed out")
+        scrollTo(version, app)
+        for _ in 0..<4 { version.tap() }
+        XCTAssertFalse(operatorIsUp(), "the counter was reset by the fifth tap: four more taps open nothing")
+        version.tap()
+        XCTAssertTrue(operatorIsUp(), "...and the fifth of the new sequence opens it again")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.tabBars.buttons[words.more].waitForExistence(timeout: Rig.timeout))
+    }
+
+    /// The seeded operator signs in through the gate's shared code form (English labels: run this in an English
+    /// combination) and walks into "Write a tag" and "Test a tag": the worker's tab bar stays hidden ALL THE WAY
+    /// DOWN, not only on the gate's own screen (Android: the scaffold is replaced, the bar is not composed).
+    func testB5OperatorToolsKeepTheTabBarHidden() throws {
+        let app = launch()
+        let w = moreWords
+        app.tabBars.buttons[words.more].tap()
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout))
+        openOperatorGate(app)
+        XCTAssertTrue(app.navigationBars[w.operatorTitle].waitForExistence(timeout: Rig.timeout), "the gate")
+        let code = app.textFields["Access code"]
+        if code.waitForExistence(timeout: 4) {
+            XCTAssertTrue(Rig.rendezvous("new-code-O"), "driver flip: a fresh enrolment code for the seeded operator")
+            code.tap()
+            code.typeText(Rig.code("O"))
+            let submit = app.buttons["Sign in with code"]
+            XCTAssertTrue(submit.waitForExistence(timeout: 5) && submit.isEnabled)
+            submit.tap()
+        }
+        let write = app.buttons["Write a tag"], test = app.buttons["Test a tag"]
+        XCTAssertTrue(write.waitForExistence(timeout: Rig.timeout) && test.exists, "the operator's two actions")
+        XCTAssertFalse(app.tabBars.buttons[words.shift].isHittable, "no worker tab bar on the operator home")
+        snap("b5-07-operator-actions")
+        write.tap()
+        XCTAssertTrue(app.navigationBars["Write a tag"].waitForExistence(timeout: Rig.timeout))
+        XCTAssertFalse(app.tabBars.buttons[words.shift].isHittable, "no worker tab bar on Write a tag either")
+        sleep(1)
+        snap("b5-08-write-a-tag-no-tab-bar")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(test.waitForExistence(timeout: Rig.timeout))
+        test.tap()
+        XCTAssertTrue(app.navigationBars["Test a tag"].waitForExistence(timeout: Rig.timeout))
+        XCTAssertFalse(app.tabBars.buttons[words.shift].isHittable, "...nor on Test a tag")
+        sleep(1)
+        snap("b5-09-test-a-tag-no-tab-bar")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.tabBars.buttons[words.more].waitForExistence(timeout: Rig.timeout), "Back, Back: More with its tab bar")
+        XCTAssertTrue(app.staticTexts[w.heading].exists, "...and the worker still signed in")
+    }
+
+    /// THE SIGNED-OUT SCREEN: no operator row and no operator sentence, the version line last, five taps open
+    /// the same gate (with its own counter). The phone is signed in again in English at the end (a fresh code
+    /// from the driver), so the walk's later steps still have a worker.
+    func testB5SignedOutVersionLineAndGate() throws {
+        let app = launch()
+        let w = moreWords
+        app.tabBars.buttons[words.more].tap()
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout))
+        signOutFromMore(app)
+        XCTAssertTrue(app.staticTexts["NFC TimeSheets"].waitForExistence(timeout: Rig.timeout), "the sign-in screen")
+        let version = app.buttons["version-line"]
+        // The sign-in Form is lazy: at the largest text sizes its last row exists only once it is scrolled to.
+        var found = 0
+        while !version.exists, found < 10 { app.swipeUp(); found += 1 }
+        XCTAssertTrue(version.waitForExistence(timeout: 3), "the sign-in screen has the version line")
+        XCTAssertFalse(app.buttons[w.operatorRow].exists, "no visible operator row on the sign-in screen")
+        XCTAssertFalse(anyElement(app, containing: language == "de" ? "Betreiber? Tags" : "Operator? Write or test tags").exists,
+                       "...and no operator sentence")
+        scrollTo(version, app)
+        XCTAssertTrue(version.label.contains(w.installed), "the version line says '\(w.installed)': \(version.label)")
+        snap("b5-05-signed-out-version-line")
+        for _ in 0..<4 { version.tap() }
+        XCTAssertFalse(app.navigationBars[w.operatorTitle].waitForExistence(timeout: 3), "four taps open nothing")
+        version.tap()
+        XCTAssertTrue(app.navigationBars[w.operatorTitle].waitForExistence(timeout: Rig.timeout), "the fifth tap opens the operator gate")
+        sleep(1)
+        snap("b5-06-signed-out-operator-gate")
+
+        // Put the worker back (English: the sign-in form's labels are asserted by label).
+        backgroundAndKill(app)
+        XCTAssertTrue(Rig.rendezvous("new-code-A"), "driver flip: a fresh code for worker A")
+        let again = Rig.launch()
+        XCTAssertTrue(ensureSignedIn(again, as: "A"), "worker A is signed in again")
+        sleep(2)
+        dismissSystemAlerts()
+        backgroundAndKill(again)
     }
 
     // MARK: - B1: three tabs, More, History

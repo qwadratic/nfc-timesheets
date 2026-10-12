@@ -2,12 +2,12 @@
 //  WorkerHomeViews.swift
 //  NFCTimeSheets
 //
-//  THE IDLE SCREEN'S OWN PIECES (TASK-365.10 / iOS B2). Ported from android/.../ui/WorkerHomeCards.kt
-//  `WorkerDayHeading` at 60f6886. The start block and the receipt stay where they were - inline in
+//  THE WORKER SCREENS' OWN PIECES (TASK-365.10 / iOS B2, TASK-365.13 / iOS B5). Ported from
+//  android/.../ui/WorkerHomeCards.kt `WorkerDayHeading` and `WorkerIdentity` at 60f6886. The start block and the receipt stay where they were - inline in
 //  LogView.idleList and in ShiftReceiptView - because the checks that pin the receipt-or-start rule
 //  read them there; this file holds what is NEW and has no behaviour to pin.
 //
-//  DISPLAY ONLY. No store, no context, no API, no tap: a date and a title.
+//  DISPLAY ONLY. No store, no context, no API, no tap: a date and a title, and a name in a circle.
 //
 
 import SwiftUI
@@ -43,5 +43,35 @@ struct WorkerDayHeading: View {
         formatter.locale = locale
         formatter.dateFormat = "EEEE · d MMMM"
         return formatter.string(from: date)
+    }
+}
+
+/// The head of More's identity card: the worker's initials in a soft circle, then the name
+/// (Android `WorkerIdentity`: a 50 dp circle with the first letters of the first two name parts,
+/// hidden from TalkBack, beside the name in titleLarge).
+///
+/// The circle is DECORATION: hidden from VoiceOver, because the name beside it says everything it
+/// says. The name keeps its spoken label "Signed in as <name>" - the sentence the old "Signed in as"
+/// section header used to give it, now that the printed label is gone (Android dropped
+/// "Angemeldet als:" too). The circle follows Dynamic Type so two letters never clip.
+struct WorkerIdentity: View {
+    let name: String
+
+    @ScaledMetric(relativeTo: .title2) private var diameter: CGFloat = 50
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(verbatim: WorkerInitials.of(name))
+                .font(.headline.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(width: diameter, height: diameter)
+                .background(WorkerStyle.soft, in: Circle())
+                .accessibilityHidden(true)
+            Text(verbatim: name)
+                .font(WorkerStyle.Typeface.lead)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel("Signed in as \(name)")
+        }
     }
 }

@@ -154,10 +154,8 @@ final class FinishReportedCardUITests: XCTestCase {
     /// the credential is not what this file tests. Tolerant of an operator session left over
     /// from the previous test in the same simulator (cookies persist across launches).
     private func openOperatorScreen(_ app: XCUIApplication, _ destination: String) {
-        let gate = app.buttons["Write or test tags"]
-        XCTAssertTrue(gate.waitForExistence(timeout: timeout),
-                      "the operator gate link is on the sign-in screen")
-        gate.tap()
+        // The door is the version line (TASK-365.13): five taps, no visible operator row.
+        openOperatorGate(app, timeout: timeout)
 
         let code = app.textFields["Access code"]
         if code.waitForExistence(timeout: 4) {

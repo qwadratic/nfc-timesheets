@@ -71,15 +71,13 @@ final class WorkerRigSignInUITests: XCTestCase {
         shot("signin-b-settings")
     }
 
-    /// Settings > Sign out, the shipping button: back on the sign-in screen.
+    /// More > Sign out, then the confirmation's Sign out (TASK-365.13): back on the sign-in screen.
     func testSignOutReturnsToTheSignInScreen() throws {
         let app = Rig.launch()
         XCTAssertTrue(app.tabBars.buttons["More"].waitForExistence(timeout: Rig.timeout),
                       "a worker is signed in (run the sign-in test first)")
         app.tabBars.buttons["More"].tap()
-        let signOut = app.buttons["Sign out"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: Rig.timeout))
-        signOut.tap()
+        signOutFromMore(app)
         XCTAssertTrue(app.textFields["Access code"].waitForExistence(timeout: Rig.timeout),
                       "signing out lands on the sign-in screen")
         shot("signout-01-signin")

@@ -259,7 +259,7 @@ final class WorkerRigScheduleUITests: XCTestCase {
         let app = signedIn()
         XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].waitForExistence(timeout: Rig.timeout), "A's assignment is shown")
         app.tabBars.buttons["More"].tap()
-        app.buttons["Sign out"].tap()
+        signOutFromMore(app)
         XCTAssertTrue(app.textFields["Access code"].waitForExistence(timeout: Rig.timeout))
         XCTAssertTrue(Rig.rendezvous("sched-hold-6s"), "driver: answers are held 6 s")
         XCTAssertTrue(ensureSignedIn(app, as: "B"))

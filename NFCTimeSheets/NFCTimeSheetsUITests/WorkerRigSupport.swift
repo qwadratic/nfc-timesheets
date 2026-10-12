@@ -149,6 +149,36 @@ extension XCTestCase {
                       "History is pushed under More", file: file, line: line)
     }
 
+    /// SIGN OUT ASKS (TASK-365.13): the More row opens an ALERT (title, the consequences, Cancel, Sign out) and only
+    /// its destructive button signs out. Both the row and the alert's button carry the label "Sign out" (German:
+    /// "Abmelden"), so the alert's is found by what HOLDS it. Assumes the More tab is open.
+    func signOutFromMore(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let label = app.buttons["Sign out"].exists ? "Sign out" : "Abmelden"
+        let row = app.buttons[label]
+        XCTAssertTrue(row.waitForExistence(timeout: Rig.timeout), "More has a Sign out row", file: file, line: line)
+        row.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: Rig.timeout),
+                      "one press only ASKS: an alert with the consequences is up", file: file, line: line)
+        let confirm = alert.buttons[label]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the alert's destructive '\(label)' button", file: file, line: line)
+        confirm.tap()
+    }
+
+    /// THE OPERATOR DOOR IS THE VERSION LINE (TASK-365.13): exactly five taps on it push OperatorHomeScreen, on
+    /// the signed-out screen and in More alike. There is no visible "Write or test tags" row any more. The line
+    /// is the LAST element of both screens, so it is scrolled to first.
+    func openOperatorGate(_ app: XCUIApplication, timeout: TimeInterval = 10, taps: Int = VersionTapGateUI.requiredTaps,
+                          file: StaticString = #filePath, line: UInt = #line) {
+        let versionLine = app.buttons["version-line"]
+        // The sign-in Form is lazy: its last row exists only once it is scrolled to (the largest text sizes).
+        var swipes = 0
+        while !versionLine.exists, swipes < 10 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(versionLine.waitForExistence(timeout: timeout), "the version line is on screen", file: file, line: line)
+        while !versionLine.isHittable, swipes < 12 { app.swipeUp(); swipes += 1 }
+        for _ in 0..<taps { versionLine.tap() }
+    }
+
     /// What a person does to relaunch: Home first (the app goes to the background, where the
     /// cookie store is flushed to the container), then the app switcher's swipe. Killing the app
     /// while it is still in the foreground loses the session cookie - found while building the
@@ -258,4 +288,10 @@ extension XCTestCase {
         let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
         start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.6)
 }
+}
+
+/// The rule's constant, restated here because the UI-test target does not compile the app's sources: five taps
+/// (VersionTapGate.requiredTaps). checks/version-tap-gate-check.swift pins the app's own value.
+enum VersionTapGateUI {
+    static let requiredTaps = 5
 }

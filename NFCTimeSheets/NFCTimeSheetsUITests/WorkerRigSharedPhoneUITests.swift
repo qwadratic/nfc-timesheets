@@ -83,9 +83,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
 
     private func signOut(_ app: XCUIApplication) {
         app.tabBars.buttons["More"].tap()
-        let button = app.buttons["Sign out"]
-        XCTAssertTrue(button.waitForExistence(timeout: Rig.timeout))
-        button.tap()
+        signOutFromMore(app)
         XCTAssertTrue(app.textFields["Access code"].waitForExistence(timeout: Rig.timeout), "the sign-in screen")
     }
 
