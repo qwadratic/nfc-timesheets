@@ -25,6 +25,9 @@ import SwiftUI
 struct PendingNoticeView: View {
     let content: PendingNotice.Content
     let onRefresh: () -> Void
+    /// The app language's locale (decision-74): the sentence is chosen from it, and a row's own one
+    /// is said again in it.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(spacing: 8) {
@@ -52,12 +55,14 @@ struct PendingNoticeView: View {
         .onChange(of: text) { announce() }
     }
 
-    /// The sentence. A row's own error is ALREADY localised (Sync.swift stores
-    /// APIFailure.workerMessage), so it is drawn verbatim and never looked up again.
+    /// The sentence. A row's own error was localised when it was STORED (Sync.swift keeps
+    /// APIFailure.workerMessage), in whichever language was in force then, so it is not drawn as it
+    /// is: AppLanguage.rerender finds the catalogue sentence it was and says it in the language in
+    /// force now. A text that is not a catalogue sentence comes back unchanged.
     private var text: String {
         switch content {
-        case .savedLocally: return String(localized: "Saved on this phone · not yet confirmed")
-        case .problem(let sentence, _): return sentence
+        case .savedLocally: return AppLanguage.string("Saved on this phone · not yet confirmed", locale: locale)
+        case .problem(let sentence, _): return AppLanguage.rerender(sentence, locale: locale)
         }
     }
 

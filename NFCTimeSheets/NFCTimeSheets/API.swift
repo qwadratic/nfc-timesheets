@@ -179,47 +179,47 @@ struct APIFailure: Error {
     var workerMessage: String {
         switch code {
         case "proof_required", "proof_expired", "proof_challenge_expired":
-            return String(localized: "Take a new photo to finish this shift. Your shift has not been finished.")
+            return AppLanguage.string("Take a new photo to finish this shift. Your shift has not been finished.")
         case "network":
-            return String(localized: "No connection - will send when you're back online.")
+            return AppLanguage.string("No connection - will send when you're back online.")
         case "unknown_worker":
-            return String(localized: "Your name is no longer on the roster. Ask your admin.")
+            return AppLanguage.string("Your name is no longer on the roster. Ask your admin.")
         case "unknown_location":
-            return String(localized: "This location was removed. Ask your admin.")
+            return AppLanguage.string("This location was removed. Ask your admin.")
         case "unknown_shift":
-            return String(localized: "The server doesn't have this shift. Ask your admin.")
+            return AppLanguage.string("The server doesn't have this shift. Ask your admin.")
         case "unknown_request":
-            return String(localized: "The server doesn't have this request any more. Ask your admin.")
+            return AppLanguage.string("The server doesn't have this request any more. Ask your admin.")
         case "not_found":
             // An unrouted path, i.e. this build is newer than the server. Never a
             // rejection of what was sent - see MaterialStore.push, which keeps the row.
-            return String(localized: "Not available on the server yet - saved and will be sent later.")
+            return AppLanguage.string("Not available on the server yet - saved and will be sent later.")
         case "shift_already_open":
-            return String(localized: "Another shift is still running - finishing it first.")
+            return AppLanguage.string("Another shift is still running - finishing it first.")
         case "end_before_start":
-            return String(localized: "Finish time is before the start time.")
+            return AppLanguage.string("Finish time is before the start time.")
         case "timestamp_in_future", "timestamp_out_of_range":
-            return String(localized: "This phone's clock looks wrong. Check Date & Time in Settings.")
+            return AppLanguage.string("This phone's clock looks wrong. Check Date & Time in Settings.")
         case "unauthorized":
-            return String(localized: "This app version was rejected by the server. Update it.")
+            return AppLanguage.string("This app version was rejected by the server. Update it.")
         case "no_session":
-            return String(localized: "You were signed out. Sign in again.")
+            return AppLanguage.string("You were signed out. Sign in again.")
         case "zone_unverified":
             // decision-47 / server/lib/validate.js requireVerifiedPlace. Same wording as
             // Android's err_zone_unverified - one sentence across both phones.
-            return String(localized: "This tag hasn't been activated yet. No shift was started. Please contact your administration.")
+            return AppLanguage.string("This tag hasn't been activated yet. No shift was started. Please contact your administration.")
         case "tag_unbound":
             // server/lib/validate.js activePlace: the card was written and reported but nobody
             // has made it a zone yet. TERMINAL, like Android's err_tag_unbound - the same
             // sentence on both phones (decision-76 §4). Before this case iOS fell through to
             // "Rejected by the server (tag_unbound)", which reads as a broken card.
-            return String(localized: "This tag isn't assigned to a building yet. No shift was started. Please contact your administration.")
+            return AppLanguage.string("This tag isn't assigned to a building yet. No shift was started. Please contact your administration.")
         case "too_many_attempts":
-            return String(localized: "Too many attempts - try again shortly.")
+            return AppLanguage.string("Too many attempts - try again shortly.")
         default:
             return status >= 500 || status == 0
-                ? String(localized: "Server trouble - will retry.")
-                : String(localized: "Rejected by the server (\(code)). Ask your admin.")
+                ? AppLanguage.string("Server trouble - will retry.")
+                : AppLanguage.string("Rejected by the server (\(code)). Ask your admin.")
         }
     }
 }

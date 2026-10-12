@@ -15,14 +15,18 @@
 //  too. checks/schedule-check.swift runs both from fixed instants with the device zone set to
 //  Los Angeles, Auckland and UTC.
 //
-//  THE LOCALE IS THE OS'S (`Locale.current`), not AppLanguage: the in-app language control
-//  (decision-74, E1-E3) comes after this and sweeps every date then. Date style is MEDIUM and
+//  THE LOCALE IS ALWAYS PASSED IN, never defaulted (TASK-365.14, decision-74): it is the app
+//  language's (`\.locale` of the view that draws the line, which the language control sets),
+//  and a `Locale.current` default here is exactly the kind of bypass that would keep a plan
+//  line in the phone's language after the worker chose the other one. Date style is MEDIUM and
 //  time style SHORT, the same two Android uses (FormatStyle.MEDIUM / SHORT), through
 //  DateFormatter and not Date.FormatStyle: the latter's `.shortened` answers "8:00" where the
 //  locale's own pattern - and Android - say "08:00" (measured, de_AT and en_GB), and the
-//  worker reads the SAME assignment on the admin board and on the other phone.
+//  worker reads the SAME assignment on the admin board and on the other phone. (The locale
+//  IS set on that formatter - a fixed-locale formatter is the other thing the language check bans.)
 //
-//  Foundation-only: the check cats this file in. Reused by P7 (My hours).
+//  Foundation-only: the check cats this file in, together with AppLanguage.swift (the two plan
+//  sentences resolve through it). Reused by P7 (My hours).
 //
 
 import Foundation
@@ -41,12 +45,12 @@ enum ViennaTime {
 
     /// "14.07.2026" (de_AT) / "14 Jul 2026" (en_GB) / "Jul 14, 2026" (en_US) - the date as it is
     /// in Vienna.
-    static func date(_ instant: Date, locale: Locale = .current) -> String {
+    static func date(_ instant: Date, locale: Locale) -> String {
         formatter(.medium, .none, locale: locale).string(from: instant)
     }
 
     /// "08:00" (de_AT, en_GB) / "8:00 AM" (en_US) - the time as it is in Vienna.
-    static func time(_ instant: Date, locale: Locale = .current) -> String {
+    static func time(_ instant: Date, locale: Locale) -> String {
         formatter(.none, .short, locale: locale).string(from: instant)
     }
 
@@ -86,14 +90,14 @@ enum ScheduleTimeLine {
     /// ships English on a German phone with nothing to say so; checks/schedule-check.swift reads
     /// the two literals below out of this file as text and fails unless the catalogue holds
     /// exactly those keys. Copy the characters, do not retype them.
-    static func text(from start: Date, to end: Date, locale: Locale = .current) -> String {
+    static func text(from start: Date, to end: Date, locale: Locale) -> String {
         let date = ViennaTime.date(start, locale: locale)
         let from = ViennaTime.time(start, locale: locale)
         let to = ViennaTime.time(end, locale: locale)
         if ViennaTime.sameDay(start, end) {
-            return String(localized: "\(date) · \(from)–\(to)")
+            return AppLanguage.string("\(date) · \(from)–\(to)", locale: locale)
         }
         let endDate = ViennaTime.date(end, locale: locale)
-        return String(localized: "\(date), \(from) – \(endDate), \(to)")
+        return AppLanguage.string("\(date), \(from) – \(endDate), \(to)", locale: locale)
     }
 }

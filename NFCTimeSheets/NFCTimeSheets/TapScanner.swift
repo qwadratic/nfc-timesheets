@@ -52,7 +52,7 @@ final class TapScanner: NSObject, NFCTagReaderSessionDelegate {
 
     func scan() async -> Outcome {
         guard NFCTagReaderSession.readingAvailable else {
-            return .failed(message: String(localized: "This iPhone can't read NFC tags."))
+            return .failed(message: AppLanguage.string("This iPhone can't read NFC tags."))
         }
         finished = false
         return await withCheckedContinuation { (cont: CheckedContinuation<Outcome, Never>) in
@@ -62,10 +62,10 @@ final class TapScanner: NSObject, NFCTagReaderSessionDelegate {
                 pollingOption: [.iso14443, .iso15693], delegate: self, queue: nil
             ) else {
                 self.continuation = nil
-                cont.resume(returning: .failed(message: String(localized: "This iPhone can't read NFC tags.")))
+                cont.resume(returning: .failed(message: AppLanguage.string("This iPhone can't read NFC tags.")))
                 return
             }
-            session.alertMessage = String(localized: "Hold the tag near the top of the phone.")
+            session.alertMessage = AppLanguage.string("Hold the tag near the top of the phone.")
             self.session = session
             session.begin()
         }
@@ -91,8 +91,8 @@ final class TapScanner: NSObject, NFCTagReaderSessionDelegate {
         do {
             try await session.connect(to: tag)
         } catch {
-            session.invalidate(errorMessage: String(localized: "Couldn't read this tag. Try again."))
-            finish(.failed(message: String(localized: "Couldn't read this tag. Try again.")))
+            session.invalidate(errorMessage: AppLanguage.string("Couldn't read this tag. Try again."))
+            finish(.failed(message: AppLanguage.string("Couldn't read this tag. Try again.")))
             return
         }
 
@@ -107,8 +107,8 @@ final class TapScanner: NSObject, NFCTagReaderSessionDelegate {
                     && error.code == NFCReaderError.ndefReaderSessionErrorZeroLengthMessage.rawValue {
                 locationId = nil    // a blank card is "not one of ours", not a failure
             } catch {
-                session.invalidate(errorMessage: String(localized: "Couldn't read this tag. Try again."))
-                finish(.failed(message: String(localized: "Couldn't read this tag. Try again.")))
+                session.invalidate(errorMessage: AppLanguage.string("Couldn't read this tag. Try again."))
+                finish(.failed(message: AppLanguage.string("Couldn't read this tag. Try again.")))
                 return
             }
         }
@@ -157,8 +157,7 @@ final class TapScanner: NSObject, NFCTagReaderSessionDelegate {
         case .readerErrorSecurityViolation:
             // Same wording TagReaderProbe uses: the capability is the owner's one click
             // (decision-49) and the app degrades in words, never in a crash.
-            return .failed(message: String(localized:
-                "Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md."))
+            return .failed(message: AppLanguage.string("Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md."))
         case .readerSessionInvalidationErrorUserCanceled:
             return .failed(message: nil)        // they closed the sheet; say nothing
         case .readerSessionInvalidationErrorFirstNDEFTagRead,

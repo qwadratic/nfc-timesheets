@@ -65,6 +65,9 @@ struct CodeSignInSection: View {
     @State private var code = ""
     @State private var phoneErrorMessage: String?
     @State private var codeErrorMessage: String?
+    /// The app language's locale (decision-74): both refusals are stored as the sentence they were
+    /// when they came, and the language control sits on this very screen, so they are said again.
+    @Environment(\.locale) private var locale
 
     /// SMS mode. The single source for every per-field difference below - keyboard,
     /// content type, filtering, button copy and which call the submit button makes.
@@ -91,7 +94,7 @@ struct CodeSignInSection: View {
                         .onChange(of: phone) { _, _ in phoneErrorMessage = nil }
                         .accessibilityLabel("Phone number")
                     if let phoneErrorMessage {
-                        Text(phoneErrorMessage)
+                        Text(verbatim: AppLanguage.rerender(phoneErrorMessage, locale: locale))
                             .font(.footnote)
                             .foregroundStyle(.red)
                     } else {
@@ -134,7 +137,7 @@ struct CodeSignInSection: View {
                 }
                 .accessibilityLabel(otpMode ? "SMS code" : "Access code")
             if let codeErrorMessage {
-                Text(codeErrorMessage)
+                Text(verbatim: AppLanguage.rerender(codeErrorMessage, locale: locale))
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
@@ -225,13 +228,13 @@ struct CodeSignInSection: View {
         case "unknown_phone":
             // decision-51: the number is well-formed but not on file. Never the same
             // sentence as an invalid code - nobody re-issues this, the admin adds the number.
-            return String(localized: "This number isn't on file. Please contact your administration so it can be added.")
+            return AppLanguage.string("This number isn't on file. Please contact your administration so it can be added.")
         case "invalid_phone":
-            return String(localized: "That phone number doesn't look right.")
+            return AppLanguage.string("That phone number doesn't look right.")
         case "too_many_attempts":
-            return String(localized: "Too many attempts - try again in a few minutes.")
+            return AppLanguage.string("Too many attempts - try again in a few minutes.")
         case "sms_not_configured":
-            return String(localized: "SMS sign-in isn't set up on this server. Please use the access code below.")
+            return AppLanguage.string("SMS sign-in isn't set up on this server. Please use the access code below.")
         default:
             return failure.workerMessage
         }
@@ -242,11 +245,11 @@ struct CodeSignInSection: View {
         case "invalid_code":
             // NEVER the enrolment field's "ask your admin for a new one" - an OTP is
             // re-requested by the WORKER, not reissued by an admin.
-            return String(localized: "That code is wrong or has expired.")
+            return AppLanguage.string("That code is wrong or has expired.")
         case "too_many_attempts":
-            return String(localized: "Too many attempts - try again in a few minutes.")
+            return AppLanguage.string("Too many attempts - try again in a few minutes.")
         case "sms_not_configured":
-            return String(localized: "SMS sign-in isn't set up on this server. Please use the access code below.")
+            return AppLanguage.string("SMS sign-in isn't set up on this server. Please use the access code below.")
         default:
             return failure.workerMessage
         }
@@ -262,15 +265,15 @@ struct CodeSignInSection: View {
             // Kept apart from the one-message rule on purpose: "no signal" is not a
             // statement about the code, so it discloses nothing and telling an operator
             // standing in a stairwell to re-check a correct code is the worse answer.
-            return String(localized: "No connection - try again.")
+            return AppLanguage.string("No connection - try again.")
         case ("too_many_attempts", .tagOperator):
-            return String(localized: "Too many attempts - try again shortly.")
+            return AppLanguage.string("Too many attempts - try again shortly.")
         case ("too_many_attempts", .worker):
-            return String(localized: "Too many attempts - try again in a few minutes.")
+            return AppLanguage.string("Too many attempts - try again in a few minutes.")
         case (_, .tagOperator):
-            return String(localized: "Code not accepted. Check it and try again.")
+            return AppLanguage.string("Code not accepted. Check it and try again.")
         case ("invalid_code", .worker):
-            return String(localized: "Code not accepted. Ask your admin for a new one.")
+            return AppLanguage.string("Code not accepted. Ask your admin for a new one.")
         default:
             return failure.workerMessage
         }

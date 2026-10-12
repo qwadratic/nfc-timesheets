@@ -93,7 +93,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
     ///   id read off the card in the field, never against "something was confirmed".
     func write(locationId: String, confirmedOverwriteOf: String?) async -> Outcome {
         guard NFCTagReaderSession.readingAvailable else {
-            return .unavailable(message: String(localized: "This iPhone can't read NFC tags."))
+            return .unavailable(message: AppLanguage.string("This iPhone can't read NFC tags."))
         }
         self.locationId = locationId
         self.confirmedOverwriteOf = confirmedOverwriteOf
@@ -110,10 +110,10 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
                 pollingOption: [.iso14443, .iso15693], delegate: self, queue: nil
             ) else {
                 self.continuation = nil
-                cont.resume(returning: .unavailable(message: String(localized: "This iPhone can't read NFC tags.")))
+                cont.resume(returning: .unavailable(message: AppLanguage.string("This iPhone can't read NFC tags.")))
                 return
             }
-            session.alertMessage = String(localized: "Hold the tag near the top of the phone.")
+            session.alertMessage = AppLanguage.string("Hold the tag near the top of the phone.")
             self.session = session
             session.begin()
         }
@@ -145,7 +145,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
             return
         }
         guard let ndefTag = Self.ndefTag(from: tag) else {
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedNotFormatted)
             return
         }
@@ -158,7 +158,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
             status = rawStatus
             capacity = rawCapacity
         } catch {
-            session.invalidate(errorMessage: String(localized: "Couldn't read this tag. Try again."))
+            session.invalidate(errorMessage: AppLanguage.string("Couldn't read this tag. Try again."))
             finish(.lost(reason: "\(error)"))
             return
         }
@@ -167,7 +167,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
         // no `format` method at all), so an unformatted tag is refused, exactly as Android
         // deliberately refuses rather than formatting-then-writing blind.
         guard status != .notSupported else {
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedNotFormatted)
             return
         }
@@ -176,16 +176,16 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
         // ---- 2. the decision, in code the checks can run on a laptop --------------------
         switch NdefTag.plan(locationId: locationId, capacity: capacity, writable: writable) {
         case .badId:
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedBadId)
         case .readOnly:
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedReadOnly)
         case .notWritable:
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedNoCapacity)
         case .tooSmall(let needed, let capacity):
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedTooSmall(needed: needed, capacity: capacity))
         case .write(let bytes, let uri, let id):
             await performWrite(bytes: bytes, uri: uri, locationId: id, capacity: capacity, ndefTag: ndefTag, session: session)
@@ -209,14 +209,14 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
             // NFCNDEFReaderSession, despite the name.
             existing = .blank
         } catch {
-            session.invalidate(errorMessage: String(localized: "Couldn't read this tag. Try again."))
+            session.invalidate(errorMessage: AppLanguage.string("Couldn't read this tag. Try again."))
             finish(.lost(reason: "\(error)"))
             return
         }
 
         switch WriteGuard.decide(existing: existing, offered: locationId, confirmedFor: confirmedOverwriteOf) {
         case .occupied(let onTag, let offered, let token):
-            session.invalidate(errorMessage: String(localized: "Not written - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not written - see the app for details."))
             finish(.refusedOccupied(onTag: onTag, offered: offered, token: token))
             return
         case .proceed:
@@ -236,7 +236,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
             try await ndefTag.writeNDEF(message)
         } catch {
             // The card may now hold a partial message. Say so; do not guess.
-            session.invalidate(errorMessage: String(localized: "Not verified - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not verified - see the app for details."))
             finish(.unverified(reason: "\(error)"))
             return
         }
@@ -246,7 +246,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
         do {
             readBack = try await ndefTag.readNDEF()
         } catch {
-            session.invalidate(errorMessage: String(localized: "Not verified - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not verified - see the app for details."))
             finish(.unverified(reason: "\(error)"))
             return
         }
@@ -255,7 +255,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
             ? NdefTag.reencodeShortWellKnownURI(payload: readBackRecords![0].payload)
             : nil
         guard NdefTag.verified(written: bytes, readBack: reconstructed) else {
-            session.invalidate(errorMessage: String(localized: "Not verified - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not verified - see the app for details."))
             finish(.unverified(reason: reconstructed == nil ? "empty" : "mismatch"))
             return
         }
@@ -266,12 +266,12 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
               let urlBack = URL(string: uriBack),
               TagLink.locationId(from: urlBack) == locationId
         else {
-            session.invalidate(errorMessage: String(localized: "Not verified - see the app for details."))
+            session.invalidate(errorMessage: AppLanguage.string("Not verified - see the app for details."))
             finish(.unverified(reason: "parse"))
             return
         }
 
-        session.alertMessage = String(localized: "Written and checked.")
+        session.alertMessage = AppLanguage.string("Written and checked.")
         session.invalidate()
         // NOT `existing` raw: a card that already held THIS id is our own previous attempt
         // at this same card, not a mounted door being destroyed. See
@@ -316,8 +316,7 @@ final class TagWriter: NSObject, NFCTagReaderSessionDelegate {
         case .readerErrorSecurityViolation:
             // The entitlement is missing from this build (docs/NFC-WRITE-SETUP.md). Not a
             // crash, not a write attempt - the owner's Xcode click is still pending.
-            return .unavailable(message: String(localized:
-                "Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md."))
+            return .unavailable(message: AppLanguage.string("Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md."))
         case .readerSessionInvalidationErrorUserCanceled:
             return .lost(reason: "cancelled")
         default:

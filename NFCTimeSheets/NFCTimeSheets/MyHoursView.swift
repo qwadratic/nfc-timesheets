@@ -105,9 +105,9 @@ private struct MyHoursFailure: View {
     private func announce() {
         var spoken: AttributedString
         if offline {
-            spoken = AttributedString(String(localized: "No connection. Your hours can't be loaded right now."))
+            spoken = AttributedString(AppLanguage.string("No connection. Your hours can't be loaded right now."))
         } else {
-            spoken = AttributedString(String(localized: "Your hours could not be loaded."))
+            spoken = AttributedString(AppLanguage.string("Your hours could not be loaded."))
         }
         spoken.accessibilitySpeechAnnouncementPriority = .high
         AccessibilityNotification.Announcement(spoken).post()
@@ -117,6 +117,8 @@ private struct MyHoursFailure: View {
 /// One row: building, status word (and "Manual"), date, start, end, duration - never a rate, never a total.
 struct MyHoursRowView: View {
     let row: MyHours.Row
+    /// The app language's locale (decision-74): Vienna's date and times, formatted in it.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -133,10 +135,10 @@ struct MyHoursRowView: View {
                 // The WORD always carries the meaning on its own; the colour is the second signal.
                 statusPill
             }
-            Text("Date: \(ViennaTime.date(row.start))").font(.caption)
-            Text("Start: \(ViennaTime.time(row.start))").font(.caption)
+            Text("Date: \(ViennaTime.date(row.start, locale: locale))").font(.caption)
+            Text("Start: \(ViennaTime.time(row.start, locale: locale))").font(.caption)
             if let end = row.end {
-                Text("End: \(ViennaTime.time(end))").font(.caption)
+                Text("End: \(ViennaTime.time(end, locale: locale))").font(.caption)
             } else {
                 Text("No end yet").font(.caption)
             }

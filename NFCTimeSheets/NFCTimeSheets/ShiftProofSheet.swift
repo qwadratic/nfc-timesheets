@@ -8,6 +8,7 @@ struct ShiftProofSheet: View {
     let clientUuid: String
     let completed: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @State private var challenge: ProofChallenge?
     @State private var showCamera = false
     @State private var busy = false
@@ -20,7 +21,7 @@ struct ShiftProofSheet: View {
                 Button("Take work photo") { Task { await prepare() } }
                     .disabled(busy)
                 if busy { ProgressView() }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(verbatim: AppLanguage.rerender(error, locale: locale)).foregroundStyle(.red) }
             }
             .navigationTitle("Proof of work")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) } }
@@ -47,21 +48,21 @@ struct ShiftProofSheet: View {
         default: authorized = false
         }
         guard authorized, UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            error = String(localized: "Camera unavailable. Allow camera access in Settings and use a device with a camera.")
+            error = AppLanguage.string("Camera unavailable. Allow camera access in Settings and use a device with a camera.")
             return
         }
         do {
             challenge = try await apiPost("/shifts/\(clientUuid)/proof-challenge", ProofEmpty())
             showCamera = true
         } catch {
-            self.error = String(localized: "Could not prepare the photo. Check your connection and try again. Your shift has not been finished.")
+            self.error = AppLanguage.string("Could not prepare the photo. Check your connection and try again. Your shift has not been finished.")
         }
     }
 
     private func upload(_ image: UIImage, capturedAt: Date) async {
         guard let challenge else { return }
         guard capturedAt < challenge.expires_at else {
-            error = String(localized: "Take a new photo to finish this shift. Your shift has not been finished.")
+            error = AppLanguage.string("Take a new photo to finish this shift. Your shift has not been finished.")
             return
         }
         busy = true
@@ -75,7 +76,7 @@ struct ShiftProofSheet: View {
             image.draw(in: CGRect(origin: .zero, size: size))
         }
         guard let jpeg = reduced.jpegData(compressionQuality: 0.65), jpeg.count <= 2 * 1024 * 1024 else {
-            error = String(localized: "Photo could not be prepared. Please take another photo.")
+            error = AppLanguage.string("Photo could not be prepared. Please take another photo.")
             return
         }
         do {
@@ -84,7 +85,7 @@ struct ShiftProofSheet: View {
             completed(response.proof_id)
             dismiss()
         } catch {
-            self.error = String(localized: "Photo could not be sent. Check your connection and take another photo. Your shift has not been finished.")
+            self.error = AppLanguage.string("Photo could not be sent. Check your connection and take another photo. Your shift has not been finished.")
         }
     }
 }

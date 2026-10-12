@@ -2,7 +2,7 @@
 // app puts on the wire. No test framework, no Xcode.
 //
 //   cd NFCTimeSheets
-//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift \
+//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift \
 //       checks/tag-link-check.swift \
 //     > /tmp/tag-link-check.swift && swift /tmp/tag-link-check.swift
 //

@@ -2,7 +2,7 @@
 // archive merge. No test framework, no Xcode.
 //
 //   cd NFCTimeSheets
-//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift \
+//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift \
 //       NFCTimeSheets/MigrationCore.swift \
 //       checks/migration-check.swift > /tmp/migration-check.swift && swift /tmp/migration-check.swift
 //

@@ -224,7 +224,7 @@ struct MaterialsView: View {
                 writing = false
                 justSaved = true
                 AccessibilityNotification.Announcement(
-                    String(localized: "Request saved. It will be sent as soon as you're online.")).post()
+                    AppLanguage.string("Request saved. It will be sent as soon as you're online.")).post()
             }
             .buttonStyle(.workerPrimary)
             .disabled(!canSubmit)
@@ -286,6 +286,8 @@ struct MaterialsView: View {
 private struct QueuedMaterialRow: View {
     let row: QueuedMaterialRequest
     let siteName: (String) -> String?
+    /// The app language's locale (decision-74): the row's own error was stored as the sentence it was.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -296,7 +298,8 @@ private struct QueuedMaterialRow: View {
             Text(row.createdAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.caption).foregroundStyle(.secondary)
             if let error = row.errorMessage {
-                Label(error, systemImage: row.blocked ? "xmark.octagon.fill" : "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+                Label(AppLanguage.rerender(error, locale: locale),
+                      systemImage: row.blocked ? "xmark.octagon.fill" : "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
                     .font(.caption)
                     .foregroundStyle(row.blocked ? .red : .orange)
             } else {

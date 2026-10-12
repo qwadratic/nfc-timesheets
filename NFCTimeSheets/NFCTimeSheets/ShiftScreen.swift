@@ -60,6 +60,9 @@ struct ShiftScreen: View {
 
     @Environment(ShiftSignalCenter.self) private var signals
     @Environment(\.openURL) private var openURL
+    /// The app language's locale (decision-74): the notice card's sentence was made in the language
+    /// in force when the shift switched buildings, so it is said again in this one.
+    @Environment(\.locale) private var locale
     /// The phone's appearance. The field's pieces are drawn in a DARK one (`onField`) while the neutral
     /// cards and everything that presents a sheet are NOT - on a light phone the cards are light cards
     /// with dark text on a dark field, exactly like Android's neutral WorkerCards on ShiftBrand.Container.
@@ -386,7 +389,7 @@ struct ShiftScreen: View {
         // on exactly the tap that produced an auto-closed shift. A card cannot collide
         // with anything.
         card(icon: "arrow.triangle.swap", tint: .orange) {
-            Text(text)
+            Text(verbatim: AppLanguage.rerender(text, locale: locale))
                 .accessibilityAddTraits(.isStaticText)
             Button("Dismiss", action: onDismissNotice)
                 .buttonStyle(.bordered)

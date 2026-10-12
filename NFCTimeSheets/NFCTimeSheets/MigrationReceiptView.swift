@@ -86,13 +86,27 @@ private struct MigrationRow: View {
                 Text(shift.startTime.formatted(date: .abbreviated, time: .shortened))
                     .font(.subheadline)
                 Spacer()
-                Text(shift.duration.map(fmtDur) ?? "not finished")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // Words, not a String ternary: `Text(x ?? "literal")` is the VERBATIM initialiser and shipped
+                // this English on a German phone (TASK-365.14 sweep). A duration is data; the rest is copy.
+                if let duration = shift.duration {
+                    Text(verbatim: fmtDur(duration))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("not finished")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            Text(shift.disposition)
-                .font(.caption2)
-                .foregroundStyle(shift.disposition == "cleared" ? Color.secondary : Color.orange)
+            if shift.disposition == "cleared" {
+                Text("cleared")
+                    .font(.caption2)
+                    .foregroundStyle(Color.secondary)
+            } else {
+                Text("needs your admin")
+                    .font(.caption2)
+                    .foregroundStyle(Color.orange)
+            }
         }
         .padding(.vertical, 2)
         // One VoiceOver item per record: three fragments read separately are noise.

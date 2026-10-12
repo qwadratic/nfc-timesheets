@@ -175,6 +175,8 @@ struct ScheduleCard: View {
 struct ScheduleAssignmentRow: View {
     let assignment: WireScheduleAssignment
     let showsNote: Bool
+    /// The app language's locale (decision-74): the plan line's date, times and joining words are in it.
+    @Environment(\.locale) private var locale
 
     private var note: String { assignment.note.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -182,7 +184,7 @@ struct ScheduleAssignmentRow: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(verbatim: assignment.locationName)
                 .font(.headline)
-            Text(verbatim: ScheduleTimeLine.text(from: assignment.startsAt, to: assignment.endsAt))
+            Text(verbatim: ScheduleTimeLine.text(from: assignment.startsAt, to: assignment.endsAt, locale: locale))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if showsNote, !note.isEmpty {

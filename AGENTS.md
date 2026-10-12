@@ -236,7 +236,12 @@ screen done:
    `Localizable.xcstrings`'s `de` AND `en` entries. There is no follow-up-commit exception.
 3. Reference it only through the platform's lookup, never interpolate around it:
    `useTranslations()`/`t('namespace.key')` on web, `stringResource(R.string.key)` /
-   `context.getString()` on Android, `String(localized:)` / a `LocalizedStringKey` on iOS.
+   `context.getString()` on Android, and on iOS a `LocalizedStringKey` (a literal in `Text` /
+   `Label` / `Button`) or `AppLanguage.string("...")` for a string built in code - NEVER
+   `String(localized:)`, which ignores the in-app language (decision-74);
+   `checks/app-language-check.swift` fails on it and on `Locale.current`. A sentence STORED in a
+   row or in state (a sync error, a refusal) is drawn through `AppLanguage.rerender(text,
+   locale: locale)` so it follows a switch; the check pins the known display sites.
 4. Run the gate that exists: `pnpm verify` runs `web/scripts/check.mjs`, which checks
    `en.json`/`de.json` key-SET parity, ICU/plural-argument parity, and non-empty values — web
    only, and it proves the two files agree with EACH OTHER, not that your new file calls `t()`.

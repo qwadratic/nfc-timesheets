@@ -169,6 +169,9 @@ struct ContentView: View {
 struct SignInView: View {
     @Environment(Session.self) private var session
     @Environment(\.scenePhase) private var scenePhase
+    /// The app language's locale (decision-74): the screen's own refusal sentence was made in whichever
+    /// language was in force when it happened, so it is said again in this one (AppLanguage.rerender).
+    @Environment(\.locale) private var locale
     /// Why the last attempt failed, if it did. Screen-level only (e.g. a dropped
     /// session) - the field-level SMS/code errors below are local @State.
     let reason: String?
@@ -209,7 +212,7 @@ struct SignInView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if let reason {
-                            Text(reason)
+                            Text(verbatim: AppLanguage.rerender(reason, locale: locale))
                                 .font(.footnote)
                                 .foregroundStyle(.red)
                                 .multilineTextAlignment(.center)
@@ -300,6 +303,9 @@ struct LogView: View {
     @Environment(ShiftSignalCenter.self) private var signals
     @Environment(RosterZones.self) private var rosterZones
     @Environment(\.scenePhase) private var scenePhase
+    /// The app language's locale (decision-74). Read by everything on this screen that is built from a
+    /// stored sentence or a catalogue string in code, so a language switch re-evaluates it.
+    @Environment(\.locale) private var locale
     /// "Your open shift at A was finished and one at B was started." A CARD, not an
     /// alert: SwiftUI silently drops one of an alert and a sheet presented together, so
     /// the old alert could eat the decision-10 resolver on exactly the tap that created
@@ -433,7 +439,7 @@ struct LogView: View {
     /// A shift row keeps the id that was TAPPED, which is a zone id for every zone card, so the
     /// name is the zone's BUILDING (decision-43) - see Zones.buildingName.
     private func siteName(_ id: String) -> String {
-        rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
+        rosterZones.buildingName(of: id, sites: sites) ?? AppLanguage.string("Unknown location", locale: locale)
     }
 
     var body: some View {
@@ -473,7 +479,8 @@ struct LogView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 if let message = ShiftLocationReporter.shared.message {
-                    Text(message).font(.footnote).padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
+                    Text(verbatim: AppLanguage.rerender(message, locale: locale))
+                        .font(.footnote).padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
                 }
             }
             // NEITHER SCREEN HAS A NAVIGATION TITLE. The idle screen opens with its own heading (today's
@@ -500,7 +507,7 @@ struct LogView: View {
                    isPresented: Binding(get: { scanError != nil }, set: { if !$0 { scanError = nil } })) {
                 Button("OK") { scanError = nil }
             } message: {
-                Text(scanError ?? "")
+                Text(verbatim: AppLanguage.rerender(scanError ?? "", locale: locale))
             }
             .onChange(of: inbox.pendingLocationId) { _, id in
                 guard id != nil, let tapped = inbox.take() else { return }
@@ -557,7 +564,7 @@ struct LogView: View {
                             shift.closeSyncedAt = .now
                             try? context.save()
                         } catch {
-                            scanError = String(localized: "Could not finish the shift. Check your connection and try again.")
+                            scanError = AppLanguage.string("Could not finish the shift. Check your connection and try again.")
                             closePending = false
                         }
                     }
@@ -736,10 +743,12 @@ struct LogView: View {
                 // The server's refusal, in the worker's words, right where they are looking.
                 // The sheet stays open and nothing was written.
                 if let manualError {
-                    Text(manualError)
+                    // Said again in the language in force NOW: it was made when the refusal came.
+                    let said = AppLanguage.rerender(manualError, locale: locale)
+                    Text(verbatim: said)
                         .font(.footnote)
                         .foregroundStyle(.red)
-                        .accessibilityLabel(manualError)
+                        .accessibilityLabel(said)
                 }
             }
             .navigationTitle("Start without a tag")
@@ -924,7 +933,7 @@ struct LogView: View {
             case .resolved(let locationId):
                 inbox.accept(locationId)
             case .unrecognised:
-                scanError = String(localized: "This card isn't one of ours. Ask your admin to check it.")
+                scanError = AppLanguage.string("This card isn't one of ours. Ask your admin to check it.")
             case .failed(let message):
                 scanError = message
             }
@@ -1027,7 +1036,7 @@ struct LogView: View {
                 // (decision-10), which keeps the invariant that no shift reaches payroll
                 // with an unconfirmed end time. A normal tap-out stays unflagged.
                 running.autoClosed = true
-                switchNotice = String(localized: "Finished your open shift at \(siteName(running.locationId)) and started at \(siteName(locationId)). Confirm when you actually left \(siteName(running.locationId)) — it will not count until you do.")
+                switchNotice = AppLanguage.string("Finished your open shift at \(siteName(running.locationId)) and started at \(siteName(locationId)). Confirm when you actually left \(siteName(running.locationId)) — it will not count until you do.")
                 touched = startShift(at: locationId, clientUuid: clientUuid, startTime: startTime)
                 action = "switch"
             } else {
@@ -1139,6 +1148,9 @@ struct LogView: View {
 struct ShiftRow: View {
     let shift: Shift
     let name: String
+    /// The app language's locale (decision-74): the row's own sentence is said again in it, and the
+    /// date and the times are formatted in it, not in the phone's.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1186,7 +1198,10 @@ struct ShiftRow: View {
     /// tell "the phone is trying and failing" from "the phone has not had a signal since".
     @ViewBuilder private var syncStatus: some View {
         if let err = shift.syncError {
-            Label(err, systemImage: shift.syncBlocked ? "xmark.octagon.fill" : "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
+            // The sentence was stored in the language in force when the sync failed (Sync.swift keeps
+            // APIFailure.workerMessage), so it is said again in the one in force now.
+            Label(AppLanguage.rerender(err, locale: locale),
+                  systemImage: shift.syncBlocked ? "xmark.octagon.fill" : "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
                 .font(.caption)
                 .foregroundStyle(shift.syncBlocked ? .red : .orange)
         } else if shift.isFullySynced {
@@ -1234,6 +1249,7 @@ func fmtDur(_ s: TimeInterval) -> String { "\(Int(s) / 3600)h \((Int(s) % 3600) 
 struct ResolveSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.locale) private var locale
     @Binding var shifts: [WireShift]
     let siteName: (String) -> String
 
@@ -1267,7 +1283,9 @@ struct ResolveSheet: View {
                             .disabled(busy)
                     }
                 }
-                if let error { Section { Text(error).foregroundStyle(.red).font(.footnote) } }
+                if let error {
+                    Section { Text(verbatim: AppLanguage.rerender(error, locale: locale)).foregroundStyle(.red).font(.footnote) }
+                }
             }
             .navigationTitle("Unfinished shifts")
             .toolbar {
@@ -1299,7 +1317,7 @@ struct ResolveSheet: View {
     private func save(_ shift: WireShift, proofId: String? = nil) async {
         if shift.proofOfWorkRequired == true && proofId == nil {
             guard shift.clientUuid != nil else {
-                error = String(localized: "This shift is missing its location and can't be sent.")
+                error = AppLanguage.string("This shift is missing its location and can't be sent.")
                 return
             }
             proofTarget = shift
@@ -1330,8 +1348,9 @@ struct HistoryView: View {
     @Query(sort: \Shift.startTime, order: .reverse) private var allShifts: [Shift]
     @Query private var sites: [Site]
     @Environment(RosterZones.self) private var rosterZones
+    @Environment(\.locale) private var locale
     private func siteName(_ id: String) -> String {
-        rosterZones.buildingName(of: id, sites: sites) ?? String(localized: "Unknown location")
+        rosterZones.buildingName(of: id, sites: sites) ?? AppLanguage.string("Unknown location", locale: locale)
     }
 
     /// This worker's rows, newest first. The list, the totals and the swipe-delete all use it.

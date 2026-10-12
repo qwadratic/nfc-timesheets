@@ -29,6 +29,7 @@ import SwiftUI
 struct OperatorHomeScreen: View {
     @Environment(OperatorSession.self) private var operatorSession
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.locale) private var locale
     /// The SMS half of the sign-in form, gated on GET /auth/capabilities (decision-59 §2).
     /// False until the server says otherwise, and re-read on every appearance and resume -
     /// see the note on the modifiers below, and SignInView, which does the identical thing
@@ -47,7 +48,7 @@ struct OperatorHomeScreen: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if let reason {
-                        Text(reason)
+                        Text(verbatim: AppLanguage.rerender(reason, locale: locale))
                             .font(.footnote)
                             .foregroundStyle(.red)
                     }

@@ -113,22 +113,28 @@ final class ShiftSignalCenter {
     /// are and what each one says is ShiftSignal.ladder - pending first, for EVERY rung
     /// including the 8h one - so that part is proven on a Mac; this only turns a rung into a request.
     private func scheduleLadder(for running: RunningShift, center: UNUserNotificationCenter) {
+        // THE LANGUAGE IS FIXED HERE, with the wording: iOS cannot rewrite a pending notification's text
+        // later (decision-74 rule 4), so it is the language in force at THIS arm - AppLanguage.effective,
+        // never the process's own bundle language - and a change of language has to arm again.
+        let language = AppLanguage.effective
         for rung in ShiftSignal.ladder(for: running, now: .now) {
             let hour = rung.hour
             let content = UNMutableNotificationContent()
             switch rung.kind {
             case .pending:
-                content.title = String(localized: "Not confirmed yet: \(running.locationName)")
-                content.body = String(localized: "Your time is saved on this phone. Open the app and check the message.")
+                content.title = AppLanguage.string("Not confirmed yet: \(running.locationName)", language: language)
+                content.body = AppLanguage.string("Your time is saved on this phone. Open the app and check the message.", language: language)
             case .autoClose:
-                content.title = String(localized: "Shift closed automatically")
-                content.body = String(
-                    localized: "Your shift at \(running.locationName) hit 8 hours and was closed automatically. Open the app and confirm when you actually finished, or it will not be paid."
+                content.title = AppLanguage.string("Shift closed automatically", language: language)
+                content.body = AppLanguage.string(
+                    "Your shift at \(running.locationName) hit 8 hours and was closed automatically. Open the app and confirm when you actually finished, or it will not be paid.",
+                    language: language
                 )
             case .nudge:
-                content.title = String(localized: "Still clocked in")
-                content.body = String(
-                    localized: "\(hour) h at \(running.locationName). Hold your phone to the tag to finish."
+                content.title = AppLanguage.string("Still clocked in", language: language)
+                content.body = AppLanguage.string(
+                    "\(hour) h at \(running.locationName). Hold your phone to the tag to finish.",
+                    language: language
                 )
             }
             // .timeSensitive breaks through Focus and Scheduled Summary, but only once

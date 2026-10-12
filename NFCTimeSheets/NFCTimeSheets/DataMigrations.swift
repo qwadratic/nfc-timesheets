@@ -137,7 +137,7 @@ enum DataMigrations {
 // MARK: - Version 1: legacy shift reconciliation
 
 private var legacyBlockedMessage: String {
-    String(localized: "This shift is missing its location. Your admin has to enter it - it has not been lost.")
+    AppLanguage.string("This shift is missing its location. Your admin has to enter it - it has not been lost.")
 }
 
 extension DataMigrations {

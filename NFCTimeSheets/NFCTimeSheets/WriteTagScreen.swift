@@ -20,6 +20,10 @@ import SwiftUI
 struct WriteTagScreen: View {
     @Environment(OperatorSession.self) private var operatorSession
     @Environment(\.dismiss) private var dismiss
+    /// The app language's locale (decision-74). Every sentence this screen builds in code asks for it, so
+    /// a language switch re-evaluates them, and a message that was STORED when an outcome arrived is said
+    /// again in it (AppLanguage.rerender).
+    @Environment(\.locale) private var locale
     @State private var pendingId = OperatorTagMint.mintId()
     // The actual bytes this build would write, computed the SAME way TagWriter.plan() does
     // (TagLink.uriFor), so what the operator sees here can never drift from what lands on
@@ -341,8 +345,8 @@ struct WriteTagScreen: View {
                 locationId: pickedLocationId)
             zone = .created(zoneId: created.id, bound: created.locationId != nil,
                             message: created.locationId == nil
-                            ? String(localized: "Zone created: \(created.name). No building yet - bind it in Test a tag.")
-                            : String(localized: "Zone created: \(created.name)."))
+                            ? AppLanguage.string("Zone created: \(created.name). No building yet - bind it in Test a tag.", locale: locale)
+                            : AppLanguage.string("Zone created: \(created.name).", locale: locale))
         } catch let failure as APIFailure {
             zone = .failed(failure.code)
         } catch {
@@ -353,21 +357,21 @@ struct WriteTagScreen: View {
     private var zoneText: String {
         switch zone {
         case .idle: return ""
-        case .loading: return String(localized: "Loading buildings…")
+        case .loading: return AppLanguage.string("Loading buildings…", locale: locale)
         case .picking:
             return locations.isEmpty
-                ? String(localized: "Name this door. No buildings loaded - the zone will be created without one.")
-                : String(localized: "Name this door and pick its building, or skip the building for now.")
-        case .submitting: return String(localized: "Creating the zone…")
-        case .created(_, _, let message): return message
+                ? AppLanguage.string("Name this door. No buildings loaded - the zone will be created without one.", locale: locale)
+                : AppLanguage.string("Name this door and pick its building, or skip the building for now.", locale: locale)
+        case .submitting: return AppLanguage.string("Creating the zone…", locale: locale)
+        case .created(_, _, let message): return AppLanguage.rerender(message, locale: locale)
         case .failed(let code):
             switch code {
-            case "duplicate_zone_name": return String(localized: "That building already has a zone with this name.")
-            case "already_resolved": return String(localized: "Somebody already made this card into a zone.")
-            case "unknown_reported_tag": return String(localized: "The office doesn't know this card yet. Tell the office first.")
-            case "unknown_location": return String(localized: "That building isn't one of ours any more.")
-            case "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+            case "duplicate_zone_name": return AppLanguage.string("That building already has a zone with this name.", locale: locale)
+            case "already_resolved": return AppLanguage.string("Somebody already made this card into a zone.", locale: locale)
+            case "unknown_reported_tag": return AppLanguage.string("The office doesn't know this card yet. Tell the office first.", locale: locale)
+            case "unknown_location": return AppLanguage.string("That building isn't one of ours any more.", locale: locale)
+            case "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
     }
@@ -375,49 +379,49 @@ struct WriteTagScreen: View {
     private var reportText: String {
         switch report {
         case .idle: return ""
-        case .sending: return String(localized: "Telling the office…")
-        case .sent: return String(localized: "Reported.")
-        case .failed: return String(localized: "Couldn't reach the office yet - the card is fine. Retry.")
+        case .sending: return AppLanguage.string("Telling the office…", locale: locale)
+        case .sent: return AppLanguage.string("Reported.", locale: locale)
+        case .failed: return AppLanguage.string("Couldn't reach the office yet - the card is fine. Retry.", locale: locale)
         }
     }
 
     private var statusText: String {
         guard let outcome else {
-            return busy ? String(localized: "Hold your phone near the card.") : ""
+            return busy ? AppLanguage.string("Hold your phone near the card.", locale: locale) : ""
         }
         switch outcome {
         case .written(let locationId, let uri, let bytes, let capacity, let replaced):
-            let base = String(localized: "Written: \(uri) — \(bytes) of \(capacity) bytes.")
+            let base = AppLanguage.string("Written: \(uri) — \(bytes) of \(capacity) bytes.", locale: locale)
             _ = locationId // kept in the pattern to match TagWriter.Outcome; the URL is what matters here
             switch replaced {
             case .blank:
                 return base
             case .foreign(let summary):
-                return base + " " + String(localized: "This card held something else before: \(summary).")
+                return base + " " + AppLanguage.string("This card held something else before: \(summary).", locale: locale)
             case .ours(let onTag):
-                return base + " " + String(localized: "This card held one of our own ids before: \(onTag).")
+                return base + " " + AppLanguage.string("This card held one of our own ids before: \(onTag).", locale: locale)
             }
         case .refusedTooSmall(let needed, let capacity):
-            return String(localized: "Too small for this tag: needs \(needed) bytes, this tag holds \(capacity).")
+            return AppLanguage.string("Too small for this tag: needs \(needed) bytes, this tag holds \(capacity).", locale: locale)
         case .refusedReadOnly:
-            return String(localized: "This tag is locked read-only.")
+            return AppLanguage.string("This tag is locked read-only.", locale: locale)
         case .refusedNoCapacity:
-            return String(localized: "This tag reports no writable space.")
+            return AppLanguage.string("This tag reports no writable space.", locale: locale)
         case .refusedNotFormatted:
-            return String(localized: "This tag isn't NDEF-formatted.")
+            return AppLanguage.string("This tag isn't NDEF-formatted.", locale: locale)
         case .refusedBadId:
-            return String(localized: "Couldn't build a tag for this id.")
+            return AppLanguage.string("Couldn't build a tag for this id.", locale: locale)
         case .refusedOccupied(let onTag, _, let token):
             if confirmedFor == onTag {
-                return String(localized: "Present the card again to overwrite \(onTag).")
+                return AppLanguage.string("Present the card again to overwrite \(onTag).", locale: locale)
             }
-            return String(localized: "This card already belongs to \(onTag). Type the last six characters to overwrite it: \(token).")
+            return AppLanguage.string("This card already belongs to \(onTag). Type the last six characters to overwrite it: \(token).", locale: locale)
         case .unverified(let reason):
-            return String(localized: "The write didn't verify (\(reason)). Present this card again.")
+            return AppLanguage.string("The write didn't verify (\(reason)). Present this card again.", locale: locale)
         case .lost(let reason):
-            return String(localized: "Lost the connection (\(reason)). Try again.")
+            return AppLanguage.string("Lost the connection (\(reason)). Try again.", locale: locale)
         case .unavailable(let message):
-            return message
+            return AppLanguage.rerender(message, locale: locale)
         }
     }
 }

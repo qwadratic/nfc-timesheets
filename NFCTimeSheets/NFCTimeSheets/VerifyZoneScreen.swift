@@ -39,6 +39,11 @@ import SwiftUI
 struct VerifyZoneScreen: View {
     @Environment(OperatorSession.self) private var operatorSession
     @Environment(\.dismiss) private var dismiss
+    /// The app language's locale (decision-74). Every sentence this screen builds in code asks for it, so
+    /// a language switch re-evaluates them (the operator screens follow the choice like every other
+    /// screen - Android's LocalizedActivity), and a message that was STORED when an outcome arrived is said
+    /// again in it (AppLanguage.rerender).
+    @Environment(\.locale) private var locale
     @State private var zones: [WireOperatorZone] = []
     @State private var loading = false
     @State private var loadError = false
@@ -276,23 +281,23 @@ struct VerifyZoneScreen: View {
     private var classifyText: String? {
         switch classify {
         case .idle, .reportedCard: return nil
-        case .scanning: return String(localized: "Reading the card…")
+        case .scanning: return AppLanguage.string("Reading the card…", locale: locale)
         case .notAZone(let kind):
             switch kind {
             case "building":
-                return String(localized: "This is an object card, not a zone card. It stays as it is.")
+                return AppLanguage.string("This is an object card, not a zone card. It stays as it is.", locale: locale)
             case "retired":
-                return String(localized: "This card belonged to a zone that has since been closed. Write it again to put it back in use.")
+                return AppLanguage.string("This card belonged to a zone that has since been closed. Write it again to put it back in use.", locale: locale)
             case "tag_reported":
-                return String(localized: "The office knows this card, but nobody has made it a zone yet.")
+                return AppLanguage.string("The office knows this card, but nobody has made it a zone yet.", locale: locale)
             default:
-                return String(localized: "This card isn't one of ours.")
+                return AppLanguage.string("This card isn't one of ours.", locale: locale)
             }
-        case .scanFailed(let message): return message
+        case .scanFailed(let message): return AppLanguage.rerender(message, locale: locale)
         case .failed(let code):
             switch code {
-            case "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+            case "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
     }
@@ -366,20 +371,20 @@ struct VerifyZoneScreen: View {
     private var finishText: String {
         switch finish {
         case .idle: return ""
-        case .loading: return String(localized: "Loading buildings…")
+        case .loading: return AppLanguage.string("Loading buildings…", locale: locale)
         case .picking:
             return finishLocations.isEmpty
-                ? String(localized: "Name this door. No buildings loaded - the zone will be created without one.")
-                : String(localized: "Name this door and pick its building, or skip the building for now.")
-        case .submitting: return String(localized: "Creating the zone…")
+                ? AppLanguage.string("Name this door. No buildings loaded - the zone will be created without one.", locale: locale)
+                : AppLanguage.string("Name this door and pick its building, or skip the building for now.", locale: locale)
+        case .submitting: return AppLanguage.string("Creating the zone…", locale: locale)
         case .failed(let code):
             switch code {
-            case "duplicate_zone_name": return String(localized: "That building already has a zone with this name.")
-            case "already_resolved": return String(localized: "Somebody already made this card into a zone.")
-            case "unknown_reported_tag": return String(localized: "The office doesn't know this card yet. Tell the office first.")
-            case "unknown_location": return String(localized: "That building isn't one of ours any more.")
-            case "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+            case "duplicate_zone_name": return AppLanguage.string("That building already has a zone with this name.", locale: locale)
+            case "already_resolved": return AppLanguage.string("Somebody already made this card into a zone.", locale: locale)
+            case "unknown_reported_tag": return AppLanguage.string("The office doesn't know this card yet. Tell the office first.", locale: locale)
+            case "unknown_location": return AppLanguage.string("That building isn't one of ours any more.", locale: locale)
+            case "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
     }
@@ -435,8 +440,8 @@ struct VerifyZoneScreen: View {
             classify = .idle
             select(row)
             createdNotice = created.locationId == nil
-                ? String(localized: "Zone created: \(created.name). No building yet - bind it in Test a tag.")
-                : String(localized: "Zone created: \(created.name).")
+                ? AppLanguage.string("Zone created: \(created.name). No building yet - bind it in Test a tag.", locale: locale)
+                : AppLanguage.string("Zone created: \(created.name).", locale: locale)
             if let proof {
                 verifyResult = proof
                 await loadShifts(row, page: 1)
@@ -468,12 +473,12 @@ struct VerifyZoneScreen: View {
                     select(zone)
                 } label: {
                     VStack(alignment: .leading) {
-                        Text("\(zone.locationName ?? String(localized: "No building yet")) · \(zone.name)")
+                        Text("\(zone.locationName ?? AppLanguage.string("No building yet", locale: locale)) · \(zone.name)")
                         Text(zone.isBound
                              ? (zone.isVerified
-                                ? String(localized: "Verified \(zone.verifiedAt.map(formatted) ?? "")")
-                                : String(localized: "Not verified yet"))
-                             : String(localized: "Needs a building before it can be tested"))
+                                ? AppLanguage.string("Verified \(zone.verifiedAt.map(formatted) ?? "")", locale: locale)
+                                : AppLanguage.string("Not verified yet", locale: locale))
+                             : AppLanguage.string("Needs a building before it can be tested", locale: locale))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -486,12 +491,12 @@ struct VerifyZoneScreen: View {
     private func selectedZoneSection(_ zone: WireOperatorZone) -> some View {
         Section {
             if let createdNotice {
-                Text(createdNotice)
+                Text(verbatim: AppLanguage.rerender(createdNotice, locale: locale))
                     .font(.footnote)
-                    .accessibilityLabel(createdNotice)
+                    .accessibilityLabel(AppLanguage.rerender(createdNotice, locale: locale))
             }
-            Text(zone.locationName.map { String(localized: "\(zone.name) at \($0)") }
-                 ?? String(localized: "\(zone.name), no building yet"))
+            Text(zone.locationName.map { AppLanguage.string("\(zone.name) at \($0)", locale: locale) }
+                 ?? AppLanguage.string("\(zone.name), no building yet", locale: locale))
                 .font(.headline)
             // AN UNBOUND ZONE IS NEVER SCANNED. `activePlace` INNER JOINs `locations`, so a
             // zone with no building resolves to no tap at all - there is literally nothing
@@ -556,7 +561,7 @@ struct VerifyZoneScreen: View {
             Button("Remove this zone from its building") { confirmingUnbind = true }
                 .disabled(unbind == .submitting)
                 .confirmationDialog(
-                    Text("Remove this zone from \(zone.locationName ?? String(localized: "this building"))? This does not delete anything, and it can be undone by assigning a building again."),
+                    Text("Remove this zone from \(zone.locationName ?? AppLanguage.string("this building", locale: locale))? This does not delete anything, and it can be undone by assigning a building again."),
                     isPresented: $confirmingUnbind,
                     titleVisibility: .visible
                 ) {
@@ -695,43 +700,43 @@ struct VerifyZoneScreen: View {
     /// Write a tag and is deliberately not re-grown here.
     private func writeFailureText(_ outcome: TagWriter.Outcome) -> String {
         switch outcome {
-        case .unavailable(let message): return message
+        case .unavailable(let message): return AppLanguage.rerender(message, locale: locale)
         case .refusedOccupied(let onTag, _, _):
-            return String(localized: "This card already belongs to \(onTag). Use Write a tag to overwrite it.")
+            return AppLanguage.string("This card already belongs to \(onTag). Use Write a tag to overwrite it.", locale: locale)
         case .lost(let reason):
-            return String(localized: "Lost the connection (\(reason)). Try again.")
+            return AppLanguage.string("Lost the connection (\(reason)). Try again.", locale: locale)
         default:
-            return String(localized: "Couldn't write this card. Try another card.")
+            return AppLanguage.string("Couldn't write this card. Try another card.", locale: locale)
         }
     }
 
     private var reassignText: String? {
         switch reassign {
         case .idle: return nil
-        case .loading: return String(localized: "Loading buildings…")
+        case .loading: return AppLanguage.string("Loading buildings…", locale: locale)
         case .picking:
             return locations.isEmpty
-                ? String(localized: "No buildings loaded - try again with a signal.")
-                : String(localized: "Pick the new object. The card is rewritten, this zone closes with its hours intact, and a fresh zone takes over.")
-        case .writing: return String(localized: "Hold your phone near the card.")
-        case .submitting: return String(localized: "Moving the zone…")
+                ? AppLanguage.string("No buildings loaded - try again with a signal.", locale: locale)
+                : AppLanguage.string("Pick the new object. The card is rewritten, this zone closes with its hours intact, and a fresh zone takes over.", locale: locale)
+        case .writing: return AppLanguage.string("Hold your phone near the card.", locale: locale)
+        case .submitting: return AppLanguage.string("Moving the zone…", locale: locale)
         case .done:
-            return String(localized: "Moved. This is the new zone - scan its card to prove it before anybody clocks in.")
-        case .writeRefused(let message): return message
+            return AppLanguage.string("Moved. This is the new zone - scan its card to prove it before anybody clocks in.", locale: locale)
+        case .writeRefused(let message): return AppLanguage.rerender(message, locale: locale)
         case .failed(let code):
             switch code {
-            case "unknown_zone": return String(localized: "This zone isn't active any more.")
-            case "zone_unbound": return String(localized: "This zone has no object yet, so there is nothing to move.")
+            case "unknown_zone": return AppLanguage.string("This zone isn't active any more.", locale: locale)
+            case "zone_unbound": return AppLanguage.string("This zone has no object yet, so there is nothing to move.", locale: locale)
             case "unknown_reported_tag", "report":
-                return String(localized: "The card is written, but the office hasn't heard about it. Try again with a signal.")
+                return AppLanguage.string("The card is written, but the office hasn't heard about it. Try again with a signal.", locale: locale)
             case "already_resolved", "id_in_use":
-                return String(localized: "That new card is already in use. Take another card.")
+                return AppLanguage.string("That new card is already in use. Take another card.", locale: locale)
             case "duplicate_zone_name":
-                return String(localized: "That building already has a zone with this name.")
+                return AppLanguage.string("That building already has a zone with this name.", locale: locale)
             case "unknown_location":
-                return String(localized: "That building isn't one of ours any more.")
-            case "locations", "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+                return AppLanguage.string("That building isn't one of ours any more.", locale: locale)
+            case "locations", "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
     }
@@ -739,16 +744,16 @@ struct VerifyZoneScreen: View {
     private var unbindText: String? {
         switch unbind {
         case .idle: return nil
-        case .submitting: return String(localized: "Removing the building…")
-        case .unbound: return String(localized: "The zone no longer has a building. Pick one now.")
+        case .submitting: return AppLanguage.string("Removing the building…", locale: locale)
+        case .unbound: return AppLanguage.string("The zone no longer has a building. Pick one now.", locale: locale)
         case .hasShifts:
-            return String(localized: "Somebody has already clocked in at this door, so it stays with this building.")
+            return AppLanguage.string("Somebody has already clocked in at this door, so it stays with this building.", locale: locale)
         case .failed(let code):
             switch code {
-            case "already_unbound": return String(localized: "This zone has no building anyway.")
-            case "unknown_zone": return String(localized: "This zone isn't active any more.")
-            case "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+            case "already_unbound": return AppLanguage.string("This zone has no building anyway.", locale: locale)
+            case "unknown_zone": return AppLanguage.string("This zone isn't active any more.", locale: locale)
+            case "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
     }
@@ -844,9 +849,9 @@ struct VerifyZoneScreen: View {
         let start = shift.startTime.formatted(date: .abbreviated, time: .shortened)
         let duration = fmtDur(shift.durationMinutes * 60)
         guard let end = shift.endTime else {
-            return String(localized: "\(start) · still running · \(duration)")
+            return AppLanguage.string("\(start) · still running · \(duration)", locale: locale)
         }
-        return String(localized: "\(start) – \(end.formatted(date: .omitted, time: .shortened)) · \(duration)")
+        return AppLanguage.string("\(start) – \(end.formatted(date: .omitted, time: .shortened)) · \(duration)", locale: locale)
     }
 
     /// One place the whole per-zone state is reset, because there are now four pieces of it
@@ -940,22 +945,22 @@ struct VerifyZoneScreen: View {
     private var bindText: String {
         switch bind {
         case .idle: return ""
-        case .loading: return String(localized: "Loading buildings…")
+        case .loading: return AppLanguage.string("Loading buildings…", locale: locale)
         case .picking:
             return locations.isEmpty
-                ? String(localized: "No buildings loaded - try again with a signal.")
-                : String(localized: "This zone has no building yet, so a tap on its card resolves to nothing. Pick its building first.")
-        case .submitting: return String(localized: "Binding the zone…")
-        case .bound: return String(localized: "Bound. Scan the card to prove it.")
+                ? AppLanguage.string("No buildings loaded - try again with a signal.", locale: locale)
+                : AppLanguage.string("This zone has no building yet, so a tap on its card resolves to nothing. Pick its building first.", locale: locale)
+        case .submitting: return AppLanguage.string("Binding the zone…", locale: locale)
+        case .bound: return AppLanguage.string("Bound. Scan the card to prove it.", locale: locale)
         case .failed(let code):
             switch code {
-            case "already_bound": return String(localized: "Somebody already gave this zone a building.")
-            case "duplicate_zone_name": return String(localized: "That building already has a zone with this name.")
-            case "serial_taken": return String(localized: "Another zone already claims this card.")
-            case "unknown_zone": return String(localized: "This zone isn't active any more.")
-            case "unknown_location": return String(localized: "That building isn't one of ours any more.")
-            case "locations", "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+            case "already_bound": return AppLanguage.string("Somebody already gave this zone a building.", locale: locale)
+            case "duplicate_zone_name": return AppLanguage.string("That building already has a zone with this name.", locale: locale)
+            case "serial_taken": return AppLanguage.string("Another zone already claims this card.", locale: locale)
+            case "unknown_zone": return AppLanguage.string("This zone isn't active any more.", locale: locale)
+            case "unknown_location": return AppLanguage.string("That building isn't one of ours any more.", locale: locale)
+            case "locations", "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
     }
@@ -1010,21 +1015,21 @@ struct VerifyZoneScreen: View {
     }
 
     private var statusText: String {
-        if checking { return String(localized: "Checking…") }
+        if checking { return AppLanguage.string("Checking…", locale: locale) }
         if let verifyResult {
             if verifyResult.alreadyVerified {
-                return String(localized: "Already verified \(formatted(verifyResult.verifiedAt)).")
+                return AppLanguage.string("Already verified \(formatted(verifyResult.verifiedAt)).", locale: locale)
             }
-            return String(localized: "Verified. This door is now a clock-in target.")
+            return AppLanguage.string("Verified. This door is now a clock-in target.", locale: locale)
         }
         if let code = lastFailureCode {
             switch code {
-            case "zone_mismatch": return String(localized: "This card belongs to a different zone.")
-            case "tag_unbound": return String(localized: "This card was reported but isn't a zone yet. Use Test any card to finish it.")
-            case "unknown_location": return String(localized: "This card isn't one of ours.")
-            case "unknown_zone": return String(localized: "This zone isn't active any more.")
-            case "network": return String(localized: "No connection - try again.")
-            default: return String(localized: "Server trouble - try again.")
+            case "zone_mismatch": return AppLanguage.string("This card belongs to a different zone.", locale: locale)
+            case "tag_unbound": return AppLanguage.string("This card was reported but isn't a zone yet. Use Test any card to finish it.", locale: locale)
+            case "unknown_location": return AppLanguage.string("This card isn't one of ours.", locale: locale)
+            case "unknown_zone": return AppLanguage.string("This zone isn't active any more.", locale: locale)
+            case "network": return AppLanguage.string("No connection - try again.", locale: locale)
+            default: return AppLanguage.string("Server trouble - try again.", locale: locale)
             }
         }
         return outcomeText(outcome)
@@ -1036,13 +1041,13 @@ struct VerifyZoneScreen: View {
     private func outcomeText(_ outcome: TagReaderProbe.Outcome?) -> String {
         switch outcome {
         case .unreadable:
-            return String(localized: "Couldn't read a link or a known tag off this card.")
+            return AppLanguage.string("Couldn't read a link or a known tag off this card.", locale: locale)
         case .unavailable(let message):
-            return message
+            return AppLanguage.rerender(message, locale: locale)
         case .lost(let reason):
-            return String(localized: "Lost the connection (\(reason)). Try again.")
+            return AppLanguage.string("Lost the connection (\(reason)). Try again.", locale: locale)
         case .resolved, nil:
-            return String(localized: "Hold your phone near the card.")
+            return AppLanguage.string("Hold your phone near the card.", locale: locale)
         }
     }
 

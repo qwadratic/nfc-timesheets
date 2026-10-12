@@ -3,7 +3,7 @@
 // MyHoursScreen / myHoursStatusRes, TASK-189).
 //
 //   cd NFCTimeSheets && ./checks/run.sh          (or, on its own:)
-//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift \
+//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift \
 //     NFCTimeSheets/WorkerScope.swift NFCTimeSheets/LoadGuard.swift NFCTimeSheets/ViennaTime.swift \
 //     NFCTimeSheets/MyHours.swift checks/my-hours-check.swift > /tmp/my-hours-check.swift \
 //     && swift /tmp/my-hours-check.swift
@@ -443,8 +443,8 @@ check(screen.contains("AccessibilityNotification.Announcement(spoken).post()") &
       "a failure is announced when it appears (Android: an assertive live region)")
 check(inOrder(screen, ["Text(verbatim: building)", "Text(\"Unknown location\")"]),
       "the building is data (verbatim), else 'Unknown location'")
-check(inOrder(screen, ["if row.manual { pill(\"Manual\", .blue) }", "statusPill", "Text(\"Date: \\(ViennaTime.date(row.start))\")",
-                       "Text(\"Start: \\(ViennaTime.time(row.start))\")", "Text(\"End: \\(ViennaTime.time(end))\")", "Text(\"No end yet\")",
+check(inOrder(screen, ["if row.manual { pill(\"Manual\", .blue) }", "statusPill", "Text(\"Date: \\(ViennaTime.date(row.start, locale: locale))\")",
+                       "Text(\"Start: \\(ViennaTime.time(row.start, locale: locale))\")", "Text(\"End: \\(ViennaTime.time(end, locale: locale))\")", "Text(\"No end yet\")",
                        "Text(\"Duration: \\(fmtDur(duration))\")"]),
       "a row is: building, Manual, the status word, date, start, end or 'No end yet', duration - in Vienna time")
 check(screen.contains("if let duration = row.duration {"), "the duration line exists only for a row that has one")

@@ -1,7 +1,7 @@
 // Runnable check: finishing a reported-but-never-zoned card (decision-76).
 //
 //   cd NFCTimeSheets && cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift \
-//     NFCTimeSheets/API.swift NFCTimeSheets/FinishCard.swift checks/finish-card-check.swift \
+//     NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift NFCTimeSheets/FinishCard.swift checks/finish-card-check.swift \
 //     > /tmp/finish-card-check.swift && swift /tmp/finish-card-check.swift
 //
 // WHAT HAPPENED, which is why this exists: on 2026-10-07 a card was written and reported on

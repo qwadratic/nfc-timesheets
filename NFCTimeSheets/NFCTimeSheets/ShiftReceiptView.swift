@@ -113,12 +113,14 @@ struct ShiftReceiptView: View {
 /// receipt and the Recent rows under it never say two things about one shift.
 private struct DeliveryLine: View {
     let delivery: ShiftReceipt.Delivery
+    /// The app language's locale (decision-74): the row's own sentence is said again in it.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         switch delivery {
         case .problem(let sentence, let blocked):
             Label {
-                Text(verbatim: sentence)
+                Text(verbatim: AppLanguage.rerender(sentence, locale: locale))
             } icon: {
                 Image(systemName: blocked ? "xmark.octagon.fill" : "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
             }

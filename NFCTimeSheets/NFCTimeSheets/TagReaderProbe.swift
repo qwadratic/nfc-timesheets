@@ -52,7 +52,7 @@ final class TagReaderProbe: NSObject, NFCTagReaderSessionDelegate {
     /// against `zones` (the operator's own worklist, per this file's header).
     func scan(zones: [WireOperatorZone]) async -> Outcome {
         guard NFCTagReaderSession.readingAvailable else {
-            return .unavailable(message: String(localized: "This iPhone can't read NFC tags."))
+            return .unavailable(message: AppLanguage.string("This iPhone can't read NFC tags."))
         }
         self.zones = zones
         finished = false
@@ -63,10 +63,10 @@ final class TagReaderProbe: NSObject, NFCTagReaderSessionDelegate {
                 pollingOption: [.iso14443, .iso15693], delegate: self, queue: nil
             ) else {
                 self.continuation = nil
-                cont.resume(returning: .unavailable(message: String(localized: "This iPhone can't read NFC tags.")))
+                cont.resume(returning: .unavailable(message: AppLanguage.string("This iPhone can't read NFC tags.")))
                 return
             }
-            session.alertMessage = String(localized: "Hold the tag near the top of the phone.")
+            session.alertMessage = AppLanguage.string("Hold the tag near the top of the phone.")
             self.session = session
             session.begin()
         }
@@ -109,7 +109,7 @@ final class TagReaderProbe: NSObject, NFCTagReaderSessionDelegate {
                     && error.code == NFCReaderError.ndefReaderSessionErrorZeroLengthMessage.rawValue {
                 placeId = nil // blank - fall through to the serial match below
             } catch {
-                session.invalidate(errorMessage: String(localized: "Couldn't read this tag. Try again."))
+                session.invalidate(errorMessage: AppLanguage.string("Couldn't read this tag. Try again."))
                 finish(.lost(reason: "\(error)"))
                 return
             }
@@ -172,8 +172,7 @@ final class TagReaderProbe: NSObject, NFCTagReaderSessionDelegate {
         }
         switch code {
         case .readerErrorSecurityViolation:
-            return .unavailable(message: String(localized:
-                "Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md."))
+            return .unavailable(message: AppLanguage.string("Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md."))
         case .readerSessionInvalidationErrorUserCanceled:
             return .lost(reason: "cancelled")
         default:

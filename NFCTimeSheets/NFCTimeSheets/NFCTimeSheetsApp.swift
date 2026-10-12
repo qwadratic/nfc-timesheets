@@ -200,6 +200,11 @@ struct NFCTimeSheetsApp: App {
                 #if DEBUG
                 .demoBanner()
                 #endif
+                // THE APP LANGUAGE (decision-74): `\.locale` for every screen, set from the OS's own
+                // per-app value and live. The LAST modifier on purpose: an environment value reaches only
+                // what is inside the modifier that sets it, so it has to wrap everything above - the
+                // content, its sheets, alerts and dialogs, and the debug banner.
+                .appLanguage()
         }
         .modelContainer(container)
     }

@@ -1,7 +1,7 @@
 // Runnable check: the worker's PLANNED assignments (TASK-365.5, iOS P4, decision-80).
 //
 //   cd NFCTimeSheets && ./checks/run.sh          (or, on its own:)
-//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift \
+//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift \
 //     NFCTimeSheets/WorkerScope.swift NFCTimeSheets/LoadGuard.swift NFCTimeSheets/ViennaTime.swift \
 //     NFCTimeSheets/ScheduleStore.swift checks/schedule-check.swift > /tmp/schedule-check.swift \
 //     && swift /tmp/schedule-check.swift
@@ -547,9 +547,15 @@ for banned in [".background(", ".listRow", "RoundedRectangle", "Capsule(", ".cli
 let styles = views.components(separatedBy: ".foregroundStyle(").dropFirst().map { $0.components(separatedBy: ")")[0] }
 check(!styles.isEmpty && styles.allSatisfy { [".primary", ".secondary", ".tint"].contains($0) },
       "only semantic colours (.primary / .secondary / .tint) are used (\(styles))")
+// The ONE environment value a display view may read is the app language's locale (decision-74): the plan
+// line's date, times and joining words are in it. Every other @Environment is banned as before.
+let viewsWithoutLocale = views.replacingOccurrences(of: "@Environment(\\.locale) private var locale", with: "")
 for banned in ["ScheduleStore", "@Environment", "ModelContext", "ShiftAPI", "ShiftFlowAPI", "OperatorAPI", "handleTap", "TapInbox", "ShiftSignal"] {
-    check(!views.contains(banned), "ScheduleViews.swift is display only: it cannot reach '\(banned)'")
+    check(!viewsWithoutLocale.contains(banned), "ScheduleViews.swift is display only: it cannot reach '\(banned)'")
 }
+check(views.contains("@Environment(\\.locale) private var locale")
+      && views.contains("ScheduleTimeLine.text(from: assignment.startsAt, to: assignment.endsAt, locale: locale)"),
+      "the plan line is formatted in the app language's locale, read from the environment (decision-74)")
 let buttons = views.components(separatedBy: "Button").count - 1
 let borderless = views.components(separatedBy: ".buttonStyle(.borderless)").count - 1
 check(buttons >= 4 && buttons == borderless,
@@ -599,7 +605,7 @@ check(!views.contains("Text(verbatim: \""),
 // The two time-line templates: read OUT OF ViennaTime.swift as text, turned into the key the compiler
 // extracts (each \(...) becomes %@), and required to exist in the catalogue to the character.
 let vienna = code(source("ViennaTime.swift"))
-let templateLiteral = try! NSRegularExpression(pattern: #"String\(localized: "([^"]+)"\)"#)
+let templateLiteral = try! NSRegularExpression(pattern: #"AppLanguage\.string\("([^"]+)", locale: locale\)"#)
 let interpolation = try! NSRegularExpression(pattern: #"\\\([^)]*\)"#)
 var templateKeys: [String] = []
 for match in templateLiteral.matches(in: vienna, range: NSRange(vienna.startIndex..., in: vienna)) {

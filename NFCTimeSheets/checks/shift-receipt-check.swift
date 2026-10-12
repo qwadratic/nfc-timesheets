@@ -316,8 +316,8 @@ check(inOrder(view, ["Text(\"Shift finished\")", "Text(verbatim: name)", "format
 check(count(view, "DeliveryLine(") == 1, "exactly one delivery line")
 check(!view.contains("? Text(") && !view.contains("Text(delivery ==") && !view.contains("Label(delivered ?"),
       "no ternary of two string literals (the verbatim initialiser ships English, TASK-298)")
-check(view.contains("Text(verbatim: name)") && view.contains("Text(verbatim: sentence)"),
-      "the building and the row's already-localised sentence are DATA: verbatim, never looked up again")
+check(view.contains("Text(verbatim: name)") && view.contains("Text(verbatim: AppLanguage.rerender(sentence, locale: locale))"),
+      "the building is DATA: verbatim; the row's sentence was localised when it was stored, so it is drawn verbatim AFTER rerender says it in the language in force (decision-74)")
 let lineView = between(view, "private struct DeliveryLine: View {", "\n}\n")
 check(inOrder(lineView, ["case .problem(let sentence, let blocked):", "case .sent:", "Label(\"Sent\"", "case .sending:", "Label(\"Sending…\"",
                          "case .savedLocally:", "Label(\"Saved on this phone · not yet confirmed\""]),

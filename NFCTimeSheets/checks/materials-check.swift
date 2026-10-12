@@ -3,7 +3,7 @@
 // that a request written in a basement survives a process kill.
 //
 //   cd NFCTimeSheets
-//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift \
+//   cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift \
 //       NFCTimeSheets/Materials.swift \
 //       checks/materials-check.swift \
 //     > /tmp/materials-check.swift && swift /tmp/materials-check.swift

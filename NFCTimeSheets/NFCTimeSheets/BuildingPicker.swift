@@ -25,6 +25,7 @@ struct BuildingPicker: View {
     let locations: [WireOperatorLocation]
     let allowsSkip: Bool
     @Binding var selection: String?
+    @Environment(\.locale) private var locale
 
     var body: some View {
         Picker("Building", selection: $selection) {
@@ -32,8 +33,8 @@ struct BuildingPicker: View {
             // tag renders BLANK, which reads as a broken control rather than as a question
             // nobody has answered yet.
             Text(allowsSkip
-                 ? String(localized: "Skip for now")
-                 : String(localized: "Choose a building"))
+                 ? AppLanguage.string("Skip for now", locale: locale)
+                 : AppLanguage.string("Choose a building", locale: locale))
                 .tag(String?.none)
             ForEach(locations) { location in
                 Text(location.name).tag(String?.some(location.id))

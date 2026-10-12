@@ -182,5 +182,71 @@ for file in sources where file != "DemoHooks.swift" {  // demo builds only, see 
     }
 }
 
+// MARK: - AppLanguage.string("...") literals (TASK-365.14, decision-74)
+//
+// The in-app language resolver is the ONE way a string is built in code, so the literal passed to it is the
+// catalogue key - and a key with no entry ships its English on a German phone exactly like a Text literal
+// does. The regex above cannot see it (it is not one of the view builders), and the interpolated ones are
+// the ones that go wrong: "Your session ended. Sign in again." sat in Auth.swift as a bare String until this
+// sweep found it. This reads each call's FIRST ARGUMENT with a small scanner that understands \( ... )
+// nesting, turns every interpolation into a placeholder, and requires a catalogue key of the same shape
+// (a %@ / %lld / %d in the key is the same placeholder as one \( ) in the literal: the compiler picks the
+// type, this cannot).
+//
+// RED CASE: delete 'Your session ended. Sign in again.' from the catalogue and this fails naming Auth.swift.
+func resolverLiterals(in text: String) -> [String] {
+    let chars = Array(text)
+    let marker = Array("AppLanguage.string(")
+    var found: [String] = []
+    var i = 0
+    while i + marker.count < chars.count {
+        guard Array(chars[i..<(i + marker.count)]) == marker else { i += 1; continue }
+        var j = i + marker.count
+        while j < chars.count, chars[j] == " " || chars[j] == "\n" { j += 1 }
+        guard j < chars.count, chars[j] == "\"" else { i = j; continue }
+        j += 1
+        var literal = ""
+        var closed = false
+        while j < chars.count {
+            let c = chars[j]
+            if c == "\\", j + 1 < chars.count, chars[j + 1] == "(" {
+                var depth = 1
+                j += 2
+                while j < chars.count, depth > 0 {
+                    if chars[j] == "(" { depth += 1 } else if chars[j] == ")" { depth -= 1 }
+                    j += 1
+                }
+                literal += "\u{1}"
+                continue
+            }
+            if c == "\\", j + 1 < chars.count { literal.append(c); literal.append(chars[j + 1]); j += 2; continue }
+            if c == "\"" { closed = true; j += 1; break }
+            literal.append(c)
+            j += 1
+        }
+        if closed { found.append(literal) }
+        i = j
+    }
+    return found
+}
+let shape = try! NSRegularExpression(pattern: #"%(?:\d+\$)?(?:lld|ld|d|@|s|f)"#)
+func normalised(key: String) -> String {
+    shape.stringByReplacingMatches(in: key, range: NSRange(key.startIndex..., in: key), withTemplate: "\u{1}")
+}
+let catalogueShapes = Set(strings.keys.map(normalised(key:)))
+var resolverCalls = 0
+for file in sources where file != "AppLanguage.swift" && file != "DemoHooks.swift" {
+    guard let text = try? String(contentsOfFile: "NFCTimeSheets/\(file)", encoding: .utf8) else { continue }
+    let code = text.components(separatedBy: "\n")
+        .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
+    for literal in resolverLiterals(in: code) {
+        resolverCalls += 1
+        check(catalogueShapes.contains(literal),
+              "\(file) resolves the literal '\(literal.replacingOccurrences(of: "\u{1}", with: "%@"))' through AppLanguage.string "
+              + "and the catalogue has no key of that shape, so it renders in English on a German phone (AGENTS.md: both languages, same commit)")
+    }
+}
+check(resolverCalls > 100, "the sweep found the resolver's call sites (\(resolverCalls)): the scanner is reading the sources")
+
 if failed { exit(1) }
-print("localisation-check: OK (\(strings.count) keys, all German)")
+print("localisation-check: OK (\(strings.count) keys, all German; \(resolverCalls) AppLanguage.string literals)")

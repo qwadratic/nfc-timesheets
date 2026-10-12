@@ -1,7 +1,7 @@
 // Runnable check: "Start without a tag" (decision-81).
 //
 //   cd NFCTimeSheets && cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift \
-//     NFCTimeSheets/API.swift NFCTimeSheets/ManualStart.swift checks/manual-start-check.swift \
+//     NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift NFCTimeSheets/ManualStart.swift checks/manual-start-check.swift \
 //     > /tmp/manual-start-check.swift && swift /tmp/manual-start-check.swift
 //
 // WHY: since decision-69 a BUILDING id is never a clock-in target, but iOS's manual start offered

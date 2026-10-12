@@ -249,12 +249,16 @@ check(noticeView.contains("if case .problem(_, blocked: true) = content {")
       "the red icon is drawn for a BLOCKED problem only, and is decoration (the sentence beside it says it)")
 check(noticeView.contains("Text(verbatim: text)"),
       "the row's sentence is already localised data: drawn verbatim, never looked up again")
-check(noticeView.contains("String(localized: \"Saved on this phone · not yet confirmed\")"), "the generic line goes through the catalogue")
+check(noticeView.contains("AppLanguage.string(\"Saved on this phone · not yet confirmed\", locale: locale)"), "the generic line goes through the catalogue")
+check(noticeView.contains("AppLanguage.rerender(sentence, locale: locale)"),
+      "a row's own sentence was localised when it was STORED, so it is said again in the language in force now (decision-74)")
 check(noticeView.contains("AccessibilityNotification.Announcement(") && noticeView.contains("accessibilitySpeechAnnouncementPriority = .low")
       && noticeView.contains(".onAppear { announce() }") && noticeView.contains(".onChange(of: text) { announce() }"),
       "the line is a POLITE live region: a low-priority announcement when it appears and when its text changes")
+// The one environment value the notice reads is the app language's locale (decision-74).
+let noticeViewWithoutLocale = noticeView.replacingOccurrences(of: "@Environment(\\.locale) private var locale", with: "")
 for banned in ["ShiftSignalCenter", "ModelContext", "@Environment", "@Query", "Shift(", "ShiftAPI", "ShiftFlowAPI", "URLSession", "apiGet", "apiPost", "handleTap", ".disabled("] {
-    check(!noticeView.contains(banned) && !noticeLogic.contains(banned),
+    check(!noticeViewWithoutLocale.contains(banned) && !noticeLogic.contains(banned),
           "the notice is display only and adds no endpoint: it cannot reach '\(banned)'")
 }
 check(!noticeLogic.contains("import SwiftUI") && !noticeLogic.contains("import UIKit") && !noticeLogic.contains("import SwiftData")
@@ -316,11 +320,11 @@ let strings: [(String, String, String, String)] = [
     ("shift_pending_label", "Time recorded on this phone", "ShiftScreen.swift", "Text(\"Time recorded on this phone\")"),
     ("a11y_shift_pending", "%lld hours and %lld minutes recorded on this phone for %@. Not confirmed by the office yet.", "ShiftScreen.swift",
      "Text(\"\\(elapsed.hours) hours and \\(elapsed.minutes) minutes recorded on this phone for \\(running.locationName). Not confirmed by the office yet.\")"),
-    ("worker_saved_locally", "Saved on this phone · not yet confirmed", "PendingNoticeView.swift", "String(localized: \"Saved on this phone · not yet confirmed\")"),
+    ("worker_saved_locally", "Saved on this phone · not yet confirmed", "PendingNoticeView.swift", "AppLanguage.string(\"Saved on this phone · not yet confirmed\", locale: locale)"),
     ("log_refresh", "Refresh", "PendingNoticeView.swift", "Button(\"Refresh\", action: onRefresh)"),
-    ("notify_pending_title", "Not confirmed yet: %@", "ShiftSignalCenter.swift", "String(localized: \"Not confirmed yet: \\(running.locationName)\")"),
+    ("notify_pending_title", "Not confirmed yet: %@", "ShiftSignalCenter.swift", "AppLanguage.string(\"Not confirmed yet: \\(running.locationName)\", language: language)"),
     ("notify_pending_body", "Your time is saved on this phone. Open the app and check the message.", "ShiftSignalCenter.swift",
-     "String(localized: \"Your time is saved on this phone. Open the app and check the message.\")"),
+     "AppLanguage.string(\"Your time is saved on this phone. Open the app and check the message.\", language: language)"),
 ]
 for (name, key, file, written) in strings {
     guard let de = androidDe[name], let en = androidEn[name] else { check(false, "Android has string '\(name)'"); continue }

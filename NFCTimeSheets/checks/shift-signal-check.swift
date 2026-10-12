@@ -565,8 +565,8 @@ check(casePending != nil && caseAuto != nil && caseNudge != nil
 check(!ladderBody.contains("isAutoCloseWarning") && !ladderBody.contains("pendingConfirmation"),
       "scheduleLadder decides nothing itself: no isAutoCloseWarning, no flag read - ShiftSignal.reminderKind is the one rule")
 let pendingBranch = textBetween(ladderBody, "case .pending:", "case .autoClose:")
-check(pendingBranch.contains("String(localized: \"Not confirmed yet: \\(running.locationName)\")")
-      && pendingBranch.contains("String(localized: \"Your time is saved on this phone. Open the app and check the message.\")"),
+check(pendingBranch.contains("AppLanguage.string(\"Not confirmed yet: \\(running.locationName)\", language: language)")
+      && pendingBranch.contains("AppLanguage.string(\"Your time is saved on this phone. Open the app and check the message.\", language: language)"),
       "the pending rung is 'Not confirmed yet: <place>' with the saved-on-this-phone body (Android notify_pending_title / _body)")
 check(!pendingBranch.contains("closed automatically") && !pendingBranch.contains("Still clocked in"),
       "...and says nothing about an automatic close or a normal shift")

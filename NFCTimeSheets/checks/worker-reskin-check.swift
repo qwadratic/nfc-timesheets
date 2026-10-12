@@ -435,7 +435,7 @@ check(inOrder(composeBlock, ["guard store.submit(body: typed, locationId: contex
       "a request is cleared and marked saved only when the store ACCEPTED it (the guard comes first)")
 check(composeBlock.contains("if !new.isEmpty { justSaved = false }"),
       "the saved line goes when the worker starts the next request, not when the field is emptied by the submit itself")
-check(composeBlock.contains("String(localized: \"Request saved. It will be sent as soon as you're online.\")")
+check(composeBlock.contains("AppLanguage.string(\"Request saved. It will be sent as soon as you're online.\")")
       && !materials.contains("Announcement(\""),
       "the spoken confirmation is a localised string (it used to be a bare English literal)")
 

@@ -151,7 +151,7 @@ final class Session {
     private func serverRejectedSession() {
         if case .signedOut = state { return }  // already there; don't stomp the reason
         clearLocalSession()
-        state = .signedOut(reason: "Your session ended. Sign in again.")
+        state = .signedOut(reason: AppLanguage.string("Your session ended. Sign in again."))
     }
 
     // MARK: - Cache

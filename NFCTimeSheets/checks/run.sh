@@ -41,11 +41,11 @@ run() {
   if swift "$out"; then :; else failed=1; fi
 }
 
-run tag-link-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift"
+run tag-link-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift"
 run tap-inbox-check     "$SRC/TapInbox.swift"
-run migration-check     "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/MigrationCore.swift"
+run migration-check     "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift" "$SRC/MigrationCore.swift"
 run scrub-check         "$SRC/Scrub.swift"
-run materials-check     "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/Materials.swift"
+run materials-check     "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift" "$SRC/Materials.swift"
 run shift-signal-check  "$SRC/ShiftSignal.swift"
 # decision-57: OFF must stay OFF. See the check's header for why the default is the feature.
 run flags-check         "$SRC/FeatureFlags.swift"
@@ -67,9 +67,9 @@ run enrolment-code-check "$SRC/EnrolmentCode.swift"
 # decision-43: which BUILDING a tapped zone belongs to - the names every list shows, the
 # same-building rule on the tap path, and the building a material request carries. Also pins
 # that a malformed or missing `zones` key in /roster can never cost the app its locations.
-run zones-check         "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/Zones.swift"
+run zones-check         "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift" "$SRC/Zones.swift"
 # decision-81: "Start without a tag" picks a ZONE and asks the server first; a refusal writes no row.
-run manual-start-check  "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/ManualStart.swift"
+run manual-start-check  "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift" "$SRC/ManualStart.swift"
 # TASK-365.4 (iOS P3): a shared phone belongs to whoever is signed in. The helper's behaviour is
 # run for real (WorkerScope.swift is cat-ed in, with a struct standing in for Shift) AND the screens
 # are read off disk as text, so no Shift read can skip the scope and sign-out tears the signals down.
@@ -77,13 +77,13 @@ run worker-scope-check  "$SRC/WorkerScope.swift"
 # decision-76: a card that was written and reported but never made a zone is finished from
 # Test a tag, and the scan that found it is also its test scan. Pins the ORDER (resolve, then
 # verify with the id read off the card) and that Skip makes no verify call.
-run finish-card-check   "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/FinishCard.swift"
+run finish-card-check   "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift" "$SRC/FinishCard.swift"
 # decision-80 / TASK-365.5 (iOS P4): the worker's PLANNED assignments are a picture, never an input. The wire
 # (lenient per row, location_id never decoded), Europe/Vienna time with the device zone set to four others,
 # the stale-answer / worker-change / cancel guard, the REAL store with an injected fetch, and the screens read
 # as text: display only (not in refresh, the tap, sync or signals), no surface of their own, both languages,
 # German = Android's verbatim. Reads checks' sources, the catalogue and ../android off disk.
-run schedule-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/ViennaTime.swift" "$SRC/ScheduleStore.swift"
+run schedule-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/AppLanguage.swift" "$SRC/ViennaTime.swift" "$SRC/ScheduleStore.swift"
 # TASK-365.6 (iOS P5): "Not confirmed yet" is WORDS, never behaviour. The grace (an online tap is unacknowledged
 # for one request, so the screen waits 2 s), the notice decision run for real, and the screens read as text: the
 # notice is a SEPARATE view after the clock card (never inside it), no surface of its own, nothing hidden or
@@ -112,7 +112,7 @@ run worker-motion-check "$SRC/ConfirmationMotion.swift"
 # row, Vienna time with the device zone set to four others, the store run for real (stale / worker change / cancel / 401 /
 # offline = status 0 only / a new entry is a new fetch) and the screens read as text: read-only, no total, no rate, no write,
 # no cache, one fetch, no surface of its own, German = Android's verbatim.
-run my-hours-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/ViennaTime.swift" "$SRC/MyHours.swift"
+run my-hours-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/AppLanguage.swift" "$SRC/ViennaTime.swift" "$SRC/MyHours.swift"
 # TASK-365.13 (iOS B5): the operator door is the VERSION LINE - exactly five taps, reset only on the fifth, no time
 # window (the rule run for real, ported clause for clause from android/checks/version-tap-gate-check.kt) - and there is
 # no visible operator row on the signed-out screen or in More, read off disk as text. Also the identity card's initials.
@@ -123,6 +123,14 @@ run sync-flags-check
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi
+
+# decision-74 / TASK-365.14 (iOS E1): the in-app language. The resolver runs for real (the value set, a stored OS
+# value -> selection, follow-the-phone and the fallback, the locale, persistence through an injected store, string
+# resolution against a throwaway de/en bundle, rerender of a stored sentence), AND the sources are read as text: a
+# String(localized:) / NSLocalizedString / bundle lookup / Locale.current / the OS key outside AppLanguage.swift is a
+# FAILURE here, the root puts the language into the environment last and never recreates the tree, and every display
+# site of a stored sentence says it again. It also loads the real catalogue and round-trips real sentences.
+run app-language-check "$SRC/AppLanguage.swift"
 
 # TASK-365.9 (iOS B1, Blue Hour): the shared worker tokens (18 pt cards, inverse-filled 56 pt buttons, Android's
 # exact inverse pair in the asset catalogue), THREE tabs always with History pushed from More, a tap that arrives

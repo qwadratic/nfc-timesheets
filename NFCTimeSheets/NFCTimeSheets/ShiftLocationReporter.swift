@@ -47,15 +47,15 @@ final class ShiftLocationReporter: NSObject, CLLocationManagerDelegate {
         interval = TimeInterval(shift.locationIntervalSeconds)
         switch manager.authorizationStatus {
         case .notDetermined:
-            message = String(localized: "Location is collected during this shift at your company's interval. iOS may delay updates.")
+            message = AppLanguage.string("Location is collected during this shift at your company's interval. iOS may delay updates.")
             manager.requestWhenInUseAuthorization()
         case .authorizedAlways, .authorizedWhenInUse:
-            message = String(localized: "Location is collected during this shift at your company's interval. iOS may delay updates.")
+            message = AppLanguage.string("Location is collected during this shift at your company's interval. iOS may delay updates.")
             manager.allowsBackgroundLocationUpdates = true
             manager.startUpdatingLocation()
         default:
             manager.stopUpdatingLocation()
-            message = String(localized: "Location access is off. Enable it in Settings to record your shift location.")
+            message = AppLanguage.string("Location access is off. Enable it in Settings to record your shift location.")
         }
     }
 
@@ -76,7 +76,7 @@ final class ShiftLocationReporter: NSObject, CLLocationManagerDelegate {
             manager.startUpdatingLocation()
         } else if manager.authorizationStatus != .notDetermined {
             manager.stopUpdatingLocation()
-            message = String(localized: "Location access is off. Enable it in Settings to record your shift location.")
+            message = AppLanguage.string("Location access is off. Enable it in Settings to record your shift location.")
         }
     }
 
@@ -96,14 +96,14 @@ final class ShiftLocationReporter: NSObject, CLLocationManagerDelegate {
                 let _: LocationAck = try await apiPost("/shifts/\(key)/locations", sample)
                 guard shiftKey == key else { return }
                 lastSent = location.timestamp
-                message = String(localized: "Location is collected during this shift at your company's interval. iOS may delay updates.")
+                message = AppLanguage.string("Location is collected during this shift at your company's interval. iOS may delay updates.")
             } catch let failure as APIFailure {
                 guard shiftKey == key else { return }
                 if failure.code == "shift_not_active" || failure.code == "location_tracking_disabled" { stop() }
                 else {
                     // Failed/stale samples are never replayed as current. Try a new fix after the interval.
                     lastSent = location.timestamp
-                    message = String(localized: "Location could not be sent. A fresh location will be tried at the next interval.")
+                    message = AppLanguage.string("Location could not be sent. A fresh location will be tried at the next interval.")
                 }
             } catch {
                 if shiftKey == key { lastSent = location.timestamp }
@@ -113,7 +113,7 @@ final class ShiftLocationReporter: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         guard shiftKey != nil else { return }
-        message = String(localized: "Location is temporarily unavailable. Keep location access enabled.")
+        message = AppLanguage.string("Location is temporarily unavailable. Keep location access enabled.")
     }
 }
 

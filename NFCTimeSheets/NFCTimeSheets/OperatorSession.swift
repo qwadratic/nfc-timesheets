@@ -136,7 +136,7 @@ final class OperatorSession {
     private func serverRejectedSession() {
         if case .signedOut = state { return }
         clearLocalSession()
-        state = .signedOut(reason: String(localized: "Your session ended. Sign in again."))
+        state = .signedOut(reason: AppLanguage.string("Your session ended. Sign in again."))
     }
 
     private func store(_ op: WireOperator) {

@@ -1,7 +1,7 @@
 // Runnable check: zones on the worker phone (decision-43, decision-47).
 //
 //   cd NFCTimeSheets && cat NFCTimeSheets/Branding.swift NFCTimeSheets/TagLink.swift \
-//     NFCTimeSheets/API.swift NFCTimeSheets/Zones.swift checks/zones-check.swift \
+//     NFCTimeSheets/API.swift NFCTimeSheets/AppLanguage.swift NFCTimeSheets/Zones.swift checks/zones-check.swift \
 //     > /tmp/zones-check.swift && swift /tmp/zones-check.swift
 //
 // WHY: a tap posts a ZONE id and the shift row keeps it, but until this check existed the
