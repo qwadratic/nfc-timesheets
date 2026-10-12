@@ -1,4 +1,4 @@
-> **Publication blocked for the combined shift-evidence release.** This document describes the earlier app and has not been reconciled with optional active-shift location collection and camera photo proof. Statements that the app does not collect location or photos are obsolete for the new feature. Do not submit this draft or use its declarations for the combined release until permissions, background location, data collection/sharing, retention/deletion and the privacy policy have been reviewed and updated. iOS/native release verification is also pending.
+> **Сверено 12.10.2026 с функцией «Schichtnachweise / Shift evidence»** (PR #17: необязательная геопозиция во время смены и фото-подтверждение; `docs/shift-evidence.md`). Всё, что отмечено ⚠, подтверждает владелец перед отправкой: это заявление Google от его имени. **Не проверено:** iOS-сборка и поведение на физических устройствах (в `docs/shift-evidence.md` это прямо указано), срок хранения координат и фото (в коде и документах не задан).
 
 # Публикация Android-приложения в Google Play
 
@@ -65,9 +65,18 @@
 5. **Android Developer Verification**: в Play Console сейчас баннер о регистрации имён пакетов и
    ключей подписи для приложений вне Google Play (срок в баннере 30.09.2026, первые страны не
    включают Австрию, остальные мир позже). Прямой APK с лендинга попадает под это: зарегистрируйте
-   `io.github.qwadratic.NFCTimeSheets` и SHA-256 ключа подписи (он указан в `ops/branding.json`)
+   `io.github.qwadratic.NFCTimeSheets` и SHA-256 ключа подписи. В `ops/branding.json` лежат два отпечатка: ключ загрузки
+   `6C:78:68:99:…:2C:42:99:6C` (сверен 12.10.2026 по подписанному APK 0.5.10) и второй, `3E:15:0B:C1:…`,
+   который по комментарию в файле должен быть ключом подписи Google Play (его я не проверял, он
+   берётся из Play Console → App integrity)
    на странице проверки разработчиков Android.
-6. **Публичный адрес сайта** для карточки: сейчас лендинг живёт на `schimmer-glanz.exe.xyz`
+6. **Срок хранения координат и фото** (`{{EVIDENCE_RETENTION}}` в политике): в коде и документах
+   срока нет. Пока он не назван, форму Data safety и политику отправлять нельзя.
+7. **Повторно заполнить Data safety** (геопозиция и фото теперь собираются, пусть и по настройке
+   компании) и **декларацию «Foreground service permissions»** с видео: тексты в
+   [data-safety.md](data-safety.md) и [declarations.md](declarations.md). Сначала нужен минимальный
+   SDK 24, иначе Play не принимает сборку (см. коммит `ci-play-minsdk-24`).
+8. **Публичный адрес сайта** для карточки: сейчас лендинг живёт на `schimmer-glanz.exe.xyz`
    (переименуемый хост, decision-40). Для магазина лучше собственный домен.
 
 ## Графика

@@ -1,4 +1,4 @@
-> **Publication blocked for the combined shift-evidence release.** This document describes the earlier app and has not been reconciled with optional active-shift location collection and camera photo proof. Statements that the app does not collect location or photos are obsolete for the new feature. Do not submit this draft or use its declarations for the combined release until permissions, background location, data collection/sharing, retention/deletion and the privacy policy have been reviewed and updated. iOS/native release verification is also pending.
+> **Сверено 12.10.2026 с функцией «Schichtnachweise / Shift evidence»** (PR #17: необязательная геопозиция во время смены и фото-подтверждение; `docs/shift-evidence.md`). Всё, что отмечено ⚠, подтверждает владелец перед отправкой: это заявление Google от его имени. **Не проверено:** iOS-сборка и поведение на физических устройствах (в `docs/shift-evidence.md` это прямо указано), срок хранения координат и фото (в коде и документах не задан).
 
 # Остальные декларации приложения
 
@@ -42,5 +42,25 @@ Google требует рабочий вход для проверяющего. �
 | `INTERNET`, `ACCESS_NETWORK_STATE` | синхронизация смен |
 | `POST_NOTIFICATIONS` | показать идущую смену и напомнить об окончании |
 | `RECEIVE_BOOT_COMPLETED` | вернуть уведомление идущей смены после перезагрузки |
+| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | записывать позицию во время идущей смены, если компания включила «Schichtnachweise» |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION` | служба переднего плана типа `location` (`.evidence.ShiftLocationService`), видимое уведомление, пока идёт запись позиции |
 
-Ограниченных разрешений (геолокация, SMS, журнал вызовов) нет. Foreground-сервиса нет.
+SMS и журнал вызовов не запрашиваются. **`ACCESS_BACKGROUND_LOCATION` не запрашивается**, поэтому
+отдельная декларация «Доступ к геопозиции в фоновом режиме» не нужна. Камера: снимок делает
+системное приложение камеры (`TakePicture`), у приложения нет разрешения `CAMERA`.
+
+## Foreground service permissions (Play Console → Содержание приложения)
+
+Это новая обязательная декларация для типа `location`. ⚠ Формы Google меняются, сверить в консоли.
+
+| Поле | Что написать |
+|------|--------------|
+| Тип службы | `Location` |
+| Для чего | Пока у работника идёт смена и компания включила запись позиции, приложение раз в заданный компанией интервал (от 1 до 1440 минут) записывает позицию и отправляет её на сервер компании. Служба видима (уведомление), останавливается при завершении смены, выходе из аккаунта и через 8 часов. |
+| Почему не может быть отложено или выполнено иначе | Позиция нужна, пока приложение не на экране (телефон в кармане во время уборки); запланированные задания ОС не дают заданного компанией интервала. ⚠ подтвердить |
+| Видео | показать: админка → «Schichtnachweise» → «Standort während der Schicht» = «Ein» → в приложении начать смену → видимое уведомление службы → завершить смену → уведомление исчезло |
+
+## Данные пользователей и разрешения на геопозицию
+
+Форма Data safety заполняется отдельно: [data-safety.md](data-safety.md). Политика
+конфиденциальности обязана говорить о геопозиции и фото: [privacy-policy.md](privacy-policy.md).
