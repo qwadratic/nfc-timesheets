@@ -1,4 +1,4 @@
-> **Publication blocked for the combined shift-evidence release.** This document describes the earlier app and has not been reconciled with optional active-shift location collection and camera photo proof. Statements that the app does not collect location or photos are obsolete for the new feature. Do not submit this draft or use its declarations for the combined release until permissions, background location, data collection/sharing, retention/deletion and the privacy policy have been reviewed and updated. iOS/native release verification is also pending.
+> **Сверено 12.10.2026 с функцией «Schichtnachweise».** Тексты ниже описывают и необязательные геопозицию/фото; перед отправкой владелец подтверждает формулировки (⚠).
 
 # Страница приложения в Google Play (черновик текстов)
 
@@ -36,7 +36,7 @@ Was die App kann
 • Deutsch und Englisch, folgt wahlweise der Telefonsprache
 
 Datenschutz
-Die App verwendet keinen Standort, keine Kontakte, keine Fotos und keine Werbe-ID. Erfasst werden die Zeiten Ihrer Schichten und die Angaben, die Ihre Verwaltung für Sie hinterlegt hat.
+Die App verwendet keine Kontakte, kein Mikrofon und keine Werbe-ID. Erfasst werden die Zeiten Ihrer Schichten und die Angaben, die Ihre Verwaltung für Sie hinterlegt hat. Nur wenn Ihre Verwaltung es einschaltet, erfasst die App während einer laufenden Schicht den Standort und verlangt beim Beenden ein Kamerafoto.
 
 Hinweis
 Für den Einsatz im Unternehmen ist ein NFC-fähiges Telefon erforderlich. Informationen für Unternehmen: siehe Website.
@@ -57,7 +57,7 @@ What the app does
 • German and English, optionally following the phone language
 
 Privacy
-The app does not use location, contacts, photos or an advertising ID. It records the times of your shifts and the details your administration stored for you.
+The app does not use contacts, microphone or an advertising ID. It records the times of your shifts and the details your administration stored for you. Only if your administration switches it on, it records location during a running shift and asks for a camera photo when you finish.
 
 Note
 An NFC-capable phone is required. Company information: see the website.
