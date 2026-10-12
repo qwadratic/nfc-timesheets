@@ -3,9 +3,10 @@ id: TASK-365.13
 title: >-
   iOS B5: Reskin: More / Settings (identity card, sign out confirmation) and the
   five-tap operator entry
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:22'
+updated_date: '2026-10-12 22:55'
 labels:
   - ios
   - parity
@@ -83,17 +84,30 @@ Part of the Blue Hour reskin (docs/ANDROID-WORKER-DESIGN.md, TASK-363). More ope
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 More opens with an identity card (initials avatar + name) holding the My hours and History rows
-- [ ] #2 Settings no longer prints the 'managed by your admin on the web' sentence
-- [ ] #3 Sign out asks for confirmation and shows the consequences
-- [ ] #4 Signed-out screen: visible operator row removed, version line added, five taps on it open the operator gate
-- [ ] #5 Signed-in More/Settings: operator row removed; the version line is the five-tap operator entry
-- [ ] #6 Tap gate rule: exactly five taps, reset only on the fifth, no time window
-- [ ] #7 Check pinning the gate rule and the absence of visible operator rows
-- [ ] #8 Operator screen opened from Settings replaces the whole worker scaffold (no tab bar)
-- [ ] #9 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
-- [ ] #10 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
-- [ ] #11 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
-- [ ] #12 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
-- [ ] #13 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
+- [x] #1 More opens with an identity card (initials avatar + name) holding the My hours and History rows
+- [x] #2 Settings no longer prints the 'managed by your admin on the web' sentence
+- [x] #3 Sign out asks for confirmation and shows the consequences
+- [x] #4 Signed-out screen: visible operator row removed, version line added, five taps on it open the operator gate
+- [x] #5 Signed-in More/Settings: operator row removed; the version line is the five-tap operator entry
+- [x] #6 Tap gate rule: exactly five taps, reset only on the fifth, no time window
+- [x] #7 Check pinning the gate rule and the absence of visible operator rows
+- [x] #8 Operator screen opened from Settings replaces the whole worker scaffold (no tab bar)
+- [x] #9 Screen-by-screen walk on the simulator in light, dark and the largest Dynamic Type size, de and en, with screenshots attached to the final summary
+- [x] #10 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
+- [x] #11 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
+- [x] #12 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
+- [x] #13 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented in de3e7c5 (branch ios-blue-hour-reskin). More: heading + ONE identity card (initials circle hidden from VoiceOver, name spoken 'Signed in as <name>', My hours, History idle-only), a quiet text Sign out that ASKS, the version line last. The 'Signed in as' header, Name row and the admin sentence are gone; no language card (decision-74) and no delivery card (decision-23).
+Sign out is an ALERT (Android AlertDialog), not the confirmationDialog the port notes suggested: on iOS 26 a confirmationDialog is a narrow popover anchored to the row with no Cancel and clipped its message at the largest text size (seen in the walk). The message is the old footer plus a new-code sentence naming the admin code and, where available, the SMS code (one new key, de + en; the old footer key is retired).
+OPERATOR ACCESS after B5: the visible 'Write or test tags' rows (signed-out screen and More) and both sentences are removed. The only door is the version line ('Installed: 1.0 (11)', decision-52 wording): exactly five taps (VersionTapGate, ported from VersionTapGate.kt; reset only on the fifth, no time window, not onTapGesture(count: 5)), per-screen counter, then OperatorHomeScreen - still THE gate (decision-54): no ts_operator cookie shows the shared code/SMS form, a cookie shows Write/Test. OperatorHomeScreen hides the worker tab bar (toolbarVisibility), so the operator tools replace the worker scaffold; driven with the seeded operator down to Write a tag and Test a tag (tab bar hidden on all three). The port notes marked this optional/'confirm with the owner'; the task description and criterion #8 require it, so it is done and flagged here. docs/NFC-WRITE-SETUP.md now tells operators the gesture. One deliberate difference from Kotlin: advance() treats an out-of-range count as a fresh sequence instead of throwing (a worker phone must not trap on a gesture counter); pinned.
+Collisions with P1-P7: P7 (My hours moved from a Form row into the card; my-hours-check re-pinned, MyHoursView untouched), P3 (sign-out: Session.signOut and worker-scope-check unchanged, called from exactly one place; the sign-out / shared-phone / schedule-identity / delivery rig tests go through signOutFromMore), P6 (SignInView keeps DeliveryStatusRows; the version section follows the code form), B1 (History row / pop-on-shift-start kept; More is a ScrollView now so NavigationLink rows draw no second chevron).
+Hand-run XCUITests (FinishReportedCardUITests, SmsDoorVisibilityUITests, WriteTagRestartUITests) now open the gate with the version line; they target a stub server and were compiled with the rig build but NOT run. Not proven: VoiceOver itself.
+Checks: version-tap-gate-check (rule + initials + wiring, in run.sh) and worker-reskin-check section 3e, each pin reproduced RED by mutation (requiredTaps 4, no reset on the fifth, trusting an out-of-range count, a Date in the row, the row title back, a missing version line, onTapGesture(count: 5), tab bar left visible, three initials, the retired key back, sign-out on one press, the admin sentence back, a language picker, German losing the SMS door, confirmationDialog back).
+Rig: signOutFromMore / openOperatorGate helpers; rig.sh new-code O (seeded operator); walks testB5MoreIdentityCardAndSignOutDialog (all five combos), testB5VersionLineFiveTapsOpenTheOperatorGate (five combos; four taps with a 12 s pause open nothing, fifth opens, no tab bar, Back keeps the worker signed in, next sequence resets), testB5SignedOutVersionLineAndGate (light-en-m, dark-de-xxxl, light-en-xxxl), testB5OperatorToolsKeepTheTabBarHidden (light-en-m, dark-en-m). Regression walks PASS: signin, p3 (signout, b-signin, b-same-place, b-elsewhere, a-returns, session-rejected, replaced, swipe-delete), p4-identity, p6-signin, p1-material (34/34 lines).
+Evidence: /private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad/rig-reskin/shots (<combo>-b5-01..b5-09).
+<!-- SECTION:NOTES:END -->
