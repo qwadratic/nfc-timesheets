@@ -97,6 +97,22 @@ run pending-notice-check "$SRC/ShiftSignal.swift" "$SRC/PendingNotice.swift"
 # screens read as text: display only, device-wide through WorkerScope, no surface, nothing that promises automatic
 # delivery (iOS has none) in either language, German = Android's verbatim except the one named adverb.
 run pending-work-check  "$SRC/PendingWork.swift"
+# TASK-365.8 / decision-83 (iOS P7): the finished-shift RECEIPT. When it is offered (0-120 s, captured once, kept until
+# Continue, never re-offered, the server's millisecond echo of the finish is the same finish), what its delivery line says
+# (the row's sentence / Sent / Sending... inside the grace / Saved on this phone) and the gate for the check, which is a
+# separate question; and the screens read as text: a Section after the banner, the start Sections drawn only without it,
+# Recent minus its row, inline, no surface of its own, fmtDur untouched, German = Android's verbatim.
+run shift-receipt-check "$SRC/PendingWork.swift" "$SRC/ShiftReceipt.swift"
+# decision-83: the one-shot ring-then-check plays ONLY after a clean server ACK. The gate run for real at fixed instants
+# (pending / failed / blocked never; a late ACK, an adopted old shift, a second event, clock skew), the identity consumed
+# BEFORE anything animates and also under Reduce Motion, clock-in and clock-out independent, Android's stage arithmetic to
+# the constant, and the wiring as text (two call sites, nothing on the tap path knows it, never green, no strings).
+run worker-motion-check "$SRC/ConfirmationMotion.swift"
+# decision-83: "My hours", the server's last 60 days. The status order (no end first), the duration omitted for the running
+# row, Vienna time with the device zone set to four others, the store run for real (stale / worker change / cancel / 401 /
+# offline = status 0 only / a new entry is a new fetch) and the screens read as text: read-only, no total, no rate, no write,
+# no cache, one fetch, no surface of its own, German = Android's verbatim.
+run my-hours-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/ViennaTime.swift" "$SRC/MyHours.swift"
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

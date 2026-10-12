@@ -273,6 +273,17 @@ struct ShiftScreen: View {
                     .multilineTextAlignment(.center)
             }
         }
+        // decision-83 (P7): the one-shot ring-then-check over the digits, ONLY after a clean server
+        // acknowledgement of THIS start (ShiftSignal.isConfirmed: the open landed, no error, not past
+        // 8 hours) and only for an event under 45 s old, once per start. Presentation only: the
+        // digits still tick, the card is still one accessibility element, nothing waits on it. The
+        // animation clock lives in the modifier, a child, so this minute tick cannot restart it.
+        .confirmationMotion(
+            kind: .clockIn,
+            identity: ConfirmationMotion.identity(clockInAt: running.locationId, startedAt: running.startTime),
+            confirmed: ShiftSignal.isConfirmed(running, now: now, hasSyncError: syncError?.isEmpty == false),
+            eventTime: running.startTime,
+            ink: .primary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 20))

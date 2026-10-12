@@ -314,12 +314,32 @@ struct LogView: View {
     @State private var proofAutoClose = false
     /// decision-82: bumped when a held-back delivery row settles, so `deliveryRows` is read again.
     @State private var deliveryTick = 0
+    /// decision-83 (P7): which finished shift the idle list is offering a "Shift finished" receipt
+    /// for, and which one the worker dismissed. A VALUE (ShiftReceipt.Memory): the rule - offered
+    /// when the newest finish is 0-120 s old, then kept until Continue - runs on a Mac in
+    /// checks/shift-receipt-check.swift. DISPLAY ONLY: nothing on the tap path, in the sync pass or
+    /// in the signals reads it, and it dies with this view like every other @State here.
+    @State private var receiptMemory = ShiftReceipt.Memory()
 
     /// The row a tap toggles and the running screen shows: THIS worker's newest open row. Another
     /// account's forgotten open row is not it (WorkerScope.openShift) - B's first tap must start
     /// B's shift, not close A's.
     private var openRow: Shift? { allShifts.openShift(for: worker.id) }
     private var recent: [Shift] { Array(allShifts.completed(for: worker.id).prefix(5)) }
+    /// decision-83: the finished shift whose receipt is up, or nil. It is the NEWEST finished row of
+    /// THIS worker (`recent.first`), and only while the memory offers it - derived in the same
+    /// render, so the first frame after a finish already shows the receipt and never the start
+    /// controls first.
+    private var receiptShift: Shift? {
+        guard let latest = recent.first,
+              receiptMemory.offer(for: latest.receiptIdentity, now: .now) != nil else { return nil }
+        return latest
+    }
+    /// Recent, minus the row the receipt is showing (Android: `filterNot { showReceipt && it == latest }`).
+    private var recentRows: [Shift] {
+        guard let shown = receiptShift else { return recent }
+        return recent.filter { $0.clientUuid != shown.clientUuid }
+    }
     /// What the PHONE still holds, for every account that queued it (decision-82): the one deliberate
     /// device-wide read on this screen. It feeds the delivery rows on the idle list and the running
     /// screen and nothing else - never a list, a total, the lock or a tap.
@@ -548,6 +568,17 @@ struct LogView: View {
                     }
                 }
             }
+            // decision-83: the "Shift finished" receipt, at the TOP of the idle list (Android replaces its start
+            // card with it; here the start Sections sit below Recent, so the receipt goes above everything
+            // but the unresolved banner, which stays on screen). Inline, never a sheet or alert: taps, tabs
+            // and the resolver keep working. Its row is filtered out of Recent below.
+            if let receiptShift {
+                Section {
+                    ShiftReceiptView(shift: receiptShift, name: siteName(receiptShift.locationId)) {
+                        receiptMemory.dismiss(receiptShift.receiptIdentity)
+                    }
+                }
+            }
             // decision-82: what the phone still holds - blocked and waiting count rows, nothing at all
             // when the outbox is empty. Not wrapped in a Section on purpose: an empty Section would
             // still draw a gap on the screen most workers see most of the time.
@@ -557,48 +588,56 @@ struct LogView: View {
             Section {
                 ScheduleSummary(state: schedule.state, retry: loadSchedule)
             }
-            Section("Recent") {
-                if recent.isEmpty { Text("No completed shifts yet.").foregroundStyle(.secondary) }
-                ForEach(recent) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
+            // decision-83: while the receipt shows the only finished row, a "Recent" header over
+            // nothing (or over "No completed shifts yet.") would contradict the screen.
+            if receiptShift == nil || !recentRows.isEmpty {
+                Section("Recent") {
+                    if recent.isEmpty { Text("No completed shifts yet.").foregroundStyle(.secondary) }
+                    ForEach(recentRows) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
+                }
             }
-            Section {
-                VStack(spacing: 12) {
-                    Image(systemName: "wave.3.right")
-                        .font(.title2)
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                    Text("Hold your phone to the tag by the entrance to start.")
-                        .font(.callout)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .accessibilityElement(children: .combine)
-                    // THE ONE FILLED BUTTON on this screen: the primary action. Everything
-                    // else in this list is secondary or corrective and is plain/bordered.
-                    Button(action: scan) {
-                        Label("Scan a tag", systemImage: "wave.3.right")
-                            .frame(maxWidth: .infinity)
+            // decision-83: the scan block and "Start without a tag" are the start card the receipt
+            // replaces (Android). A tag tap still starts a shift; Continue brings these back.
+            if receiptShift == nil {
+                Section {
+                    VStack(spacing: 12) {
+                        Image(systemName: "wave.3.right")
+                            .font(.title2)
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
+                        Text("Hold your phone to the tag by the entrance to start.")
+                            .font(.callout)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                            .accessibilityElement(children: .combine)
+                        // THE ONE FILLED BUTTON on this screen: the primary action. Everything
+                        // else in this list is secondary or corrective and is plain/bordered.
+                        Button(action: scan) {
+                            Label("Scan a tag", systemImage: "wave.3.right")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-            // decision-56 §4. CLEARLY SECONDARY: a plain row under the tap instruction, not
-            // a prominent button beside it - the tag stays the normal way in, and this is the
-            // answer to a broken card, an unreachable one, or a phone whose NFC is dead.
-            // Flagged, never silent; the footer says so before it is pressed, not after.
-            Section {
-                // Corrective, so BORDERED and never filled (2026-08-29 UX audit).
-                Button("Start without a tag") {
-                    manualPick = nil
-                    manualError = nil
-                    showManualStart = true
+                // decision-56 §4. CLEARLY SECONDARY: a plain row under the tap instruction, not
+                // a prominent button beside it - the tag stays the normal way in, and this is the
+                // answer to a broken card, an unreachable one, or a phone whose NFC is dead.
+                // Flagged, never silent; the footer says so before it is pressed, not after.
+                Section {
+                    // Corrective, so BORDERED and never filled (2026-08-29 UX audit).
+                    Button("Start without a tag") {
+                        manualPick = nil
+                        manualError = nil
+                        showManualStart = true
+                    }
+                    .buttonStyle(.bordered)
+                } footer: {
+                    Text("Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry.")
+                        .font(.footnote)
                 }
-                .buttonStyle(.bordered)
-            } footer: {
-                Text("Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry.")
-                    .font(.footnote)
             }
             #if DEBUG
             manualMockSection
@@ -611,6 +650,12 @@ struct LogView: View {
                 Text("This app has no push. Everything you see here updates when you open it.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+        }
+        // decision-83: remember the offer, so a receipt entered within two minutes outlives the
+        // window and stays until Continue. `initial: true` is the first appearance after a finish.
+        // It only records which receipt was shown; the screen above already derived it.
+        .onChange(of: recent.first?.receiptIdentity, initial: true) { _, latest in
+            receiptMemory.observe(latest, now: .now)
         }
     }
 
@@ -1085,7 +1130,10 @@ struct ShiftRow: View {
 /// Text(_ key: LocalizedStringKey) consults the catalogue. All call sites pass literals,
 /// so they compile unchanged; a future caller with a RUNTIME String will not compile,
 /// which is the point - it would have to say what key it means.
-private func pill(_ t: LocalizedStringKey, _ c: Color) -> some View {
+///
+/// Not private any more (decision-83, P7): the finished-shift receipt and My hours draw the SAME
+/// pills, so there is one place the Blue Hour reskin has to restyle them.
+func pill(_ t: LocalizedStringKey, _ c: Color) -> some View {
     Text(t).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
         .background(c.opacity(0.2)).foregroundStyle(c).clipShape(Capsule())
 }
@@ -1257,6 +1305,11 @@ struct SettingsView: View {
                 Section("Signed in as") {
                     LabeledContent("Name", value: worker.name)
                         .accessibilityLabel("Signed in as \(worker.name)")
+                    // decision-83: the server's last 60 days, read-only (Android: More > "Meine Stunden",
+                    // in the identity card). A pushed screen that asks the server on every entry and
+                    // keeps nothing; it takes the worker so its request is made as THEM and dropped if
+                    // somebody else holds the session by the time it lands.
+                    NavigationLink("My hours") { MyHoursView(worker: worker) }
                 }
                 Section {
                     Text("Hours, locations and payroll are managed by your admin on the web.")
