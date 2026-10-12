@@ -14,6 +14,14 @@ import SwiftData
 /// gated (decision-50) - there is no third, dead-end screen any more.
 struct ContentView: View {
     @Environment(Session.self) private var session
+    /// Read here for ONE reason: a tap that arrives while the worker is on Materials or More must
+    /// bring them to the Shift tab (Android SignedInScaffold selects the Shift tab, then consumes).
+    /// It is never TAKEN here - LogView's take() stays the single consumer, so a tap is still
+    /// handled exactly once (checks/tap-inbox-check.swift, shift-signal-check.swift).
+    @Environment(TapInbox.self) private var inbox
+    /// The selected tab, by name. Three destinations, always (Shift, Materials, More): History is
+    /// never one of them, it is a row under More (SettingsView).
+    @State private var selection: AppTab = .log
     /// Rows an on-device migration archived, shown once as a receipt. Loaded lazily and
     /// only inside the eligible branch: that branch mounts after the launch task has run
     /// the migrations, so there is no race between "what happened" and "telling them".
@@ -47,11 +55,12 @@ struct ContentView: View {
         case .signedOut(let reason):
             SignInView(reason: reason)
         case .eligible(let worker):
-            // THE LOCK. While a shift runs the tab bar is shorter: History goes, because
-            // nothing in it is time-critical. Materials and Settings never go, because a
-            // worker standing in a building needs to ask for supplies and a handed-over
-            // phone must be signable-out (decision-22). The resolver is not a tab - it is
-            // a banner on the Log tab, present in every state (decision-10).
+            // THE LOCK. The tab bar is three destinations in EVERY state - Shift, Materials, More
+            // - and History is not one of them: it is a row under More that is offered only
+            // while no shift runs, because nothing in it is time-critical. Materials and More
+            // never go, because a worker standing in a building needs to ask for supplies and
+            // a handed-over phone must be signable-out (decision-22). The resolver is not a
+            // tab - it is a banner on the Shift tab, present in every state (decision-10).
             //
             // This is WORK DISCIPLINE and not a security boundary: the rule lives in the
             // pure ShiftSignal.visibleTabs, which checks/shift-signal-check.swift asserts
@@ -61,15 +70,21 @@ struct ContentView: View {
             // replacing the cached A with the server's B without ever passing through
             // signed-out - would otherwise keep every tab's @State (the unresolved list, the
             // switch notice, a half-typed material request, an open sheet) and never re-run
-            // LogView's refresh. A new identity recreates all four tabs, so B starts from B's
+            // LogView's refresh. A new identity recreates all three tabs, so B starts from B's
             // own refresh (Android adopt() resets LogState and the schedule for the same
             // reason). It must stay the FIRST modifier: the .task and .sheet below sit
             // OUTSIDE it on purpose, and the materials store is owned above it.
-            TabView {
-                ForEach(ShiftSignal.visibleTabs(shiftRunning: shiftRunning(for: worker.id)), id: \.self) { tab in
+            TabView(selection: $selection) {
+                // THREE DESTINATIONS, ALWAYS (Android TimeSheetApp.kt: `visibleTabs(...).filterNot
+                // { it == HISTORY }`). ShiftSignal.visibleTabs and AppTab are untouched - the lock's
+                // own rule and its check still speak of four - and this is where History stops being
+                // a tab: it is a row under More while no shift is open (SettingsView).
+                ForEach(ShiftSignal.visibleTabs(shiftRunning: shiftRunning(for: worker.id)).filter { $0 != .history }, id: \.self) { tab in
                     switch tab {
                     case .log:
-                        LogView(worker: worker).tabItem { Label("Log", systemImage: "wave.3.right") }
+                        LogView(worker: worker)
+                            .tabItem { Label("Shift", systemImage: "clock") }
+                            .tag(AppTab.log)
                     case .materials:
                         // The badge counts requests the warehouse has and the worker has
                         // not been told about. There is no push in this system
@@ -83,10 +98,14 @@ struct ContentView: View {
                         MaterialsView(worker: worker)
                             .tabItem { Label("Materials", systemImage: "shippingbox") }
                             .badge(materials.unseenArrivalCount)
+                            .tag(AppTab.materials)
                     case .history:
-                        HistoryView(worker: worker).tabItem { Label("History", systemImage: "list.bullet") }
+                        // Filtered out above and never mounted: History is pushed from More.
+                        EmptyView()
                     case .settings:
-                        SettingsView(worker: worker).tabItem { Label("Settings", systemImage: "gear") }
+                        SettingsView(worker: worker)
+                            .tabItem { Label("More", systemImage: "ellipsis") }
+                            .tag(AppTab.settings)
                     }
                 }
             }
@@ -122,6 +141,14 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showReceipt, onDismiss: { MigrationReceipt.unseen = false }) {
                 MigrationReceiptSheet(shifts: receipt)
+            }
+            // A NEW IDENTITY STARTS ON THE SHIFT TAB (a worker who signed out on More must not hand
+            // the next one a phone that opens there), and so does a TAP: whatever tab the worker is
+            // on, an arriving tap selects Shift. Only the SELECTION moves here - the id is read from
+            // the closure, never taken, so LogView's `take()` is still the one thing that handles it.
+            .onChange(of: worker.id, initial: true) { _, _ in selection = .log }
+            .onChange(of: inbox.pendingLocationId) { _, id in
+                if id != nil { selection = .log }
             }
         }
     }
@@ -616,8 +643,7 @@ struct LogView: View {
                             Label("Scan a tag", systemImage: "wave.3.right")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
+                        .buttonStyle(.workerPrimary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -1258,29 +1284,30 @@ struct HistoryView: View {
         return completed.filter { $0.startTime >= start }.compactMap(\.duration).reduce(0, +) / 3600
     }
 
+    /// PUSHED, NEVER A TAB: SettingsView puts this on its own NavigationStack (Android: More's
+    /// identity card opens the unchanged HistoryScreen under a Back button), so this view has no
+    /// stack of its own any more - a second one inside the first would draw two navigation bars.
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Summary") {
-                    LabeledContent("This week", value: String(format: "%.1f h", weekHours))
-                    LabeledContent("Total", value: String(format: "%.1f h", totalHours))
-                }
-                Section("Shifts") {
-                    if mine.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }
-                    ForEach(mine) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
-                        // Deleting only drops the local copy; anything already sent stays
-                        // on the server, which is what payroll is paid from. The indices
-                        // are into THIS WORKER's rows (`mine` is already scoped), so a swipe
-                        // cannot reach another account's unsent hours.
-                        .onDelete { idx in
-                            let rows = mine
-                            idx.map { rows[$0] }.forEach(context.delete)
-                            try? context.save()
-                        }
-                }
+        List {
+            Section("Summary") {
+                LabeledContent("This week", value: String(format: "%.1f h", weekHours))
+                LabeledContent("Total", value: String(format: "%.1f h", totalHours))
             }
-            .navigationTitle("History")
+            Section("Shifts") {
+                if mine.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }
+                ForEach(mine) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
+                    // Deleting only drops the local copy; anything already sent stays
+                    // on the server, which is what payroll is paid from. The indices
+                    // are into THIS WORKER's rows (`mine` is already scoped), so a swipe
+                    // cannot reach another account's unsent hours.
+                    .onDelete { idx in
+                        let rows = mine
+                        idx.map { rows[$0] }.forEach(context.delete)
+                        try? context.save()
+                    }
+            }
         }
+        .navigationTitle("History")
     }
 }
 
@@ -1291,6 +1318,15 @@ struct HistoryView: View {
 struct SettingsView: View {
     @Environment(Session.self) private var session
     let worker: WireWorker
+    /// DEVICE-WIDE (every account's rows), read only through WorkerScope - see LogView. Used for ONE
+    /// question: does THIS worker have an open shift? (History is offered only while they have not.)
+    @Query private var allShifts: [Shift]
+    /// What this stack has pushed that a shift starting must take back. Only History is value-based.
+    @State private var path: [SettingsRoute] = []
+
+    private enum SettingsRoute: Hashable { case history }
+
+    private var shiftOpen: Bool { allShifts.openShift(for: worker.id) != nil }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
@@ -1300,7 +1336,7 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Form {
                 Section("Signed in as") {
                     LabeledContent("Name", value: worker.name)
@@ -1310,6 +1346,12 @@ struct SettingsView: View {
                     // keeps nothing; it takes the worker so its request is made as THEM and dropped if
                     // somebody else holds the session by the time it lands.
                     NavigationLink("My hours") { MyHoursView(worker: worker) }
+                    // The phone's own log of what it wrote, only while no shift is open (Android:
+                    // `if (log.open == null)` in the same card). It was a tab; nothing in it is
+                    // time-critical, so it is not offered mid-shift and is popped if a shift starts.
+                    if !shiftOpen {
+                        NavigationLink("History", value: SettingsRoute.history)
+                    }
                 }
                 Section {
                     Text("Hours, locations and payroll are managed by your admin on the web.")
@@ -1350,6 +1392,16 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(for: SettingsRoute.self) { route in
+                switch route {
+                case .history: HistoryView(worker: worker)
+                }
+            }
+            // A shift that starts while History is open takes it away (Android dismisses it too): the
+            // row is gone from the form above, and a pushed copy must not outlive it.
+            .onChange(of: shiftOpen) { _, open in
+                if open { path.removeAll() }
+            }
         }
     }
 }

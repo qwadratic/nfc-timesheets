@@ -120,6 +120,12 @@ run sync-flags-check
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi
 
+# TASK-365.9 (iOS B1, Blue Hour): the shared worker tokens (18 pt cards, inverse-filled 56 pt buttons, Android's
+# exact inverse pair in the asset catalogue), THREE tabs always with History pushed from More, a tap that arrives
+# on another tab selecting Shift while LogView's take() stays the one consumer, and every added string in both
+# languages. Reads the sources, both catalogues and ../android/.../Theme.kt off disk (not cat-ed together).
+if swift checks/worker-reskin-check.swift; then :; else failed=1; fi
+
 # TASK-276: the operator gate must read the ts_operator cookie, never a UserDefaults flag
 # that no sign-out clears. Reads the sources off disk - see the check's own header for why
 # it cannot be cat-ed together with them.

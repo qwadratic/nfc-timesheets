@@ -227,7 +227,7 @@ check(sync.components(separatedBy: "context.delete").count - 1 == 1 && sync.cont
       "the sync engine deletes no SHIFT rows (its one delete is a stale roster Site)")
 
 // THE RESET ON A DIRECT WORKER CHANGE: .id(worker.id), first modifier on the TabView.
-let tabView = view.range(of: "TabView {")
+let tabView = view.range(of: "TabView(selection: $selection) {")
 let tabId = view.range(of: ".id(worker.id)")
 let tabEnv = view.range(of: ".environment(materials)")
 let tabTask = view.range(of: ".task(id: worker.id) { await materials.start(workerId: worker.id) }")

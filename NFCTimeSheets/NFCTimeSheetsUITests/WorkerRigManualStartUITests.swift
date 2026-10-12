@@ -101,11 +101,11 @@ final class WorkerRigManualStartUITests: XCTestCase {
         waitForIdle(app, file: file, line: line)
         XCTAssertTrue(app.staticTexts["No completed shifts yet."].exists,
                       "no shift row of any kind is on the idle screen", file: file, line: line)
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         XCTAssertTrue(app.staticTexts["No shifts yet."].waitForExistence(timeout: Rig.timeout),
                       "History holds no local row either: nothing was written on this phone",
                       file: file, line: line)
-        app.tabBars.buttons["Log"].tap()
+        app.tabBars.buttons["Shift"].tap()
     }
 
     // MARK: - #2 empty state

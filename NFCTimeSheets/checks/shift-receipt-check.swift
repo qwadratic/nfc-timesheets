@@ -304,7 +304,7 @@ check(view.contains("pill(\"Manual\", .blue)") && view.contains("pill(\"Correcte
       "the pills are the shared `pill` with ShiftRow's colours")
 check(view.contains("fmtDur(duration)") && content.contains("func fmtDur(_ s: TimeInterval) -> String { \"\\(Int(s) / 3600)h \\((Int(s) % 3600) / 60)m\" }"),
       "the duration is fmtDur, and fmtDur is UNCHANGED (LegacyClassifier and the migration receipt depend on its spelling)")
-check(view.contains("Button(action: onContinue) {") && view.contains(".buttonStyle(.borderedProminent)") && view.contains("Text(\"Continue\").frame(maxWidth: .infinity)"),
+check(view.contains("Button(action: onContinue) {") && view.contains(".buttonStyle(.workerPrimary)") && view.contains("Text(\"Continue\").frame(maxWidth: .infinity)"),
       "Continue is one explicitly styled, full-width button (a default Button swallows a whole List row)")
 check(inOrder(view, ["Text(\"Shift finished\")", "Text(verbatim: name)", "formatted(date: .omitted, time: .shortened)", "fmtDur(duration)",
                      "badges", "DeliveryLine(delivery: ShiftReceipt.delivery(row: row, syncError: shift.syncError, now: .now))", "Button(action: onContinue) {"]),

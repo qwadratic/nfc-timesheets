@@ -85,8 +85,7 @@ struct ShiftReceiptView: View {
                 Button(action: onContinue) {
                     Text("Continue").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.workerPrimary)
             }
             .padding(.vertical, 8)
         }

@@ -327,8 +327,7 @@ struct ShiftScreen: View {
             Label("Scan a tag", systemImage: "wave.3.right")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(.workerPrimary)
     }
 
     /// SECONDARY, and below the tap instruction on purpose: the tag is still the normal way
@@ -417,8 +416,7 @@ struct ShiftScreen: View {
             VStack(alignment: .leading, spacing: 10) { content() }
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(16)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16))
+        .workerCard()
     }
 }
 

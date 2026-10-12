@@ -161,10 +161,13 @@ for key in ["%lld shifts need your office", "%lld shifts still on this phone"] {
 // What it DOES catch is exactly how those four got in: someone typed Text("...") and
 // stopped.
 //
+// TASK-365.9: `Label("Shift", systemImage:)` is in the list too - the tab items are Labels, and a
+// tab title that ships English on a German phone is the first thing a worker sees.
+//
 // RED CASE: delete 'Write or test tags' from the catalogue and this fails naming
 // ContentView.swift.
 let literal = try! NSRegularExpression(
-    pattern: #"(?:Text|Button|NavigationLink|Section|navigationTitle)\("([^"\\%]{4,})"\)?"#)
+    pattern: #"(?:Text|Button|NavigationLink|Section|navigationTitle|Label)\("([^"\\%]{4,})"\)?"#)
 let sources = (try? FileManager.default.contentsOfDirectory(atPath: "NFCTimeSheets"))?
     .filter { $0.hasSuffix(".swift") }.sorted() ?? []
 check(!sources.isEmpty, "the source directory was found")

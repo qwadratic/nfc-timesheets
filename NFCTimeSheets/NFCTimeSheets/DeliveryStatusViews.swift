@@ -186,8 +186,7 @@ struct DeliveryDetailsSheet: View {
             Button { dismiss() } label: {
                 Text("Close").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.workerPrimary)
             .padding(24)
         }
         .presentationDetents([.medium, .large])

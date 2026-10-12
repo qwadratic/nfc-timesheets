@@ -46,11 +46,12 @@ final class WorkerRigSignInUITests: XCTestCase {
         XCTAssertTrue(ensureSignedIn(app, as: "A"), "this run signed in through the form")
         waitForIdle(app)
         XCTAssertTrue(app.buttons["Scan a tag"].exists, "the idle screen's primary action")
-        XCTAssertTrue(app.tabBars.buttons["History"].exists, "no shift is running, so History is in the tab bar")
+        XCTAssertEqual(app.tabBars.buttons.count, 3, "three tabs, always (TASK-365.9): Shift, Materials, More")
+        XCTAssertFalse(app.tabBars.buttons["History"].exists, "History is never a tab: it is a row under More")
         shot("signin-02-idle")
 
         // The server's answer to GET /auth/session is what Settings shows, never a local guess.
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         XCTAssertTrue(app.staticTexts["Signed in as Anna Rig"].waitForExistence(timeout: Rig.timeout)
                         || anyElement(app, containing: "Anna Rig").waitForExistence(timeout: 5),
                       "Settings > Signed in as shows the worker the SERVER says holds the session")
@@ -64,7 +65,7 @@ final class WorkerRigSignInUITests: XCTestCase {
                       "signed out (the previous test signed A out)")
         XCTAssertTrue(ensureSignedIn(app, as: "B"))
         waitForIdle(app)
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         XCTAssertTrue(anyElement(app, containing: "Bernd Rig").waitForExistence(timeout: Rig.timeout),
                       "Settings > Signed in as shows Bernd Rig")
         shot("signin-b-settings")
@@ -73,9 +74,9 @@ final class WorkerRigSignInUITests: XCTestCase {
     /// Settings > Sign out, the shipping button: back on the sign-in screen.
     func testSignOutReturnsToTheSignInScreen() throws {
         let app = Rig.launch()
-        XCTAssertTrue(app.tabBars.buttons["Settings"].waitForExistence(timeout: Rig.timeout),
+        XCTAssertTrue(app.tabBars.buttons["More"].waitForExistence(timeout: Rig.timeout),
                       "a worker is signed in (run the sign-in test first)")
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         let signOut = app.buttons["Sign out"]
         XCTAssertTrue(signOut.waitForExistence(timeout: Rig.timeout))
         signOut.tap()

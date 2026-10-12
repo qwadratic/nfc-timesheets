@@ -141,7 +141,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Finish shift without a tag"].exists || {
             app.swipeUp(); return app.buttons["Finish shift without a tag"].exists }(), "Stop is usable")
         XCTAssertTrue(app.buttons["Scan a tag"].exists, "Scan is usable")
-        XCTAssertTrue(app.tabBars.buttons["Materials"].isHittable && app.tabBars.buttons["Settings"].isHittable,
+        XCTAssertTrue(app.tabBars.buttons["Materials"].isHittable && app.tabBars.buttons["More"].isHittable,
                       "the tabs are usable")
 
         // recovery
@@ -334,7 +334,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         finishWithoutTag(app)
         waitForIdle(app)
         sleep(3)
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         let signOut = app.buttons["Sign out"]
         XCTAssertTrue(signOut.waitForExistence(timeout: Rig.timeout))
         signOut.tap()

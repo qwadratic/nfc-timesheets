@@ -136,6 +136,19 @@ extension XCTestCase {
         return button
     }
 
+    /// History is no tab any more (TASK-365.9): it is a row under More, offered only while no shift
+    /// is open. More first, then the row - unless the stack is already showing it.
+    func openHistory(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        app.tabBars.buttons["More"].tap()
+        if app.navigationBars["History"].exists { return }
+        let row = app.buttons["History"]
+        XCTAssertTrue(row.waitForExistence(timeout: Rig.timeout), "More offers a History row (no shift is open)",
+                      file: file, line: line)
+        row.tap()
+        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: Rig.timeout),
+                      "History is pushed under More", file: file, line: line)
+    }
+
     /// What a person does to relaunch: Home first (the app goes to the background, where the
     /// cookie store is flushed to the container), then the app switcher's swipe. Killing the app
     /// while it is still in the foreground loses the session cookie - found while building the
@@ -164,7 +177,7 @@ extension XCTestCase {
     @discardableResult
     func ensureSignedIn(_ app: XCUIApplication, as worker: String) -> Bool {
         let field = app.textFields["Access code"]
-        let logTab = app.tabBars.buttons["Log"]
+        let logTab = app.tabBars.buttons["Shift"]
         // Either the sign-in form or the signed-in tab bar appears within a moment of launch.
         let deadline = Date().addingTimeInterval(Rig.timeout)
         while Date() < deadline, !field.exists, !logTab.exists { usleep(250_000) }

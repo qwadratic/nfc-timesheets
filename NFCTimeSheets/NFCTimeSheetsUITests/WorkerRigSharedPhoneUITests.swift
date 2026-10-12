@@ -82,7 +82,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
     }
 
     private func signOut(_ app: XCUIApplication) {
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         let button = app.buttons["Sign out"]
         XCTAssertTrue(button.waitForExistence(timeout: Rig.timeout))
         button.tap()
@@ -139,11 +139,11 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         let app = aStartsAShiftAndSignsOut()
         XCTAssertTrue(ensureSignedIn(app, as: "B"))
         waitForIdle(app)
-        XCTAssertFalse(app.navigationBars["Shift running"].exists, "B gets the idle Log, not A's running screen")
-        XCTAssertTrue(app.tabBars.buttons["History"].exists, "the History tab is present (no shift runs for B)")
+        XCTAssertFalse(app.navigationBars["Shift running"].exists, "B gets the idle Shift screen, not A's running screen")
+        XCTAssertEqual(app.tabBars.buttons.count, 3, "three tabs, always (TASK-365.9): Shift, Materials, More - History is never one")
         XCTAssertTrue(app.staticTexts["No completed shifts yet."].waitForExistence(timeout: Rig.timeout),
                       "Recent holds none of A's rows")
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         XCTAssertTrue(app.staticTexts["No shifts yet."].waitForExistence(timeout: Rig.timeout), "History holds none of A's rows")
         XCTAssertTrue(anyElement(app, containing: "0.0 h").exists, "and the totals are B's: 0.0 h")
         app.tabBars.buttons["Materials"].tap()
@@ -258,16 +258,16 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         var replaced = false
         let deadline = Date().addingTimeInterval(20)
         while Date() < deadline, !replaced {
-            if app.tabBars.buttons["Settings"].exists { app.tabBars.buttons["Settings"].tap() }
+            if app.tabBars.buttons["More"].exists { app.tabBars.buttons["More"].tap() }
             replaced = anyElement(app, containing: "Bernd Rig").waitForExistence(timeout: 2)
         }
         XCTAssertTrue(replaced, "the server's answer replaces the cached worker (no signed-out in between)")
-        app.tabBars.buttons["Log"].tap()
+        app.tabBars.buttons["Shift"].tap()
         waitForIdle(app)
         XCTAssertTrue(app.staticTexts["No completed shifts yet."].waitForExistence(timeout: Rig.timeout),
                       "none of A's rows: Recent is empty for B")
         shot("p3-07-replaced-b")
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         XCTAssertTrue(app.staticTexts["No shifts yet."].waitForExistence(timeout: Rig.timeout), "nor in History")
     }
 
@@ -293,7 +293,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         sleep(2)
         finishWithoutTag(app)
         waitForIdle(app)
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         let bRow = app.staticTexts["Rig Haus Beta"]
         XCTAssertTrue(bRow.waitForExistence(timeout: Rig.timeout), "History lists B's row (Rig Haus Beta)")
         XCTAssertFalse(app.staticTexts["Rig Haus Alpha"].exists,
@@ -309,7 +309,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         XCTAssertTrue(Rig.rendezvous("new-code-A"), "driver: a fresh code for A")
         XCTAssertTrue(ensureSignedIn(app, as: "A"))
         waitForIdle(app)
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].waitForExistence(timeout: Rig.timeout),
                       "A's own finished row survived B's delete")
         shot("p3-08-history-a")
@@ -343,7 +343,7 @@ final class WorkerRigSharedPhoneUITests: XCTestCase {
         Rig.mark(blocked.exists ? "b-sees-blocked-row" : "b-sees-waiting-row")
         shot("p6-10-b-counts")
         XCTAssertTrue(app.staticTexts["No completed shifts yet."].exists, "but B's Recent list holds none of A's rows")
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         XCTAssertTrue(app.staticTexts["No shifts yet."].waitForExistence(timeout: Rig.timeout), "nor B's History")
     }
 }

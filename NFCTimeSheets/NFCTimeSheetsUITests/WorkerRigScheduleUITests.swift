@@ -55,9 +55,9 @@ final class WorkerRigScheduleUITests: XCTestCase {
     }
 
     private func bounceTab(_ app: XCUIApplication) {
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         sleep(1)
-        app.tabBars.buttons["Log"].tap()
+        app.tabBars.buttons["Shift"].tap()
     }
 
     // MARK: - idle
@@ -238,7 +238,7 @@ final class WorkerRigScheduleUITests: XCTestCase {
         bounceTab(app)                       // request in flight ...
         app.tabBars.buttons["Materials"].tap() // ... leave the tab
         sleep(1)
-        app.tabBars.buttons["Log"].tap()     // come back: a newer load supersedes (cancels) the old one
+        app.tabBars.buttons["Shift"].tap()     // come back: a newer load supersedes (cancels) the old one
         expand(app)
         var offlineSeen = false
         let until = Date().addingTimeInterval(14)
@@ -256,7 +256,7 @@ final class WorkerRigScheduleUITests: XCTestCase {
     func testP4BNeverSeesAsAssignmentAndStartsLoading() throws {
         let app = signedIn()
         XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].waitForExistence(timeout: Rig.timeout), "A's assignment is shown")
-        app.tabBars.buttons["Settings"].tap()
+        app.tabBars.buttons["More"].tap()
         app.buttons["Sign out"].tap()
         XCTAssertTrue(app.textFields["Access code"].waitForExistence(timeout: Rig.timeout))
         XCTAssertTrue(Rig.rendezvous("sched-hold-6s"), "driver: answers are held 6 s")

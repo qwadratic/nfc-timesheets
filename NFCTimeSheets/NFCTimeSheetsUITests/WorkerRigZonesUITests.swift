@@ -70,7 +70,7 @@ final class WorkerRigZonesUITests: XCTestCase {
         finishWithoutTag(app)
         waitForIdle(app)
         XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].waitForExistence(timeout: Rig.timeout), "Recent names the building too")
-        app.tabBars.buttons["History"].tap()
+        openHistory(app)
         XCTAssertTrue(app.staticTexts["Rig Haus Alpha"].waitForExistence(timeout: Rig.timeout), "and so does History")
         shot("p1-new-zone-history")
     }
