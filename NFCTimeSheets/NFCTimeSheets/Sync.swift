@@ -201,13 +201,19 @@ private func apply(_ wire: WireShift, to shift: Shift) {
     shift.serverId = wire.id
     shift.locationIntervalSeconds = wire.locationIntervalSeconds ?? 0
     shift.proofOfWorkRequired = wire.proofOfWorkRequired ?? false
-    shift.autoClosed = wire.autoClosed
+    // ONLY UPWARDS, both close flags. This is called with the OPEN's answer (pushOpen) as well as
+    // the close's, and an open answers false for both. A phone that was offline when the worker
+    // finished without a tag, or walked to another building, holds a LOCAL true that pushClose has
+    // not read yet; assigning the open's false over it sent the close up unflagged
+    // (TASK-365.22 D1: manual_close=false, and decision-10's "no shift reaches payroll with an
+    // unconfirmed end" bypassed). The server itself only ever raises auto_closed, so OR matches it.
+    shift.autoClosed = shift.autoClosed || wire.autoClosed
     shift.correctedAt = wire.correctedAt
-    // The server's row wins here too, but ONLY upwards: a build talking to a server that has
-    // not shipped decision-56's migration yet gets nil back, and `??` keeps the local truth
-    // instead of quietly un-flagging a manual row the worker really did create.
+    // Same rule for the manual flags, and a build talking to a server that has not shipped
+    // decision-56's migration yet gets nil back: `?? false` there keeps the local truth instead of
+    // quietly un-flagging a manual row the worker really did create.
     shift.manualStart = wire.manualStart ?? shift.manualStart
-    shift.manualClose = wire.manualClose ?? shift.manualClose
+    shift.manualClose = shift.manualClose || (wire.manualClose ?? false)
     if let end = wire.endTime { shift.endTime = end }
 }
 

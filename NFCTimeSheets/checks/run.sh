@@ -113,6 +113,9 @@ run worker-motion-check "$SRC/ConfirmationMotion.swift"
 # offline = status 0 only / a new entry is a new fetch) and the screens read as text: read-only, no total, no rate, no write,
 # no cache, one fetch, no surface of its own, German = Android's verbatim.
 run my-hours-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/WorkerScope.swift" "$SRC/LoadGuard.swift" "$SRC/ViennaTime.swift" "$SRC/MyHours.swift"
+# TASK-365.22 D1: the server's answer (the OPEN's included) only ever RAISES a local close flag.
+# Text-pinned: apply() is SwiftData-bound; the rig walks bug-offline-manual-stop / -switch drive it.
+run sync-flags-check
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

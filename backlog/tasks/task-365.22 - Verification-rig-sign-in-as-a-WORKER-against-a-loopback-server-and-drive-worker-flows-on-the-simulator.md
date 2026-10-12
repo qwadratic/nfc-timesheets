@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:28'
-updated_date: '2026-10-12 17:43'
+updated_date: '2026-10-12 17:50'
 labels:
   - ios
   - verification
@@ -63,4 +63,6 @@ O6 'No delivery attempt yet.' (TASK-365.7 #3) is unreachable on iOS: every writt
 WHAT THE RIG CANNOT PROVE (criteria left open on purpose): the home-screen badge (never exposed by the Simulator icon, not drawn on the static grid), pending/delivered local notifications and the reminder ladder (no out-of-process reader), Live Activities, VoiceOver itself (labels are read from the accessibility tree), NFC and universal-link launch, a 9 h-old UNACKNOWLEDGED row ('overdue beats pending'). TASK-365.4 #1/#5/#6/#7, TASK-365.5 #14, TASK-365.6 #3/#5/#6/#7/#8, TASK-365.7 #3 and TASK-365.3 #8 stay open with the reasons in their notes.
 
 Per-phase counts of that full run (replaces the loose sentence above): signin 1 walk 4/4; P2 10 walks 46/46; P5 5 walks 15/15; P6 6 walks 11 pass + 1 red (D1); P4 15 walks 26/26; P1 5 walks 19/19; defect probes 2 walks 0 pass + 2 red (D1, by design: they assert the correct behaviour); P3 8 walks 23/23. p2-online-verified was re-run afterwards with the 'Manual pill after a tag close' step added: 13/13.
+
+D1 FIXED (2026-10-12): Sync.swift apply() now only raises autoClosed/manualClose (server answer OR local). Pinned by checks/sync-flags-check.swift (proven red under both mutations). Re-driven on the rig against the fixed build: bug-offline-manual-stop and bug-offline-switch PASS (4/4). Android twin tracked in TASK-369.
 <!-- SECTION:NOTES:END -->
