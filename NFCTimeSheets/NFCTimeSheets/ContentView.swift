@@ -149,6 +149,12 @@ struct SignInView: View {
     /// initial value is the fail-closed one, so the first frame - drawn before any request
     /// can possibly have returned - never flashes a door that is shut.
     @State private var smsAvailable = false
+    /// THE PHONE'S OUTBOX, device-wide: signing out deletes nothing, so a worker who signed out with
+    /// unsent shifts must see that the phone still holds them (decision-82, Android TimeSheetApp
+    /// SignInScreen). Read through WorkerScope.deviceWide - the only legitimate unscoped read - and
+    /// used for nothing but the delivery summary below.
+    @Query private var allShifts: [Shift]
+    private var deliveryRows: [PendingRow] { allShifts.deviceWide().map { $0.deliveryRow() } }
 
     var body: some View {
         // OperatorHomeScreen is pushed from operatorSection below, so whatever presents
@@ -185,6 +191,10 @@ struct SignInView: View {
                     .padding(.vertical, 6)
                 }
                 .listRowBackground(Color.clear)
+
+                // What the phone still holds (decision-82): nothing at all when it holds nothing.
+                // `signedOut: true` puts the sign-in sentence in the sheet, never "open the app".
+                DeliveryStatusRows(rows: deliveryRows, signedOut: true)
 
                 // The phone field, the Request-SMS button, ONE code field and ONE submit
                 // button - the same view the operator gate mounts (decision-54 §5). All
@@ -302,12 +312,28 @@ struct LogView: View {
     @State private var proofCompleting = false
     @State private var proofManualClose = false
     @State private var proofAutoClose = false
+    /// decision-82: bumped when a held-back delivery row settles, so `deliveryRows` is read again.
+    @State private var deliveryTick = 0
 
     /// The row a tap toggles and the running screen shows: THIS worker's newest open row. Another
     /// account's forgotten open row is not it (WorkerScope.openShift) - B's first tap must start
     /// B's shift, not close A's.
     private var openRow: Shift? { allShifts.openShift(for: worker.id) }
     private var recent: [Shift] { Array(allShifts.completed(for: worker.id).prefix(5)) }
+    /// What the PHONE still holds, for every account that queued it (decision-82): the one deliberate
+    /// device-wide read on this screen. It feeds the delivery rows on the idle list and the running
+    /// screen and nothing else - never a list, a total, the lock or a tap.
+    private var phoneRows: [PendingRow] {
+        allShifts.deviceWide().map { $0.deliveryRow(sessionWorkerId: worker.id) }
+    }
+    /// The same, minus a tap's own request that has not been answered yet (PendingWork.settleGrace), so a
+    /// normal online clock-in or clock-out never pops a "waiting" row in and out. `deliveryTick` is bumped
+    /// by the task below at the moment the earliest held-back row stops being held back.
+    private var deliveryRows: [PendingRow] {
+        _ = deliveryTick
+        return PendingWork.settled(phoneRows, now: .now)
+    }
+    private var deliverySettleAt: Date? { PendingWork.nextSettle(phoneRows, now: .now) }
 
     /// The ONE value the shift screen and every out-of-app signal are derived from
     /// (ShiftSignal.swift). Built from the LOCAL row, because a tap in a basement has one
@@ -387,6 +413,7 @@ struct LogView: View {
                                 onDismissNotice: { switchNotice = nil },
                                 onManualStop: manualStop,
                                 onScan: scan,
+                                deliveryRows: deliveryRows,
                                 syncError: openRow?.syncError,
                                 syncBlocked: openRow?.syncBlocked ?? false,
                                 onRefresh: { Task { await refresh() } },
@@ -428,6 +455,14 @@ struct LogView: View {
                 await signals.refreshAuthorization()
                 await refresh()
             }
+            // decision-82: wakes the delivery rows when the earliest in-flight tap has been unanswered for
+            // the grace. Display only: it sleeps, bumps a counter, and nothing on the tap path reads it.
+            .task(id: deliverySettleAt) {
+                guard let settleAt = deliverySettleAt else { return }
+                let wait = settleAt.timeIntervalSinceNow
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+                if !Task.isCancelled { deliveryTick += 1 }
+            }
             // onDismiss, not just on present: confirming an auto-closed shift is the one
             // path that can end a shift WITHOUT a tag tap, and a lock screen or a badge
             // left standing after it would be exactly the "stuck lock / orphaned
@@ -448,6 +483,7 @@ struct LogView: View {
                     Task {
                         defer { proofCompleting = false }
                         do {
+                            DeliveryAttempt.stamp()   // a request is about to leave this phone (decision-82: "Last attempt")
                             let response = try await ShiftAPI.close(clientUuid: shift.clientUuidString, endTime: shift.pendingEvidenceEnd ?? .now,
                                 autoClosed: proofAutoClose, manual: proofManualClose, proofId: proofId)
                             guard case .eligible(let signedIn) = session.state, signedIn.id == worker.id else { return }
@@ -512,6 +548,10 @@ struct LogView: View {
                     }
                 }
             }
+            // decision-82: what the phone still holds - blocked and waiting count rows, nothing at all
+            // when the outbox is empty. Not wrapped in a Section on purpose: an empty Section would
+            // still draw a gap on the screen most workers see most of the time.
+            DeliveryStatusRows(rows: deliveryRows, signedOut: false)
             // decision-80: the collapsed "Next planned assignment" row. Above Recent, because on this
             // screen Recent sits above the scan block (Android puts it after the start card).
             Section {

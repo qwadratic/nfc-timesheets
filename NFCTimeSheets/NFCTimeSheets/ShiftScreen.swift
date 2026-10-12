@@ -37,6 +37,10 @@ struct ShiftScreen: View {
     /// It resolves a tag and posts it to TapInbox - the same mailbox the background tap
     /// uses - so this button opens no shift logic of its own.
     let onScan: () -> Void
+    /// What the PHONE still holds, device-wide (decision-82): every account's unsent and refused rows,
+    /// as values. Drawn as the two delivery count rows after the resolver card and nowhere else - the
+    /// clock, the controls and the signals know nothing about it, and an empty outbox draws nothing.
+    let deliveryRows: [PendingRow]
     /// The OPEN row's delivery problem, already a worker-facing sentence (Sync.swift
     /// `APIFailure.workerMessage`) - never a code - and whether nobody is retrying it
     /// (`syncBlocked`: a human has to act, so it is drawn red). Together with
@@ -120,6 +124,9 @@ struct ShiftScreen: View {
                     stopButton
                     if let notice { noticeCard(notice) }
                     if unresolvedCount > 0 { resolverCard }
+                    // decision-82. Not conditional HERE: the view draws nothing when the phone holds
+                    // nothing, and the running stack keeps exactly the four conditionals it had.
+                    DeliveryStatusRows(rows: deliveryRows, signedOut: false)
                     if signals.outOfAppSignalsSilenced { notificationsOffCard }
                     scheduleCard
                     helpCard

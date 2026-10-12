@@ -31,6 +31,146 @@
         }
       }
     },
+    "Automatic delivery is not currently active. Open the app with an internet connection to try delivery again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die automatische Übertragung ist derzeit nicht aktiv. Öffnen Sie die App mit einer Internetverbindung, um die Übertragung erneut zu versuchen."
+          }
+        }
+      }
+    },
+    "Delivery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übertragung"
+          }
+        }
+      }
+    },
+    "Earliest shift start: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühester Schichtbeginn: %@"
+          }
+        }
+      }
+    },
+    "Last attempt: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt versucht: %@"
+          }
+        }
+      }
+    },
+    "%lld shifts need your office" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schicht braucht die Verwaltung"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schichten brauchen die Verwaltung"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shift needs your office"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shifts need your office"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld shifts still on this phone" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schicht noch auf diesem Telefon"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Schichten noch auf diesem Telefon"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shift still on this phone"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld shifts still on this phone"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "No delivery attempt yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch kein Übertragungsversuch."
+          }
+        }
+      }
+    },
+    "Sign in with the same account so these entries can be delivered." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melden Sie sich mit demselben Konto an, damit diese Einträge übertragen werden können."
+          }
+        }
+      }
+    },
     "%@ · still running · %@" : {
       "localizations" : {
         "de" : {
@@ -3294,6 +3434,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Geschrieben: %1$@ — %2$lld von %3$lld Byte."
+          }
+        }
+      }
+    },
+    "Your office needs to review these entries. They remain on this phone and are not sent again. Please tell your office the time shown below." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Verwaltung muss diese Einträge prüfen. Sie bleiben auf diesem Telefon gespeichert und werden nicht erneut gesendet. Bitte nennen Sie der Verwaltung die unten angezeigte Zeit."
           }
         }
       }

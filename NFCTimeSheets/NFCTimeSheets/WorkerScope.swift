@@ -22,7 +22,10 @@
 //  read site is a cross-worker toggle, which is why that check exists.
 //
 //  FOREIGN ROWS ARE KEPT. Nothing here deletes, edits or hides a row from the SYNC engine:
-//  syncPending iterates ALL rows on purpose, and the P6 delivery summary will too.
+//  syncPending iterates ALL rows on purpose, and so does the delivery summary (PendingWork.swift,
+//  P6): the DEVICE-WIDE read has exactly one name here, `deviceWide()`, so that "this screen reads
+//  everybody's rows" is a loud, greppable decision and never an accident. checks/worker-scope-check.swift
+//  allows it in ContentView.swift only as the input of that summary.
 //
 //  LEGACY ROWS (workerId 0, from before identity came from the session) belong to nobody and
 //  are therefore listed for nobody: `owns` requires a real session id, so no id can ever
@@ -79,5 +82,14 @@ extension Sequence where Element: WorkerScoped {
     /// This worker's finished rows, in the order the sequence already had them.
     func completed(for id: Int) -> [Element] {
         forWorker(id).filter { $0.endTime != nil }
+    }
+
+    /// EVERY account's rows - the phone's outbox - in the order the sequence already had them.
+    /// The ONE unscoped read a screen may make, and it has ONE legitimate reader: the delivery
+    /// summary (PendingWork.swift), which counts what the phone still holds for whoever queued it,
+    /// including on the sign-in screen where nobody is signed in. It is never the source of a list, a
+    /// total, a tab lock or a tap's toggle. Nothing is filtered, hidden or deleted.
+    func deviceWide() -> [Element] {
+        Array(self)
     }
 }

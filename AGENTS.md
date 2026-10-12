@@ -185,6 +185,12 @@ Decision checklist (keep updated as decisions are added):
   times; a collapsed "Next planned assignment" row on the idle and running screens, expanded to
   "My schedule"; no new tab, no reminder, zero new endpoints (decision-80, amends decision-73 and
   `docs/product-launch-and-scheduling.md` line 36)
+- iOS says what the phone still holds and what the server has not confirmed: device-wide count rows
+  (blocked, waiting) on the idle list, the running screen and the SIGN-IN screen, and a details
+  sheet. DISPLAY-ONLY (never gates a tap, a sync or a control), read through WorkerScope, counted by
+  the SAME predicate `syncPending` iterates, and worded so that nothing promises automatic delivery -
+  iOS has no background delivery. "Last attempt" is one UserDefaults date, never a SwiftData column
+  (decision-82, ports Android TASK-339/363 with iOS wording)
 - BOTH apps carry an in-app language control: `Deutsch` / `English` / follow the phone, value
   set `""`/`"de"`/`"en"`, on the signed-out screen and in settings. Android by decision-71, iOS
   by decision-74. It is ONE value shared with the OS per-app language setting, never a second

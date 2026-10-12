@@ -90,6 +90,13 @@ run schedule-check      "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swi
 # disabled, the Live Activity not told, German = Android's verbatim. shift-signal-check pins the plan, the ladder
 # and the re-arm after the push.
 run pending-notice-check "$SRC/ShiftSignal.swift" "$SRC/PendingNotice.swift"
+# TASK-365.7 / decision-82 (iOS P6): what the phone STILL HOLDS, said in words. The count run for real (an open shift
+# whose OPEN landed is not pending, a refused close that reopened a row is not, a finish owed with a proof waits,
+# blocked is never folded into waiting, and `state(of:)` equals syncPending's own filter over all 32 input
+# combinations), the last attempt never invented or older than its row, exactly one waiting sentence, and the
+# screens read as text: display only, device-wide through WorkerScope, no surface, nothing that promises automatic
+# delivery (iOS has none) in either language, German = Android's verbatim except the one named adverb.
+run pending-work-check  "$SRC/PendingWork.swift"
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

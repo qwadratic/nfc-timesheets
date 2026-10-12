@@ -134,9 +134,17 @@ check(!all.contains("Gebäude"), "buildings are Objekte, never Gebäude - that i
 
 // TASK-40: the migration receipt's two counts must be real plural variations, not a Swift
 // 's' suffix smuggled through a second %@ - RED if either regresses to a flat stringUnit.
-for key in ["%lld old shifts need your admin", "We cleaned up %lld old records"] {
+// TASK-365.7 (decision-82): the delivery count rows are the same shape, in BOTH languages - "1 shift
+// still on this phone" / "2 shifts ...", and the German noun AND verb agree ("braucht" / "brauchen").
+for key in ["%lld old shifts need your admin", "We cleaned up %lld old records",
+            "%lld shifts need your office", "%lld shifts still on this phone"] {
     let hasPluralVariation = ((((strings[key] as? [String: Any])?["localizations"] as? [String: Any])?["de"] as? [String: Any])?["variations"] as? [String: Any])?["plural"] != nil
     check(hasPluralVariation, "'\(key)' must use a plural variation (TASK-40), not a Swift-side 's' suffix")
+}
+for key in ["%lld shifts need your office", "%lld shifts still on this phone"] {
+    let englishPlural = ((((strings[key] as? [String: Any])?["localizations"] as? [String: Any])?["en"] as? [String: Any])?["variations"] as? [String: Any])?["plural"] as? [String: Any]
+    check(englishPlural?["one"] != nil && englishPlural?["other"] != nil,
+          "'\(key)' has an ENGLISH one/other plural variation too: the key is the 'other' form, so without it a count of 1 reads '1 shifts' (TASK-365.7)")
 }
 
 // MARK: - Literals in the source that never reached the catalogue (TASK-278)

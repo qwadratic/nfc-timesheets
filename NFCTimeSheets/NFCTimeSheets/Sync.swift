@@ -85,7 +85,10 @@ func refreshFlags() async {
 @MainActor
 func syncPending(context: ModelContext, workerId: Int) async {
     let all = (try? context.fetch(FetchDescriptor<Shift>(sortBy: [SortDescriptor<Shift>(\.startTime)]))) ?? []
-    for shift in all where !shift.syncBlocked && (!shift.isFullySynced || shift.pendingEvidenceEnd != nil) {
+    // THE ONE PREDICATE (PendingWork.state): the delivery summary on the idle list, the running screen
+    // and the sign-in screen counts exactly these rows, so what is tried and what is said cannot drift.
+    // It is `!syncBlocked && (!isFullySynced || a finish is owed with its proof)`, spelled once.
+    for shift in all where PendingWork.state(of: shift.deliveryRow()) == .waiting {
         if shift.openSyncedAt == nil {
             guard await pushOpen(shift, as: workerId) else { continue }  // don't close what never opened
         }
@@ -120,6 +123,9 @@ private func pushOpen(_ shift: Shift, as workerId: Int) async -> Bool {
         return false
     }
     do {
+        // "A push was tried, now" - BEFORE the request, for both outcomes (PendingWork.swift:
+        // DeliveryAttempt). The only reader is the delivery details sheet's "Last attempt".
+        DeliveryAttempt.stamp()
         let envelope = try await ShiftFlowAPI.open(clientUuid: shift.clientUuidString,
                                                    locationId: shift.locationId,
                                                    startTime: shift.startTime,
@@ -148,6 +154,7 @@ private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
     // behaviour - same as Android's SyncPlan.)
     guard shift.workerId == workerId else { return }
     do {
+        DeliveryAttempt.stamp()   // before the request, like pushOpen's
         // Carry the local flag up. The server only ever raises auto_closed, never clears it,
         // so a plain tap-out cannot downgrade a shift the 8h timer already flagged.
         // `manual` rides up the same way `autoClosed` does, from the local row, so a Stop
@@ -167,6 +174,24 @@ private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
         record(failure, on: shift)
     } catch {
         shift.syncError = APIFailure(status: 0, code: "network").workerMessage
+    }
+}
+
+/// What the delivery summary needs of a row (PendingWork.swift), as a value - the one mapping from
+/// the SwiftData model, so the engine above and the screens count with the same fields.
+///
+/// `sessionWorkerId` is the worker the server says holds this session, or nil when nobody does (the
+/// sign-in screen). It only feeds `queuedByAnotherAccount`, which only the wording reads.
+extension Shift {
+    func deliveryRow(sessionWorkerId: Int? = nil) -> PendingRow {
+        PendingRow(startTime: startTime,
+                   openSyncedAt: openSyncedAt,
+                   closeSyncedAt: closeSyncedAt,
+                   isOpen: isOpen,
+                   syncBlocked: syncBlocked,
+                   finishOwed: pendingEvidenceEnd != nil,
+                   queuedByAnotherAccount: sessionWorkerId.map { $0 != workerId } ?? false,
+                   lastChangedAt: pendingEvidenceEnd ?? endTime ?? startTime)
     }
 }
 

@@ -17,6 +17,12 @@
 //      `.isOpen` read, the TabView carries .id(worker.id), sign-out tears the signals down, foreign
 //      rows are never deleted, and the tap path was not given a new gate.
 //
+// P6 (TASK-365.7, decision-82) added the ONE deliberate device-wide read: the delivery summary counts
+// what the phone still holds for EVERY account, on the idle list, the running screen and the sign-in
+// screen. It has exactly one name, WorkerScope's `deviceWide()`, and this check allows it in
+// ContentView.swift only as the input of that summary (see "THE DEVICE-WIDE READ" below) - the rule
+// "every use of allShifts goes through the helper" is unchanged, it just has a fourth helper.
+//
 // RED CASES reproduced before this was trusted (see the commit): an unscoped
 // `allShifts.first(where: \.isOpen)` in handleTap; a Shift @Query still named `shifts`; HistoryView
 // listing allShifts; the .id(worker.id) removed; clearLocalSession without the arm(nil); a stale
@@ -85,6 +91,12 @@ check(WorkerScope.owns(A, row: A) && !WorkerScope.owns(A, row: B), "owns is exac
 // Nothing here changes the store: the helpers return values, and the full store is intact.
 check(sharedStore.count == 5, "scoping is a read - the device-wide outbox still holds all five rows")
 
+// THE DEVICE-WIDE READ (P6): everybody's rows, in order, nothing filtered - and it is NOT a scoped list.
+check(sharedStore.deviceWide() == sharedStore,
+      "deviceWide() returns EVERY account's rows in the sequence's order: the outbox the delivery summary counts")
+check(sharedStore.deviceWide().count == sharedStore.forWorker(A).count + sharedStore.forWorker(B).count + 2,
+      "...which is A's, B's and the two legacy rows - strictly more than any one worker's list")
+
 // Stale async work is dropped (Android re-checks the worker id after each read).
 check(WorkerScope.isCurrent(A, session: A), "the same worker is current")
 check(!WorkerScope.isCurrent(A, session: B), "a refresh that started for A is stale once B holds the session")
@@ -134,8 +146,11 @@ for (name, text) in [("ContentView.swift", viewSource), ("MaterialsView.swift", 
         var rest = Substring(l)
         while let r = rest.range(of: "allShifts") {
             let tail = rest[r.upperBound...]
-            check(tail.hasPrefix(".forWorker(") || tail.hasPrefix(".openShift(for:") || tail.hasPrefix(".completed(for:"),
-                  "\(name):\(n): allShifts is read without WorkerScope (forWorker / openShift(for:) / completed(for:)): \(l.trimmingCharacters(in: .whitespaces))")
+            // `.deviceWide(` joined the list with P6 (decision-82): it is WorkerScope's own accessor and is held to
+            // the two exact delivery-row lines below, so it can not become a way to list or toggle another account's rows.
+            check(tail.hasPrefix(".forWorker(") || tail.hasPrefix(".openShift(for:") || tail.hasPrefix(".completed(for:")
+                  || tail.hasPrefix(".deviceWide()"),
+                  "\(name):\(n): allShifts is read without WorkerScope (forWorker / openShift(for:) / completed(for:) / deviceWide()): \(l.trimmingCharacters(in: .whitespaces))")
             rest = tail
         }
     }
@@ -145,6 +160,23 @@ for (name, text) in [("ContentView.swift", viewSource), ("MaterialsView.swift", 
         check(!l.contains("\\.isOpen") && !l.contains("$0.isOpen"),
               "\(name):\(n): a raw .isOpen read - an open-shift or open-row lookup must go through WorkerScope.openShift(for:): \(l.trimmingCharacters(in: .whitespaces))")
     }
+}
+
+// THE DEVICE-WIDE READ, held to its one purpose (P6). ContentView.swift reads `deviceWide()` in exactly two
+// places - LogView's and SignInView's `deliveryRows` - and each result is only ever mapped to a PendingRow
+// value. MaterialsView, History, the tab lock, the tap and the signals never see another account's rows.
+let deviceWideLines = codeLines(viewSource).filter { $0.line.contains(".deviceWide(") }.map { $0.line.trimmingCharacters(in: .whitespaces) }
+check(deviceWideLines.sorted() == ["allShifts.deviceWide().map { $0.deliveryRow(sessionWorkerId: worker.id) }",
+                                   "private var deliveryRows: [PendingRow] { allShifts.deviceWide().map { $0.deliveryRow() } }"].sorted(),
+      "deviceWide() appears in ContentView.swift only as the delivery summary's two inputs (got \(deviceWideLines))")
+check(!materialsView.contains("deviceWide"), "MaterialsView never reads another account's rows")
+check(!between(view, "struct HistoryView: View {", "struct SettingsView: View {").contains("deviceWide"),
+      "History lists, totals and deletes only the signed-in worker's rows - never the device-wide outbox")
+for (n, fn) in [("handleTap", between(view, "private func handleTap(", "\n    private func outcome(")),
+                ("shiftRunning", between(view, "private func shiftRunning(", "\n")),
+                ("currentRunning", between(view, "private func currentRunning()", "\n    }")),
+                ("startManual", between(view, "private func startManual() {", "private func manualStop() {"))] {
+    check(!fn.isEmpty && !fn.contains("deviceWide"), "\(n) never reads the device-wide outbox: a tap toggles THIS worker's row")
 }
 
 // The one place a signal is armed FROM is scoped. Both fetch-based and query-based reads.
