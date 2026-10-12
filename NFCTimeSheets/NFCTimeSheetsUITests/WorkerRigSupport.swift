@@ -62,6 +62,16 @@ enum Rig {
         value("TS_RIG_ZONE_\(key)") ?? ""
     }
 
+    /// A value the driver handed over during the test: <TS_RIG_SYNC>/<name>.txt (a zone created
+    /// mid-walk, a re-issued code). nil when absent.
+    static func syncValue(_ name: String) -> String? {
+        guard let dir = value("TS_RIG_SYNC"),
+              let text = try? String(contentsOfFile: "\(dir)/\(name).txt", encoding: .utf8)
+        else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     // MARK: rendezvous with the bash driver (walk.sh)
     //
     // A XCUITest cannot shell out, and a walk has to flip SERVER state in the MIDDLE of a
@@ -132,7 +142,10 @@ extension XCTestCase {
     /// rig: the next launch's first call was a 401 and read as a rejected session.
     func backgroundAndKill(_ app: XCUIApplication) {
         XCUIDevice.shared.press(.home)
-        sleep(2)
+        // HTTPCookieStorage writes the cookie jar lazily; a kill inside roughly ten seconds of the
+        // sign-in loses it (found on the rig: the relaunch's first call was a 401). A person's
+        // swipe-up in the app switcher is never that quick, so the harness waits it out.
+        sleep(10)
         app.terminate()
     }
 

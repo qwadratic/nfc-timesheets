@@ -190,6 +190,15 @@ final class WorkerRigManualStartUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Clocked in"].exists, "heading 'Clocked in'")
         XCTAssertTrue(app.staticTexts["Running"].exists, "word under the clock 'Running'")
         shot("p2-04-running-online")
+        // "'Manual' pill later": finish it WITH THE TAG (a plain tap-out at the same zone, so the
+        // pill can only come from the manual START), and look at Recent.
+        sleep(2)
+        backgroundAndKill(app)
+        let again = Rig.launch(tap: Rig.zone("A_VER"))
+        waitForIdle(again)
+        XCTAssertTrue(again.staticTexts["Manual"].waitForExistence(timeout: Rig.timeout),
+                      "the finished row carries the 'Manual' pill although it was closed by a tag")
+        shot("p2-04-manual-pill-after-tag-close")
     }
 
     // MARK: - #5 unverified zone
@@ -309,7 +318,9 @@ final class WorkerRigManualStartUITests: XCTestCase {
         tapStart(app)
         confirmStart(app)
         waitForRunning(app)
-        XCTAssertFalse(app.navigationBars["Start without a tag"].exists)
+        let sheetGone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                  object: app.navigationBars["Start without a tag"])
+        XCTAssertEqual(XCTWaiter().wait(for: [sheetGone], timeout: 8), .completed, "the sheet closed")
         shot("p2-10-mock-running")
     }
 

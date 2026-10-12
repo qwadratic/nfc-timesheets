@@ -13,6 +13,9 @@
 //        [{"path":"/roster","status":503}]                     answer 503 without asking the API
 //        [{"path":"/me/schedule","method":"GET","status":404,"body":{"error":"not_found"}}]
 //        [{"path":"/me/schedule","delay_ms":6000}]              forward, but only after 6 s
+//        [{"path":"/me/schedule","hold_ms":7000}]               forward at once, but hold the ANSWER
+//                                                              for 7 s (a slow response that was
+//                                                              computed from the state of NOW)
 //      A rule matches when the request path STARTS with `path` (and `method` equals, if given).
 //      `rig.sh fault ...` writes this file; an absent or empty file is a plain pass-through.
 //
@@ -112,6 +115,17 @@ const server = createServer(
       const up = request(
         { host: upHost, port: Number(upPort), method: req.method, path: req.url, headers: req.headers },
         (upRes) => {
+          if (rule?.hold_ms) {
+            // Buffer the whole answer and release it later: the server computed it NOW.
+            const parts = [];
+            upRes.on("data", (c) => parts.push(c));
+            upRes.on("end", () => setTimeout(() => {
+              res.writeHead(upRes.statusCode, upRes.headers);
+              res.end(Buffer.concat(parts));
+              finish(upRes.statusCode, { held_ms: rule.hold_ms });
+            }, Number(rule.hold_ms)));
+            return;
+          }
           res.writeHead(upRes.statusCode, upRes.headers);
           upRes.pipe(res);
           upRes.on("end", () => finish(upRes.statusCode, rule?.delay_ms ? { delayed_ms: rule.delay_ms } : {}));

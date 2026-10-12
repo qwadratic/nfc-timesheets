@@ -90,7 +90,7 @@ flip() {
     revoke-A) "$RIG" revoke-sessions A >/dev/null ;;
     revoke-B) "$RIG" revoke-sessions B >/dev/null ;;
     revoke-all) "$RIG" revoke-sessions all >/dev/null ;;
-    zone-add) "$RIG" zone-add >/dev/null ;;
+    zone-add) printf '%s' "$("$RIG" zone-add | tail -1)" > "$SYNC/zone_NEW.txt" ;;
     zone-deactivated) "$RIG" zone A_DEACT inactive >/dev/null ;;
     open-elsewhere) "$RIG" shift-open-elsewhere A B_VER >/dev/null ;;
     sched-none) "$RIG" schedule-set none >/dev/null ;;
@@ -98,6 +98,9 @@ flip() {
     sched-cross) "$RIG" schedule-set cross >/dev/null ;;
     sched-multi) "$RIG" schedule-set multi >/dev/null ;;
     fault-clear) "$RIG" fault clear >/dev/null ;;
+    sched-hold-slow) "$RIG" fault set '[{"path":"/me/schedule","method":"GET","hold_ms":8000}]' >/dev/null ;;
+    sched-hold-6s) "$RIG" fault set '[{"path":"/me/schedule","method":"GET","hold_ms":6000}]' >/dev/null ;;
+    sched-fast-cross) "$RIG" schedule-set cross >/dev/null; "$RIG" fault clear >/dev/null ;;
     new-code-A|new-code-B)
       "$RIG" new-code "${1##*-}" >/dev/null
       # shellcheck disable=SC1090
@@ -169,7 +172,9 @@ walk_p2_online_verified() {
   check_eq "shifts.manual_start" "t" "$(sql "SELECT manual_start FROM shifts")"
   check_eq "shifts.location_id = the BUILDING" "$BUILDING_A" "$(sql "SELECT location_id FROM shifts")"
   check_eq "shifts.start_zone_id = the zone" "$ZONE_A_VER" "$(sql "SELECT start_zone_id FROM shifts")"
-  check_eq "shift belongs to worker A and is open" "$WORKER_A_ID|open" "$(sql "SELECT worker_id || '|' || CASE WHEN end_time IS NULL THEN 'open' ELSE 'closed' END FROM shifts")"
+  check_eq "shift belongs to worker A and was then closed by a TAG tap-out (not manual)" "$WORKER_A_ID|closed|false" \
+    "$(sql "SELECT worker_id || '|' || CASE WHEN end_time IS NULL THEN 'open' ELSE 'closed' END || '|' || manual_close::text FROM shifts")"
+  check_eq "manual_start stays true after the tag close (the 'Manual' pill's source)" "true" "$(sql "SELECT manual_start::text FROM shifts")"
 }
 
 walk_p2_unverified() {
@@ -236,7 +241,7 @@ walk_p2_stop() {
   check_eq "server row: tap start (not manual), manual close, confirmed, not auto-closed" "false|true|true|false" \
     "$(sql "SELECT manual_start::text || '|' || manual_close::text || '|' || (corrected_at IS NOT NULL)::text || '|' || auto_closed::text FROM shifts")"
   check_eq "the close went over the wire with manual:true" "true" "$(wire --since $MARK0 --method POST --path /shifts/close field body.manual | head -1)"
-  check_eq "the open went over the wire WITHOUT manual" "false" "$(wire --since $MARK0 --method POST --path /shifts/open field body.manual | head -1)"
+  check_eq "the open went over the wire WITHOUT a manual flag (absent, not true)" "" "$(wire --since $MARK0 --method POST --path /shifts/open field body.manual | head -1)"
 }
 
 
@@ -300,7 +305,9 @@ walk_p6_waiting() {
   drive $UI_DL/testP6WaitingAttemptedThenRecovered net-down net-up
   check_eq "after recovery the server has both halves of the shift" "1|closed" \
     "$(sql "SELECT count(*) || '|' || CASE WHEN bool_and(end_time IS NOT NULL) THEN 'closed' ELSE 'open' END FROM shifts")"
-  check_eq "close came from a manual stop" "true" "$(sql "SELECT manual_close::text FROM shifts")"
+  # KNOWN DEFECT (Sync.swift apply(): the open's answer overwrites the local manual flag before
+  # the close is pushed): the stop was "Finish shift without a tag" and must arrive as manual.
+  check_eq "KNOWN DEFECT (see bug-offline-manual-stop): the offline manual stop arrives as manual_close" "true" "$(sql "SELECT manual_close::text FROM shifts")"
   say "        sheet said: $(/usr/bin/grep -o 'sheet-says-[a-z-]*' "$MARKS" | head -1)"
   unset -f hook_net_up
 }
@@ -326,6 +333,7 @@ walk_p6_dynamic_type() {
 
 # ---- P3 (TASK-365.4): two workers on one phone ---------------------------------------------------
 UI_SP=WorkerRigSharedPhoneUITests
+UI_SC=WorkerRigScheduleUITests
 
 walk_p3_signout() {
   fresh_phone
@@ -400,6 +408,158 @@ walk_p6_device_wide() {
   say "        server rows for A afterwards: $(sql "SELECT count(*) FROM shifts WHERE worker_id = $WORKER_A_ID")"
 }
 
+# ---- P4 (TASK-365.5): planned assignments, against the real GET /me/schedule ------------------
+sched_count() { wire_marks --from "$1" --to "$2" --method GET --path /me/schedule n; }
+
+walk_p4_idle() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  run_test $UI_SC/testP4IdleCollapsedRowShowsTheNextAssignmentInViennaTime
+  check_eq "GET /me/schedule answered 200" 200 "$(wire --since $MARK0 --method GET --path /me/schedule field status | head -1)"
+  say "        plan on the server: $(sql "SELECT to_char(starts_at AT TIME ZONE 'Europe/Vienna','YYYY-MM-DD HH24:MI') || ' -> ' || to_char(ends_at AT TIME ZONE 'Europe/Vienna','HH24:MI') FROM planned_shifts WHERE worker_id = $WORKER_A_ID")"
+}
+walk_p4_expand_one() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  run_test $UI_SC/testP4ExpandShowsTheCardCaptionAndFirstAssignmentWithNoToggleForOne
+}
+walk_p4_expand_multi() {
+  fresh_phone; "$RIG" schedule-set multi >/dev/null
+  run_test $UI_SC/testP4ExpandMultiHasTheToggleAndListsAllWithNotes
+}
+walk_p4_cross() {
+  fresh_phone; "$RIG" schedule-set cross >/dev/null
+  run_test $UI_SC/testP4CrossMidnightUsesTheLongForm
+  say "        plan on the server: $(sql "SELECT to_char(starts_at AT TIME ZONE 'Europe/Vienna','YYYY-MM-DD HH24:MI') || ' -> ' || to_char(ends_at AT TIME ZONE 'Europe/Vienna','YYYY-MM-DD HH24:MI') FROM planned_shifts WHERE worker_id = $WORKER_A_ID")"
+  say "        line on the phone: $(cat "$SHOT_DIR/p4-04-cross-midnight-line.txt" 2>/dev/null)"
+}
+walk_p4_empty() {
+  fresh_phone; "$RIG" schedule-set none >/dev/null
+  run_test $UI_SC/testP4EmptyShowsNothingCollapsedAndTheSentenceExpanded
+  check_eq "GET /me/schedule answered 200 (an empty list, not an error)" 200 "$(wire --since $MARK0 --method GET --path /me/schedule field status | head -1)"
+}
+walk_p4_offline() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  drive $UI_SC/testP4OfflineShowsTheConnectionSentenceAndTryAgainRefetches net-down net-up
+  check_ge "Try again re-fetched: GET /me/schedule between the tap and the answer" 1 "$(sched_count try-again try-again-done)"
+  check_eq "and the server answered 200" 200 "$(wire_marks --from try-again --method GET --path /me/schedule field status | tail -1)"
+}
+walk_p4_route_missing() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  "$RIG" fault set '[{"path":"/me/schedule","method":"GET","status":404,"body":{"error":"not_found"}}]' >/dev/null
+  drive $UI_SC/testP4RouteMissingShowsTheGenericErrorAndTryAgain fault-clear
+  check_eq "the phone saw 404 (a server without the route)" 404 "$(wire --since $MARK0 --method GET --path /me/schedule field status | head -1)"
+}
+walk_p4_session_revoked() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  drive $UI_SC/testP4SessionRevokedSignsOutAndRendersNoScheduleError revoke-A
+  check_eq "the schedule request that signed the app out was a real 401" 401 "$(wire --since $MARK0 --method GET --path /me/schedule field status | tail -1)"
+}
+walk_p4_running() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  run_test $UI_SC/testP4RunningScreenShowsTheRowBeforeTheHelpCardAndSurvivesTheMinuteTick
+}
+walk_p4_resume() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  run_test $UI_SC/testP4EachResumeTriggerCostsOneFetch
+  check_eq "switching tabs and back: GET /me/schedule count" 1 "$(sched_count tab-0 tab-1)"
+  check_eq "background then foreground: GET /me/schedule count" 1 "$(sched_count fg-0 fg-1)"
+}
+walk_p4_stale() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  drive $UI_SC/testP4StaleSlowAnswerDoesNotOverwriteANewerOne sched-hold-slow sched-fast-cross
+  say "        held answers on the wire: $(/usr/bin/grep -c held_ms "$FRONT_LOG")"
+  echo '[]' > "$FAULTS"
+}
+walk_p4_cancel() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  drive $UI_SC/testP4LeavingTheTabMidRequestPaintsNoOfflineSentence sched-hold-slow
+  echo '[]' > "$FAULTS"
+}
+walk_p4_identity() {
+  fresh_phone; "$RIG" schedule-set multi >/dev/null
+  drive $UI_SC/testP4BNeverSeesAsAssignmentAndStartsLoading sched-hold-6s
+  echo '[]' > "$FAULTS"
+}
+walk_p4_refresh_icon() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  run_test $UI_SC/testP4RefreshIconRefetches
+  check_eq "the refresh icon cost exactly one GET /me/schedule" 1 "$(sched_count icon-0 icon-1)"
+}
+walk_p4_decoupling() {
+  fresh_phone; "$RIG" schedule-set one >/dev/null
+  "$RIG" fault set '[{"path":"/me/schedule","method":"GET","status":500,"body":{"error":"internal_error"}}]' >/dev/null
+  run_test $UI_SC/testP4FailingScheduleLeavesClockInAndSyncUntouched
+  check_eq "every GET /me/schedule of the walk failed" "500" "$(wire --since $MARK0 --method GET --path /me/schedule field status | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  check_eq "the clock-in reached the server (201) and the shift is closed manually" "201|closed|true" \
+    "$(wire --since $MARK0 --method POST --path /shifts/open field status | head -1)|$(sql "SELECT CASE WHEN bool_and(end_time IS NOT NULL) THEN 'closed' ELSE 'open' END FROM shifts")|$(sql "SELECT bool_and(manual_close)::text FROM shifts")"
+  echo '[]' > "$FAULTS"
+}
+
+# ---- P1 (TASK-365.2): zones resolve to their building ---------------------------------------------
+UI_ZN=WorkerRigZonesUITests
+
+walk_p1_new_zone() {
+  fresh_phone
+  drive $UI_ZN/testP1ZoneCreatedAfterTheRosterResolvesToTheBuildingNameWithoutAPull zone-add
+  local new; new="$(cat "$SYNC/zone_NEW.txt" 2>/dev/null)"
+  check_eq "the shift's start zone is the zone created after the phone's roster" "$new" "$(sql "SELECT start_zone_id FROM shifts")"
+  check_eq "and its location is the BUILDING" "$BUILDING_A" "$(sql "SELECT location_id FROM shifts")"
+  check_eq "POST /shifts/open carried the NEW zone's uuid, accepted (201)" "$new|201" \
+    "$(wire --since $MARK0 --method POST --path /shifts/open field body.location_uuid | head -1)|$(wire --since $MARK0 --method POST --path /shifts/open field status | head -1)"
+  check_ge "the phone fetched the roster after the tap on its own (GET /roster requests in the walk)" 2 "$(wire --since $MARK0 --method GET --path /roster n)"
+}
+
+walk_p1_same_building() {
+  fresh_phone
+  run_test $UI_ZN/testP1TapOutAtASecondZoneOfTheSameBuildingClosesTheShift
+  check_eq "ONE server row, closed, not auto-closed" "1|closed|false" \
+    "$(sql "SELECT count(*) || '|' || CASE WHEN bool_and(end_time IS NOT NULL) THEN 'closed' ELSE 'open' END || '|' || bool_or(auto_closed)::text FROM shifts")"
+  check_eq "start zone = the first door" "$ZONE_A_VER" "$(sql "SELECT start_zone_id FROM shifts")"
+  # Observation, not a P1 criterion: the iOS close body has no location_uuid (Android sends the
+  # tapped place), so the server cannot record WHICH door the worker left by.
+  say "        end_zone_id on the server: '$(sql "SELECT coalesce(end_zone_id::text,'NULL') FROM shifts")' (close body fields: $(wire --since $MARK0 --method POST --path /shifts/close field body | head -1))"
+  check_eq "exactly one open went out (no new shift opened by the second tap)" 1 "$(wire --since $MARK0 --method POST --path /shifts/open n)"
+  check_eq "the close carried auto_closed:false" "false" "$(wire --since $MARK0 --method POST --path /shifts/close field body.auto_closed | head -1)"
+}
+
+walk_p1_switch() {
+  fresh_phone
+  run_test $UI_ZN/testP1TapAtAnotherBuildingSwitchesAndFlagsTheOldRow
+  check_eq "old row: closed + auto_closed + unconfirmed (corrected_at NULL)" "true|true" \
+    "$(sql "SELECT (end_time IS NOT NULL)::text || '|' || auto_closed::text FROM shifts WHERE location_id = '$BUILDING_A'")"
+  check_eq "new row is open at building B" "$BUILDING_B" "$(sql "SELECT location_id FROM shifts WHERE end_time IS NULL")"
+}
+
+walk_p1_material() {
+  fresh_phone
+  run_test $UI_ZN/testP1MaterialRequestCarriesTheBuildingNotTheZone
+  check_eq "POST /material-requests answered 201" 201 "$(wire --since $MARK0 --method POST --path /material-requests field status | head -1)"
+  say "        request body on the wire: $(wire --since $MARK0 --method POST --path /material-requests field body | head -1)"
+  check_eq "the request body carried the BUILDING uuid" "$BUILDING_A" "$(wire --since $MARK0 --method POST --path /material-requests field body.location_uuid | head -1)"
+  check_eq "server row: location = the building" "$BUILDING_A" "$(sql "SELECT location_id FROM material_requests")"
+}
+
+walk_p1_foreground() {
+  fresh_phone
+  run_test $UI_ZN/testP1ComingBackToTheForegroundRefetchesTheRoster
+  check_ge "returning to the foreground fetched GET /roster" 1 "$(wire_marks --from fg-away --to fg-back --method GET --path /roster n)"
+}
+
+# Findings, not features: these assert what the product SHOULD do. FAIL = the defect is real.
+walk_bug_offline_manual_stop() {
+  fresh_phone
+  drive $UI_ZN/testProbeOfflineManualStopStaysManual net-down net-up
+  say "        POST /shifts/close body on the wire: $(wire --since $MARK0 --method POST --path /shifts/close field body | head -1)"
+  check_eq "BUG PROBE: an offline 'Finish without a tag' reaches the server as a manual close" "true" "$(sql "SELECT manual_close::text FROM shifts")"
+}
+
+walk_bug_offline_switch() {
+  fresh_phone
+  drive $UI_ZN/testProbeOfflineBuildingSwitchStaysFlagged net-down net-up
+  say "        POST /shifts/close body on the wire: $(wire --since $MARK0 --method POST --path /shifts/close field body | head -1)"
+  check_eq "BUG PROBE: an offline building switch delivers the old row flagged auto_closed" "true" \
+    "$(sql "SELECT auto_closed::text FROM shifts WHERE location_id = '$BUILDING_A'")"
+}
+
 walk_p2_wire() { # no phone: a read over everything the P2 walks put on the wire
   CURRENT=p2-wire
   local total buildings
@@ -409,7 +569,7 @@ walk_p2_wire() { # no phone: a read over everything the P2 walks put on the wire
   check_eq "of them carrying a BUILDING uuid" 0 "${buildings:-0}"
 }
 
-ALL_WALKS="signin p2-empty-state p2-picker p2-online-verified p2-unverified p2-open-elsewhere p2-deactivated p2-server-down p2-mock p2-stop p2-wire p5-online p5-unreachable p5-refused p5-blocked p5-overdue p6-empty p6-waiting p6-blocked p6-signin p6-dynamic-type p6-device-wide p3-signout p3-b-signin p3-b-same-place p3-b-elsewhere p3-a-returns p3-session-rejected p3-replaced p3-swipe-delete"
+ALL_WALKS="signin p2-empty-state p2-picker p2-online-verified p2-unverified p2-open-elsewhere p2-deactivated p2-server-down p2-mock p2-stop p2-wire p5-online p5-unreachable p5-refused p5-blocked p5-overdue p6-empty p6-waiting p6-blocked p6-signin p6-dynamic-type p6-device-wide p4-idle p4-expand-one p4-expand-multi p4-cross p4-empty p4-offline p4-route-missing p4-session-revoked p4-running p4-resume p4-stale p4-cancel p4-identity p4-refresh-icon p4-decoupling p1-new-zone p1-same-building p1-switch p1-material p1-foreground bug-offline-manual-stop bug-offline-switch p3-signout p3-b-signin p3-b-same-place p3-b-elsewhere p3-a-returns p3-session-rejected p3-replaced p3-swipe-delete"
 
 run_walk() {
   local name="$1" fn
@@ -430,7 +590,7 @@ SELECTED=""
 for arg in "$@"; do
   case "$arg" in
     all) SELECTED="$SELECTED $ALL_WALKS" ;;
-    p1|p2|p3|p4|p5|p6) for w in $ALL_WALKS; do case "$w" in "$arg"-*) SELECTED="$SELECTED $w" ;; esac; done ;;
+    p1|p2|p3|p4|p5|p6|bug) for w in $ALL_WALKS; do case "$w" in "$arg"-*) SELECTED="$SELECTED $w" ;; esac; done ;;
     *) SELECTED="$SELECTED $arg" ;;
   esac
 done
