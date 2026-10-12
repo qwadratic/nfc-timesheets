@@ -301,22 +301,6 @@
         }
       }
     },
-    "%@ – %@  ·  %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ – %2$@  ·  %3$@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ – %2$@  ·  %3$@"
-          }
-        }
-      }
-    },
     "%@ – %@ · %@" : {
       "localizations" : {
         "de" : {
@@ -2570,16 +2554,6 @@
         }
       }
     },
-    "Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tag fehlt oder ist nicht erreichbar? Wählen Sie stattdessen die Zone. Die Verwaltung sieht das als manuelle Erfassung."
-          }
-        }
-      }
-    },
     "Tag writing isn't switched on in this build. Ask the developer to enable the NFC Tag Reading capability in Xcode - see docs/NFC-WRITE-SETUP.md." : {
       "localizations" : {
         "de" : {
@@ -3258,16 +3232,6 @@
         }
       }
     },
-    "TimeSheet" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zeiterfassung"
-          }
-        }
-      }
-    },
     "Too many attempts - try again in a few minutes." : {
       "localizations" : {
         "de" : {
@@ -3706,6 +3670,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "More"
+          }
+        }
+      }
+    },
+    "Your working day" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihr Arbeitstag"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your working day"
+          }
+        }
+      }
+    },
+    "Ready for your shift?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereit für die Schicht?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready for your shift?"
+          }
+        }
+      }
+    },
+    "Waiting for a connection" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf Verbindung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for a connection"
+          }
+        }
+      }
+    },
+    "Last tried %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt versucht %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last tried %@"
+          }
+        }
+      }
+    },
+    "Not attempted yet" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch kein Sendeversuch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not attempted yet"
           }
         }
       }

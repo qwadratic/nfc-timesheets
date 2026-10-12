@@ -265,8 +265,12 @@ check(inOrder(idle, ["if !unresolved.isEmpty {", "if let receiptShift {", "Shift
                      "receiptMemory.dismiss(receiptShift.receiptIdentity)", "DeliveryStatusRows(rows: deliveryRows, signedOut: false)",
                      "ScheduleSummary(", "Section(\"Recent\") {"]),
       "idle: the receipt sits after the unresolved banner and before the delivery rows, the plan and Recent")
-check(inOrder(idle, ["Section(\"Recent\") {", "ForEach(recentRows)", "if receiptShift == nil {", "Button(action: scan) {", "Button(\"Start without a tag\") {"]),
-      "idle: Recent shows recentRows (minus the receipt's row) and the scan block and 'Start without a tag' are drawn only with no receipt")
+// TASK-365.10 (B2, "action first"): the start block moved ABOVE Recent - the receipt and the start card are
+// ONE slot (Android: `if (showReceipt && latest != null) CompletedShiftReceipt else WorkerStartCard`), then the
+// delivery rows, the plan and Recent. The invariant is unchanged: the start block is drawn only with no receipt.
+check(inOrder(idle, ["if let receiptShift {", "if receiptShift == nil {", "Button(action: scan) {", "Button(\"Start without a tag\") {",
+                     "DeliveryStatusRows(rows: deliveryRows, signedOut: false)", "Section(\"Recent\") {", "ForEach(recentRows)"]),
+      "idle: the receipt and the start block share the first slot (the start block only with no receipt); Recent shows recentRows, minus the receipt's row, after them")
 check(count(idle, "if receiptShift == nil {") == 1 && count(idle, "Button(action: scan)") == 1 && count(idle, "Button(\"Start without a tag\")") == 1,
       "one gate, and it covers exactly the two start Sections")
 let afterGate = idle.components(separatedBy: "if receiptShift == nil {")[1]

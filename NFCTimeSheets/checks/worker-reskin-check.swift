@@ -173,6 +173,77 @@ check(settings.contains(".navigationTitle(\"Settings\")"), "the heading inside M
 check(count(content, "HistoryView(worker: worker)") == 1, "History is built in exactly one place")
 
 // ---------------------------------------------------------------------------------
+// 3b. THE IDLE SCREEN (TASK-365.10: idle-day-heading, idle-start-card, idle-layout-order,
+//     shift-row-card-restyle, shift-row-waiting-copy)
+// ---------------------------------------------------------------------------------
+
+let home = code(source("WorkerHomeViews.swift"))
+let idle = between(content, "private var idleList: some View {", "#if DEBUG\n            manualMockSection")
+check(!idle.isEmpty, "found the idle list")
+check(home.contains("struct WorkerDayHeading: View {") && home.contains("TimelineView(.everyMinute)")
+      && home.contains("formatter.dateFormat = \"EEEE · d MMMM\"") && home.contains("Text(\"Your working day\")")
+      && home.contains(".accessibilityAddTraits(.isHeader)"),
+      "the heading is Android's date line (EEEE · d MMMM, in the app's locale, re-read each minute) and 'Your working day' as a VoiceOver header")
+check(home.contains("Text(verbatim: Self.dateLine(context.date, locale: locale))"), "the date line is data: verbatim, never a catalogue key")
+
+// ORDER, top to bottom: heading, unresolved banner, receipt-or-start block, delivery rows, plan, Recent, mocks, no-push note.
+check(inOrder(idle, ["WorkerDayHeading()", "if !unresolved.isEmpty {", "if let receiptShift {", "if receiptShift == nil {",
+                     "DeliveryStatusRows(rows: deliveryRows, signedOut: false)", "ScheduleSummary(state: schedule.state, retry: loadSchedule)",
+                     "Section(\"Recent\") {", "ForEach(recentRows)"])
+      && inOrder(between(content, "private var idleList: some View {", ".workerListPage()"),
+                 ["Section(\"Recent\") {", "manualMockSection", "This app has no push. Everything you see here updates when you open it."]),
+      "idle order: day heading, unresolved banner, receipt or start card, delivery rows, planned assignment, Recent, (debug mocks), no-push note - the ACTION first")
+check(content.contains("private var navigationTitle: LocalizedStringKey {\n        running == nil ? \"\" : \"Shift running\"\n    }")
+      && content.contains(".navigationTitle(navigationTitle)") && !content.contains("\"TimeSheet\""),
+      "the idle navigation title is EMPTY (the first row is the heading) and the running title is a LocalizedStringKey, never a ternary of two literals (TASK-298)")
+check(inOrder(between(content, "private var idleList: some View {", ".onChange(of: recent.first?.receiptIdentity"), [".workerListPage()", ".tint(.primary)"]),
+      "the idle list is monochrome chrome: its text buttons are the ink, not the system accent")
+check(!idle.contains("Button(\"Refresh\"") && !idle.contains("Button(\"Refresh"),
+      "no Refresh button on the idle list: pull-to-refresh is the refresh control (Android has the button, iOS has the gesture)")
+check(content.contains(".refreshable { await refresh() }"), "pull-to-refresh is still wired to refresh()")
+
+// THE START BLOCK: one glyph, the question, the hint, ONE filled scan button, a quiet manual start.
+let start = between(idle, "if receiptShift == nil {", "DeliveryStatusRows(")
+check(inOrder(start, ["WorkerGlyph(systemName: \"iphone.radiowaves.left.and.right\")", "Text(\"Ready for your shift?\")",
+                      "Text(\"Hold your phone to the tag by the entrance to start.\")", "Button(action: scan) {", ".buttonStyle(.workerPrimary)",
+                      "Button(\"Start without a tag\") {", ".buttonStyle(.workerQuiet)"]),
+      "the start block reads: mark, 'Ready for your shift?', the hint, ONE filled scan button, a quiet 'Start without a tag'")
+check(count(start, ".workerPrimary") == 1 && !start.contains(".bordered") && !start.contains("borderedProminent"),
+      "exactly one filled button in the start block, and the manual start is not a second one")
+check(!idle.contains("Section {"), "no stock grouped Section is left around the start block, the delivery rows or the plan")
+check(count(idle, "showManualStart = true") == 1 && count(idle, "manualPick = nil") == 1,
+      "the manual start still resets its pick and opens the sheet (decision-56 / 81 behaviour untouched)")
+
+// ROWS: cards, the range dominant, the 'Manual' pill kept, never 'Sending...'.
+let row = between(content, "struct ShiftRow: View {", "func pill(")
+check(!row.isEmpty && row.contains(".workerCard()") && row.contains(".workerListRow()"),
+      "a shift row is a worker card on a chrome-free list row (History's swipe-to-delete still has a row to swipe)")
+check(inOrder(row, ["Text(verbatim: name)", "pill(\"Manual\", .blue)", "formatted(date: .abbreviated, time: .omitted)",
+                    "Text(\"\\(shift.startTime.formatted(date: .omitted, time: .shortened)) – \\(end.formatted(date: .omitted, time: .shortened))\")",
+                    ".font(WorkerStyle.Typeface.lead)", "Text(verbatim: fmtDur(d))", "syncStatus"]),
+      "a row reads: name and pills, date, the time RANGE in the lead style, the duration, the delivery line")
+check(!row.contains("Sending…"), "a row never says 'Sending…' (Android: an unsent row is WAITING)")
+check(inOrder(row, ["Label(\"Sent\"", "Label(\"Waiting for a connection\"", "shift.lastAttemptAt",
+                    "Text(\"Last tried \\(attempt.formatted(date: .omitted, time: .shortened))\")", "Text(\"Not attempted yet\")"]),
+      "an unsent row says 'Waiting for a connection' and either 'Last tried HH:mm' or 'Not attempted yet'")
+check(content.contains("func fmtDur(_ s: TimeInterval) -> String { \"\\(Int(s) / 3600)h \\((Int(s) % 3600) / 60)m\" }"), "fmtDur is unchanged")
+
+// THE LAST ATTEMPT: an optional field on the row, stamped where the request leaves the phone, never read by a decision.
+let model = code(source("NFCTimeSheetsApp.swift"))
+let sync = code(source("Sync.swift"))
+check(model.contains("var lastAttemptAt: Date?"), "Shift has an OPTIONAL lastAttemptAt (SwiftData's lightweight migration adds it)")
+check(inOrder(between(sync, "private func pushOpen(", "\n}"), ["DeliveryAttempt.stamp()", "shift.lastAttemptAt = .now", "try await ShiftFlowAPI.open("])
+      && inOrder(between(sync, "private func pushClose(", "\n}"), ["DeliveryAttempt.stamp()", "shift.lastAttemptAt = .now", "try await ShiftFlowAPI.close("]),
+      "pushOpen and pushClose stamp the row right where they stamp the device-wide attempt, before the request")
+check(inOrder(between(content, ".sheet(item: $proofShift", "// Coming back from the background"), ["DeliveryAttempt.stamp()", "shift.lastAttemptAt = .now", "try await ShiftAPI.close("]),
+      "the proof-close stamps the row too")
+check(count(sync, "lastAttemptAt") == 2 && count(model, "lastAttemptAt") == 1,
+      "lastAttemptAt is only WRITTEN in the sync engine: no retry decision reads it")
+for name in ["ShiftReceipt.swift", "PendingNotice.swift", "ShiftSignal.swift", "ShiftSignalCenter.swift"] {
+    check(!code(source(name)).contains("lastAttemptAt"), "\(name) does not know the per-row attempt exists (display only)")
+}
+
+// ---------------------------------------------------------------------------------
 // 4. STRINGS: BOTH LANGUAGES, in the same commit (AGENTS.md i18n)
 // ---------------------------------------------------------------------------------
 
@@ -193,14 +264,23 @@ func androidString(_ name: String, en: Bool = false) -> String? {
     guard let xml = try? String(contentsOfFile: "../android/app/src/main/res/\(file)/strings.xml", encoding: .utf8) else { return nil }
     let open = "<string name=\"\(name)\">"
     guard let start = xml.range(of: open), let end = xml.range(of: "</string>", range: start.upperBound..<xml.endIndex) else { return nil }
-    return String(xml[start.upperBound..<end.lowerBound]).replacingOccurrences(of: "\\'", with: "'")
+    return String(xml[start.upperBound..<end.lowerBound])
+        .replacingOccurrences(of: "\\'", with: "'")
+        .replacingOccurrences(of: "%1$s", with: "%@")
 }
 
 /// (key, Android string resource) for every sentence this reskin ADDS. Both languages must be in the
 /// catalogue and both must be Android's own words - the same house vocabulary on both phones.
 let added: [(String, String)] = [
+    // B1
     ("Shift", "nav_shift"),
     ("More", "nav_more"),
+    // B2
+    ("Your working day", "worker_day_title"),
+    ("Ready for your shift?", "worker_start_title"),
+    ("Waiting for a connection", "sync_waiting"),
+    ("Last tried %@", "sync_last_try"),
+    ("Not attempted yet", "sync_never_tried"),
 ]
 for (key, androidName) in added {
     check(value(key, "de") != nil && value(key, "de") == androidString(androidName),
@@ -209,6 +289,9 @@ for (key, androidName) in added {
           "'\(key)' has an explicit English entry that is Android's '\(androidString(androidName, en: true) ?? "?")' (\(androidName)); got '\(value(key, "en") ?? "nil")'")
 }
 check(catalogue["Log"] == nil, "the dead tab label 'Log' is gone from the catalogue")
+check(catalogue["TimeSheet"] == nil, "the idle navigation title 'TimeSheet' is gone from the catalogue (nothing uses it)")
+check(catalogue["Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry."] == nil,
+      "the manual start's idle footer is gone: the explanation lives in the sheet and the confirmation dialog")
 
 if failed { exit(1) }
 print("worker-reskin-check: OK")

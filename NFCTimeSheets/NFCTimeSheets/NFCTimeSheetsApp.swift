@@ -59,6 +59,11 @@ final class Shift {
     var closeSyncedAt: Date?   // nil = the server has not been told it finished
     var syncError: String?     // last failure, shown in the UI. Never left nil on failure.
     var syncBlocked: Bool = false  // terminal rejection: stop retrying, a human must act
+    /// The last time THIS row was handed to the network (pushOpen / pushClose / the proof close),
+    /// for the "Last tried 14:05" line under an unsent row (Android LocalShift.lastAttemptAt).
+    /// DISPLAY ONLY - nothing reads it to decide a retry - and optional, so SwiftData's lightweight
+    /// migration adds it to an existing store; a row from before this build says "Not attempted yet".
+    var lastAttemptAt: Date?
 
     init(workerId: Int, workerName: String, locationId: String, startTime: Date = .now) {
         self.workerId = workerId

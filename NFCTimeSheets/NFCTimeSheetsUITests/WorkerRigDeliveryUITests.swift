@@ -369,7 +369,7 @@ final class WorkerRigDeliveryUITests: XCTestCase {
         // Accessibility L (AX2) is 194% of the base size: the "200%" of the matrix.
         app = Rig.launch(args: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
         // The idle list is long at this size and lazy: 'Start without a tag' is below the fold.
-        XCTAssertTrue(app.navigationBars["TimeSheet"].waitForExistence(timeout: Rig.timeout), "the idle Log screen")
+        XCTAssertTrue(app.staticTexts["Your working day"].waitForExistence(timeout: Rig.timeout), "the idle Shift screen")
         let row = deliveryRow(app, "still on this phone")
         XCTAssertTrue(row.waitForExistence(timeout: Rig.timeout), "the row is drawn at 200%")
         XCTAssertGreaterThanOrEqual(row.frame.height, 44, "stays at least 44 pt tall: \(row.frame.height)")

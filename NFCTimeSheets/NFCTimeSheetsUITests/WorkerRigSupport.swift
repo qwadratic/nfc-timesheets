@@ -132,7 +132,7 @@ extension XCTestCase {
         let button = app.buttons["Start without a tag"]
         // On a long idle list the button is below the fold of a lazy list: scroll until drawn.
         var swipes = 0
-        while !button.exists, swipes < 6, app.navigationBars["TimeSheet"].exists { app.swipeUp(); swipes += 1 }
+        while !button.exists, swipes < 6, !app.buttons["Finish shift without a tag"].exists { app.swipeUp(); swipes += 1 }
         return button
     }
 
@@ -198,11 +198,12 @@ extension XCTestCase {
     }
 
     /// Waits for the idle list (no shift running) to be on screen.
-    /// The idle list's navigation title is "TimeSheet" (the running screen's is "Shift running"),
-    /// which stays true however long the list is: a lazy list draws no row below the fold.
+    /// The idle screen opens with its own heading, "Your working day" (TASK-365.10: there is no
+    /// navigation title any more). It is the first row of the list, so it is on screen whenever the
+    /// list has not been scrolled - which every caller of this is, straight after a launch or a finish.
     func waitForIdle(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(app.navigationBars["TimeSheet"].waitForExistence(timeout: Rig.timeout),
-                      "the idle Log screen (navigation title 'TimeSheet')", file: file, line: line)
+        XCTAssertTrue(app.staticTexts["Your working day"].waitForExistence(timeout: Rig.timeout),
+                      "the idle Shift screen (heading 'Your working day')", file: file, line: line)
     }
 
     /// Waits for the running screen (a shift is open).

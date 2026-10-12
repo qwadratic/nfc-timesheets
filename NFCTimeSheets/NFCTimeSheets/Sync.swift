@@ -126,6 +126,7 @@ private func pushOpen(_ shift: Shift, as workerId: Int) async -> Bool {
         // "A push was tried, now" - BEFORE the request, for both outcomes (PendingWork.swift:
         // DeliveryAttempt). The only reader is the delivery details sheet's "Last attempt".
         DeliveryAttempt.stamp()
+        shift.lastAttemptAt = .now
         let envelope = try await ShiftFlowAPI.open(clientUuid: shift.clientUuidString,
                                                    locationId: shift.locationId,
                                                    startTime: shift.startTime,
@@ -155,6 +156,7 @@ private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
     guard shift.workerId == workerId else { return }
     do {
         DeliveryAttempt.stamp()   // before the request, like pushOpen's
+        shift.lastAttemptAt = .now
         // Carry the local flag up. The server only ever raises auto_closed, never clears it,
         // so a plain tap-out cannot downgrade a shift the 8h timer already flagged.
         // `manual` rides up the same way `autoClosed` does, from the local row, so a Stop

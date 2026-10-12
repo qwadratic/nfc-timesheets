@@ -149,7 +149,7 @@ final class WorkerRigZonesUITests: XCTestCase {
         app.activate()
         sleep(4)
         Rig.mark("fg-back")
-        XCTAssertTrue(app.navigationBars["TimeSheet"].exists)
+        XCTAssertTrue(app.staticTexts["Your working day"].exists, "back on the idle Shift screen")
     }
 
     // MARK: - PROBES for a defect: an offline flag must survive delivery

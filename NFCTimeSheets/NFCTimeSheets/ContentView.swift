@@ -445,6 +445,10 @@ struct LogView: View {
             .onAppear { loadSchedule() }
     }
 
+    private var navigationTitle: LocalizedStringKey {
+        running == nil ? "" : "Shift running"
+    }
+
     private var content: some View {
         NavigationStack {
             // TWO SHAPES, and which one is on screen is the entire point of this work.
@@ -475,7 +479,14 @@ struct LogView: View {
                     Text(message).font(.footnote).padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
                 }
             }
-            .navigationTitle(running == nil ? "TimeSheet" : "Shift running")
+            // The idle screen has its own heading (today's date and "Your working day", the first row of
+            // the list), so its navigation title is EMPTY and inline: Android's worker screens have no top
+            // app bar either. The bar itself stays (an empty inline bar draws nothing) because it is what
+            // gives a scrolling list its edge treatment under the status bar. The running screen keeps its
+            // title until the running reskin (TASK-365.11) takes it away. A LocalizedStringKey, not a
+            // ternary of two literals, so the running title is looked up in the catalogue (TASK-298).
+            .navigationTitle(navigationTitle)
+            .navigationBarTitleDisplayMode(running == nil ? .inline : .large)
             .refreshable { await refresh() }
             // THE IN-APP SCAN IS BACK, and on NFCTagReaderSession, not the retired
             // NFCNDEFReaderSession: `NDEF` in com.apple.developer.nfc.readersession.formats
@@ -531,6 +542,7 @@ struct LogView: View {
                         defer { proofCompleting = false }
                         do {
                             DeliveryAttempt.stamp()   // a request is about to leave this phone (decision-82: "Last attempt")
+                            shift.lastAttemptAt = .now
                             let response = try await ShiftAPI.close(clientUuid: shift.clientUuidString, endTime: shift.pendingEvidenceEnd ?? .now,
                                 autoClosed: proofAutoClose, manual: proofManualClose, proofId: proofId)
                             guard case .eligible(let signedIn) = session.state, signedIn.id == worker.id else { return }
@@ -583,100 +595,114 @@ struct LogView: View {
         schedule.load(for: worker.id) { session.worker?.id }
     }
 
-    /// The app with no shift running: unchanged from before this screen split.
+    /// The app with no shift running, in the order a cleaner checking the phone at a door reads it
+    /// (Android TimeSheetApp.kt LogScreen at 60f6886): today's date and "Your working day", the
+    /// unresolved banner, then ONE focused block - the receipt of the shift just finished, or the
+    /// start card - then what the phone still holds, the next planned assignment and Recent.
+    /// The action is FIRST; the history of the day follows it.
+    ///
+    /// A List still, and not a ScrollView of cards: pull-to-refresh is the refresh control (there is
+    /// no Refresh button here, as there is on Android) and History shares the row shape. Every row
+    /// is chrome-free (`workerListRow`) and the cards inside it are the surfaces.
     private var idleList: some View {
         List {
+            WorkerDayHeading()
+                .workerListRow()
             if !unresolved.isEmpty {
-                Section {
-                    Button { showResolver = true } label: {
-                        Label("\(unresolved.count) unfinished shift(s) need a finish time",
-                              systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                    }
+                Button { showResolver = true } label: {
+                    Label("\(unresolved.count) unfinished shift(s) need a finish time",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .buttonStyle(.plain)
+                .workerCard()
+                .workerListRow()
             }
-            // decision-83: the "Shift finished" receipt, at the TOP of the idle list (Android replaces its start
-            // card with it; here the start Sections sit below Recent, so the receipt goes above everything
-            // but the unresolved banner, which stays on screen). Inline, never a sheet or alert: taps, tabs
-            // and the resolver keep working. Its row is filtered out of Recent below.
+            // decision-83: the "Shift finished" receipt takes the start card's place (Android replaces
+            // its start card with it). Inline, never a sheet or alert: taps, tabs and the resolver keep
+            // working. Its row is filtered out of Recent below.
             if let receiptShift {
-                Section {
-                    ShiftReceiptView(shift: receiptShift, name: siteName(receiptShift.locationId)) {
-                        receiptMemory.dismiss(receiptShift.receiptIdentity)
-                    }
+                ShiftReceiptView(shift: receiptShift, name: siteName(receiptShift.locationId)) {
+                    receiptMemory.dismiss(receiptShift.receiptIdentity)
                 }
-            }
-            // decision-82: what the phone still holds - blocked and waiting count rows, nothing at all
-            // when the outbox is empty. Not wrapped in a Section on purpose: an empty Section would
-            // still draw a gap on the screen most workers see most of the time.
-            DeliveryStatusRows(rows: deliveryRows, signedOut: false)
-            // decision-80: the collapsed "Next planned assignment" row. Above Recent, because on this
-            // screen Recent sits above the scan block (Android puts it after the start card).
-            Section {
-                ScheduleSummary(state: schedule.state, retry: loadSchedule)
-            }
-            // decision-83: while the receipt shows the only finished row, a "Recent" header over
-            // nothing (or over "No completed shifts yet.") would contradict the screen.
-            if receiptShift == nil || !recentRows.isEmpty {
-                Section("Recent") {
-                    if recent.isEmpty { Text("No completed shifts yet.").foregroundStyle(.secondary) }
-                    ForEach(recentRows) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
-                }
+                .workerListRow()
             }
             // decision-83: the scan block and "Start without a tag" are the start card the receipt
             // replaces (Android). A tag tap still starts a shift; Continue brings these back.
+            //
+            // ONE block: a mark, the question, the hint, the one filled button and a quiet manual start.
+            // decision-56 §4: the manual start stays CLEARLY SECONDARY - a plain text button under the
+            // tap, never a second filled one - and it is a normal worker action, not a fallback mode.
+            // It is still flagged, never silent: the sheet it opens says so before anything is posted
+            // and the confirmation dialog says so again.
             if receiptShift == nil {
-                Section {
-                    VStack(spacing: 12) {
-                        Image(systemName: "wave.3.right")
-                            .font(.title2)
-                            .foregroundStyle(.tint)
-                            .accessibilityHidden(true)
-                        Text("Hold your phone to the tag by the entrance to start.")
-                            .font(.callout)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                            .accessibilityElement(children: .combine)
-                        // THE ONE FILLED BUTTON on this screen: the primary action. Everything
-                        // else in this list is secondary or corrective and is plain/bordered.
-                        Button(action: scan) {
-                            Label("Scan a tag", systemImage: "wave.3.right")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.workerPrimary)
+                VStack(spacing: 16) {
+                    WorkerGlyph(systemName: "iphone.radiowaves.left.and.right")
+                    Text("Ready for your shift?")
+                        .font(WorkerStyle.Typeface.lead)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Hold your phone to the tag by the entrance to start.")
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    // THE ONE FILLED BUTTON on this screen: the primary action.
+                    Button(action: scan) {
+                        Label("Scan a tag", systemImage: "wave.3.right")
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                // decision-56 §4. CLEARLY SECONDARY: a plain row under the tap instruction, not
-                // a prominent button beside it - the tag stays the normal way in, and this is the
-                // answer to a broken card, an unreachable one, or a phone whose NFC is dead.
-                // Flagged, never silent; the footer says so before it is pressed, not after.
-                Section {
-                    // Corrective, so BORDERED and never filled (2026-08-29 UX audit).
+                    .buttonStyle(.workerPrimary)
                     Button("Start without a tag") {
                         manualPick = nil
                         manualError = nil
                         showManualStart = true
                     }
-                    .buttonStyle(.bordered)
-                } footer: {
-                    Text("Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry.")
-                        .font(.footnote)
+                    .buttonStyle(.workerQuiet)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .workerListRow()
+            }
+            // decision-82: what the phone still holds - blocked and waiting count rows, nothing at all
+            // when the outbox is empty. Not wrapped in a Section on purpose: an empty Section would
+            // still draw a gap on the screen most workers see most of the time.
+            DeliveryStatusRows(rows: deliveryRows, signedOut: false)
+                .workerListRow()
+            // decision-80: the collapsed "Next planned assignment" row, after the start card and above
+            // Recent (Android: after the delivery rows, before "Zuletzt").
+            ScheduleSummary(state: schedule.state, retry: loadSchedule)
+                .workerCard()
+                .workerListRow()
+            // decision-83: while the receipt shows the only finished row, a "Recent" header over
+            // nothing (or over "No completed shifts yet.") would contradict the screen.
+            if receiptShift == nil || !recentRows.isEmpty {
+                Section("Recent") {
+                    if recent.isEmpty {
+                        Text("No completed shifts yet.")
+                            .foregroundStyle(.secondary)
+                            .workerListRow()
+                    }
+                    ForEach(recentRows) { ShiftRow(shift: $0, name: siteName($0.locationId)) }
+                }
+                .headerProminence(.increased)
             }
             #if DEBUG
             manualMockSection
             #endif
-            Section {
-                // Android has said this out loud since day one and iOS only had it as a
-                // code comment (parity row 20). Promising a notification to somebody who
-                // then does not get one is the difference between a late delivery and a
-                // broken product.
-                Text("This app has no push. Everything you see here updates when you open it.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
+            // Android has said this out loud since day one and iOS only had it as a
+            // code comment (parity row 20). Promising a notification to somebody who
+            // then does not get one is the difference between a late delivery and a
+            // broken product.
+            Text("This app has no push. Everything you see here updates when you open it.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .workerListRow()
         }
+        .workerListPage()
+        // Blue Hour is monochrome chrome: the text buttons inside the cards (the plan's "View", "Try again",
+        // the delivery rows) are the ink, like Android's TextButtons in onSurface, and the one coloured
+        // control on this screen is the red of a blocked delivery row (it sets its own .tint(.red)).
+        .tint(.primary)
         // decision-83: remember the offer, so a receipt entered within two minutes outlives the
         // window and stays until Continue. `initial: true` is the first appearance after a finish.
         // It only records which receipt was shown; the screen above already derived it.
@@ -1108,15 +1134,20 @@ struct LogView: View {
 
 // MARK: - Rows
 
+/// One shift as a card with the TIME RANGE as its dominant line (Android ShiftRow, an 18 dp WorkerCard:
+/// name and state, date, large "HH:mm – HH:mm", duration, delivery line). A List row on the idle
+/// screen and in History, so it carries its own chrome-free row (`workerListRow`): the card is the
+/// only surface, and History's swipe-to-delete still has a row to swipe.
 struct ShiftRow: View {
     let shift: Shift
     let name: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(name).font(.headline)
-                Spacer()
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(verbatim: name)
+                    .font(WorkerStyle.Typeface.rowName)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 // decision-56 §5: "every list that shows shifts must show this". A manual row
                 // is never indistinguishable from a tap-confirmed one, on the worker's own
                 // phone either - the admin should not be the only one who can tell.
@@ -1125,27 +1156,57 @@ struct ShiftRow: View {
                 else if shift.autoClosed && shift.correctedAt == nil { pill("Auto-closed", .red) }
                 else if shift.correctedAt != nil { pill("Corrected", .purple) }
             }
-            Text(shift.startTime.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption).foregroundStyle(.secondary)
-            if let end = shift.endTime, let d = shift.duration {
-                Text("\(shift.startTime.formatted(date: .omitted, time: .shortened)) – \(end.formatted(date: .omitted, time: .shortened))  ·  \(fmtDur(d))")
-                    .font(.caption)
+            Text(shift.startTime.formatted(date: .abbreviated, time: .omitted))
+                .font(WorkerStyle.Typeface.caption)
+                .foregroundStyle(.secondary)
+            if let end = shift.endTime {
+                // THE DOMINANT LINE: the range, in the app's heaviest row style, in tabular digits.
+                Text("\(shift.startTime.formatted(date: .omitted, time: .shortened)) – \(end.formatted(date: .omitted, time: .shortened))")
+                    .font(WorkerStyle.Typeface.lead)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.7)
+                if let d = shift.duration {
+                    Text(verbatim: fmtDur(d))
+                        .font(.subheadline)
+                }
+            } else {
+                Text(shift.startTime.formatted(date: .omitted, time: .shortened))
+                    .font(WorkerStyle.Typeface.lead)
+                    .monospacedDigit()
             }
             syncStatus
         }
+        .workerCard()
+        .workerListRow()
     }
 
     /// A failed sync is never invisible. `syncBlocked` means nobody is retrying and the
     /// worker has to involve the admin, so it says that in red rather than "pending".
+    ///
+    /// An unsent row never says "Sending..." (Android sync_waiting): a row taken in a basement is not
+    /// being sent, it is WAITING for a connection, and the last attempt rides under it so the worker can
+    /// tell "the phone is trying and failing" from "the phone has not had a signal since".
     @ViewBuilder private var syncStatus: some View {
         if let err = shift.syncError {
             Label(err, systemImage: shift.syncBlocked ? "xmark.octagon.fill" : "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(shift.syncBlocked ? .red : .orange)
         } else if shift.isFullySynced {
-            Label("Sent", systemImage: "checkmark.icloud").font(.caption2).foregroundStyle(.green)
+            Label("Sent", systemImage: "checkmark.icloud").font(.caption).foregroundStyle(.green)
         } else {
-            Label("Sending…", systemImage: "arrow.up.circle").font(.caption2).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Label("Waiting for a connection", systemImage: "clock.arrow.circlepath")
+                    .font(.caption)
+                if let attempt = shift.lastAttemptAt {
+                    Text("Last tried \(attempt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Not attempted yet")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 }
@@ -1307,6 +1368,7 @@ struct HistoryView: View {
                     }
             }
         }
+        .workerListPage()
         .navigationTitle("History")
     }
 }

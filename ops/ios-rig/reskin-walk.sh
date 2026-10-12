@@ -26,7 +26,7 @@ SYNC="$RIG_HOME/sync"
 CLASS=WorkerRigReskinUITests
 
 DEFAULT_COMBOS="light-en-m dark-en-m light-de-m dark-de-xxxl light-en-xxxl"
-DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB1RunningStillThreeTabsAndNoHistoryRow"
+DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB2UnsentRowSaysWaiting testB1RunningStillThreeTabsAndNoHistoryRow"
 
 size_category() {
   case "$1" in
