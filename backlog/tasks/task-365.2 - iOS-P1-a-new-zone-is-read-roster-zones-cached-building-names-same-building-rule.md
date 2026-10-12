@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-10-07 12:20'
-updated_date: '2026-10-07 12:22'
+updated_date: '2026-10-12 17:42'
 labels:
   - ios
   - parity
@@ -70,6 +70,16 @@ GET /roster -> {locations, zones:[{id, location_id, name, tag_serial|null}]} (se
 
 <!-- SECTION:NOTES:BEGIN -->
 tag_aliases ids are not published by GET /roster (server/routes/app.js zones only), so a card adopted by an existing zone still shows Unknown location on BOTH platforms; fixing it needs a server change (separate task). Zone/Site caches are not cleared on sign-out or worker change; decide in P3.
+
+2026-10-12 P1 DRIVEN against the loopback rig (TASK-365.22, ops/ios-rig commits 8070c4f + b688541). This task has no 'Driven:' criterion of its own; its three NOT-VERIFIED items from the Final Summary are now observed. Driver `ops/ios-rig/walk.sh p1`; tests NFCTimeSheetsUITests/WorkerRigZonesUITests.swift. Evidence <scratchpad>/rig/shots/p1-*.png, logs/front.jsonl (<scratchpad>=/private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad). All PASS in the final `walk.sh all`.
+
+- Zone created AFTER the phone's roster, then tapped (A signed in, a NEW verified zone inserted in Rig Haus Alpha, app relaunched with the tap): the running screen names 'Rig Haus Alpha' within seconds with no pull-to-refresh and does not stay on 'Unknown location'; Recent and History name the building; the server row has start_zone_id = the new zone and location_id = the building; POST /shifts/open carried the new zone's uuid -> 201; the phone fetched /roster again on its own (5 GET /roster in the walk). Caveat: the app's launch refresh also fetches the roster, so this proves the outcome 'resolves without a pull', not the post-tap Task in isolation.
+- Same-building rule: tap at Stiege 1 (running, 'Rig Haus Alpha'), then tap at Dachboden (the building's second zone): the shift CLOSES - no new running screen, no switch card, no unresolved banner, no 'Auto-closed' pill; server: ONE row, closed, auto_closed=false; exactly one POST /shifts/open; the close carried auto_closed:false. OBSERVATION (not a P1 criterion): the iOS close body has no location_uuid, so end_zone_id is NULL on the server (Android sends the tapped place, decision-43 records it); the door the worker left by is not recorded for iOS.
+- Different building (control): tap at Alpha then Beta -> switch card 'Finished your open shift at Rig Haus Alpha and started at Rig Haus Beta...'; server: old row closed + auto_closed=true + unconfirmed, new row open at Beta.
+- Material request: running shift at Stiege 1, Materials tab says 'For Rig Haus Alpha', POST /material-requests {"body":"Zwei Mopps","location_uuid":"<BUILDING uuid>"} -> 201; server row location_id = the building, never the zone.
+- Foreground refresh: Home then re-activate -> GET /roster (>= 1) on the wire.
+
+DEFECT FOUND ON THE WAY (same Sync.swift code P1 touches): see TASK-365.22 D1 - an OFFLINE start followed by a stop or a building switch loses its manual / auto_closed flag when the open is finally delivered.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
