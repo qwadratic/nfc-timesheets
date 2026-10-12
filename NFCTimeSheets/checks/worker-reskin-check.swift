@@ -1,4 +1,4 @@
-// Runnable check: the "Blue Hour" worker reskin (TASK-365.9 / .10 / .11, iOS B1-B3).
+// Runnable check: the "Blue Hour" worker reskin (TASK-365.9 / .10 / .11 / .12, iOS B1-B4).
 //
 //   cd NFCTimeSheets && swift checks/worker-reskin-check.swift
 //
@@ -14,8 +14,9 @@
 // WHAT IT GUARDS, by section: 1 the shared tokens (WorkerStyle.swift, Android's inverse pair in the asset
 // catalogue); 2 three tabs always and the tap-arrival rule; 3 History under More; 3b the idle screen (day
 // heading, start block, order, row cards, "Waiting for a connection", the per-row attempt stamp); 3c the
-// running screen (the fixed field, the typographic time, the quiet header, help behind a button); 4 every
-// string this reskin adds, in both languages, as Android's own words.
+// running screen (the fixed field, the typographic time, the quiet header, help behind a button); 3d Materials
+// (the flat composer, the visible example, the short no-push line and its dialog, localised status words);
+// 4 every string this reskin adds, in both languages, as Android's own words.
 //
 // RED CASES reproduced before this was trusted (see the three commits): the History tab put back into the
 // ForEach; `.borderedProminent` back on the idle Scan button; `Label("Log"` restored; `selection = .log`
@@ -23,7 +24,9 @@
 // back inside HistoryView; the History row shown mid-shift; "Sending..." back in a row; the idle footer or a
 // Refresh button back; the stamp dropped from pushOpen; a card behind the time; `Text(timerInterval:)` back;
 // a green or raw-blue literal on the running screen; the digits' timeline slowed to a minute; the neutral
-// cards drawn in the field's scheme; the help sentence printed again; one new key left without its English.
+// cards drawn in the field's scheme; the help sentence printed again; one new key left without its English;
+// Materials: the long no-push sentence printed as a footer again, the example caption dropped, a stock
+// Section around the composer, `borderedProminent` back on Send, statusText back to String.
 
 import Foundation
 
@@ -119,8 +122,8 @@ check(assetHex("WorkerOnInverse", dark: true) == androidTheme("BgBaseDark") && a
       "WorkerOnInverse (dark) is Android's inverseOnSurface: BgBaseDark #0B0C0E (got \(assetHex("WorkerOnInverse", dark: true) ?? "nil"))")
 
 // Every worker screen's primary action is the shared style, never the system accent. (The sign-in
-// code form and Materials are shared with the operator and are the next reskin's; not listed here.)
-for name in ["ContentView.swift", "ShiftScreen.swift", "ShiftReceiptView.swift", "DeliveryStatusViews.swift"] {
+// code form is shared with the operator and is the next reskin's; not listed here.)
+for name in ["ContentView.swift", "ShiftScreen.swift", "ShiftReceiptView.swift", "DeliveryStatusViews.swift", "MaterialsView.swift"] {
     let text = code(source(name))
     check(!text.contains("borderedProminent"), "\(name) has no system-accent prominent button: the primary action is WorkerPrimaryButtonStyle")
 }
@@ -357,6 +360,83 @@ check(inOrder(between(shiftScreen, "VStack(spacing: 24) {", ".frame(maxWidth: .i
       "the help button is the last thing on the running screen, after the plan")
 
 // ---------------------------------------------------------------------------------
+// 3d. MATERIALS (TASK-365.12: materials-composer-redesign, materials-no-push-details-dialog,
+//     materials-example-supporting-text)
+// ---------------------------------------------------------------------------------
+
+let materials = code(source("MaterialsView.swift"))
+let materialsBody = between(materials, "var body: some View {", "@ViewBuilder private var arrivals: some View {")
+let composeBlock = between(materials, "@ViewBuilder private var compose: some View {", "@ViewBuilder private var history: some View {")
+check(!materials.isEmpty && !materialsBody.isEmpty && !composeBlock.isEmpty, "found MaterialsView, its body and its composer")
+
+// THE PAGE: a heading first (Android's headlineSmall), then arrivals, composer, requests - an empty inline bar.
+check(inOrder(materialsBody, ["Text(\"Materials\")", ".font(WorkerStyle.Typeface.title)", ".accessibilityAddTraits(.isHeader)",
+                              "arrivals", "compose", "history", ".workerListPage()", ".navigationTitle(\"\")", ".navigationBarTitleDisplayMode(.inline)"]),
+      "Materials opens with its heading in the shared title style as a VoiceOver header, then the arrivals, the composer and the requests, on the worker list page with an empty inline bar")
+
+// THE COMPOSER IS FLAT: no stock grouped Section, no footer, no system-accent button.
+check(!composeBlock.contains("Section(") && !composeBlock.contains("Section {") && !composeBlock.contains("footer:") && !composeBlock.contains(".workerCard()"),
+      "the composer is a flat block on the page: no Section, no footer, no card around it")
+for banned in ["borderedProminent", ".bordered", "Form {"] {
+    check(!materials.contains(banned), "MaterialsView has no '\(banned)': the primary action is the shared inverse-filled button")
+}
+check(inOrder(composeBlock, ["Text(\"Ask for something\")", "WorkerGlyph(systemName: \"shippingbox\", size: 64, scales: false)",
+                             "TextField(\"What do you need?\", text: $typed, axis: .vertical)", ".lineLimit(2...8)",
+                             "Text(\"For example: 2 mops, glass cleaner\")", "Button(\"Send request\") {", ".buttonStyle(.workerPrimary)",
+                             "if justSaved {", "Text(\"Request saved. It will be sent as soon as you're online.\")",
+                             "Text(\"Check updates here. No push notifications.\")", "Button(\"How updates work\") { showUpdatesInfo = true }"]),
+      "the composer reads: heading and small mark, the outlined 2-8 line field, the visible example, ONE filled Send button, the visible saved line, the short no-push line, the explanation button")
+check(count(composeBlock, ".buttonStyle(.workerPrimary)") == 1, "exactly one filled button in the composer")
+
+// THE SUBMIT / QUEUE LOGIC IS UNTOUCHED, and the saved line is shown, then cleared by the NEXT typing - not by the submit.
+check(inOrder(composeBlock, ["guard store.submit(body: typed, locationId: contextLocationId, workerId: worker.id) else { return }",
+                             "typed = \"\"", "writing = false", "justSaved = true"]),
+      "a request is cleared and marked saved only when the store ACCEPTED it (the guard comes first)")
+check(composeBlock.contains("if !new.isEmpty { justSaved = false }"),
+      "the saved line goes when the worker starts the next request, not when the field is emptied by the submit itself")
+check(composeBlock.contains("String(localized: \"Request saved. It will be sent as soon as you're online.\")")
+      && !materials.contains("Announcement(\""),
+      "the spoken confirmation is a localised string (it used to be a bare English literal)")
+
+// DECISION-23: one short line always visible, the long explanation ONLY in the dialog, and nothing promises a notification.
+let infoDialog = between(materialsBody, ".alert(\"How updates work\", isPresented: $showUpdatesInfo) {", "\n        }\n    }")
+check(!infoDialog.isEmpty && infoDialog.contains("Button(\"Dismiss\", role: .cancel) {}"), "'How updates work' opens an alert with one Dismiss")
+check(count(materials, "your phone will not notify you") == 2 && count(infoDialog, "your phone will not notify you") == 2
+      && !composeBlock.contains("will not notify"),
+      "BOTH long explanations (with and without a building) live only inside the dialog - never printed on the screen")
+check(inOrder(infoDialog, ["if contextLocationId == nil {", "The office reads these on the web.", "} else {", "Sent with the building you're clocked into now"]),
+      "the dialog keeps the two existing explanations, chosen by whether the request carries a building")
+let notifLiterals = try! NSRegularExpression(pattern: #""[^"\n]*(?:notif|[Pp]ush)[^"\n]*""#)
+for m in notifLiterals.matches(in: materials, range: NSRange(materials.startIndex..., in: materials)) {
+    let literal = String(materials[Range(m.range, in: materials)!])
+    check(literal.contains("will not notify") || literal.contains("No push"),
+          "decision-23: a Materials sentence that mentions a notification must say there is none, found \(literal)")
+}
+check(!materials.contains("UNUserNotificationCenter") && !materials.contains("UIApplication.shared.registerForRemoteNotifications"),
+      "Materials never asks for or schedules a notification")
+
+// THE STATUS WORDS ARE KEYS: statusText is a LocalizedStringKey (Label(String) is the verbatim initialiser).
+check(materials.contains("static func statusText(_ row: WireMaterialRequest) -> LocalizedStringKey {")
+      && !materials.contains("static func statusText(_ row: WireMaterialRequest) -> String"),
+      "statusText returns a LocalizedStringKey (the unlocalised-literals note of the parity sweep)")
+let statusBlock = between(materials, "static func statusText(_ row: WireMaterialRequest) -> LocalizedStringKey {", "static func statusIcon")
+for sentence in ["Waiting for the office", "Approved - not ordered yet", "Ordered", "At the warehouse", "Collected", "Not approved", "Status unknown - ask your admin"] {
+    check(statusBlock.contains("\"\(sentence)\""), "statusText says '\(sentence)'")
+}
+check(composeBlock.contains("Text(\"For \\(name)\")") && composeBlock.contains("Text(\"For the building you're in now\")")
+      && !materials.contains("Label(siteName"),
+      "the building context is two literal Texts (a String handed to Label/Text is verbatim and ships English)")
+
+// CARDS AND DISPLAY ONLY: arrivals and both request rows are worker cards on chrome-free rows; nothing animates.
+check(count(materials, ".workerCard()") == 3 && count(materials, ".workerListRow()") >= 8,
+      "the arrivals and both request rows are worker cards on chrome-free list rows")
+check(!materials.contains("withAnimation") && !materials.contains(".animation(") && !materials.contains(".transition("),
+      "Materials adds no animation (Reduce Motion has nothing to hold still)")
+check(!materials.contains("Color(red:") && !materials.contains("Color(white:") && !materials.contains("UIColor(")
+      && !materials.contains(".font(.system(size:"),
+      "no hand-typed colour and no fixed point size: dark mode and Dynamic Type come from the semantic styles")
+
+// ---------------------------------------------------------------------------------
 // 4. STRINGS: BOTH LANGUAGES, in the same commit (AGENTS.md i18n)
 // ---------------------------------------------------------------------------------
 
@@ -398,7 +478,27 @@ let added: [(String, String)] = [
     ("Shift in progress", "worker_active_title"),
     ("TIME WORKED", "worker_elapsed"),
     ("Shift help", "worker_help"),
+    // B4
+    ("For example: 2 mops, glass cleaner", "worker_material_example"),
+    ("Check updates here. No push notifications.", "worker_material_no_push"),
+    ("How updates work", "worker_material_details"),
+    ("Request saved. It will be sent as soon as you're online.", "material_saved"),
+    ("Waiting for the office", "material_status_submitted"),
+    ("Ordered", "material_status_ordered"),
+    ("Collected", "material_status_collected"),
+    ("Not approved", "material_status_rejected"),
 ]
+/// The two whose ENGLISH key keeps this app's plain hyphen where Android's English has an em dash (the iOS
+/// sources avoid the dash everywhere); the German is still Android's verbatim and the English is the key.
+let addedWithHyphen: [(String, String)] = [
+    ("Approved - not ordered yet", "material_status_approved"),
+    ("Status unknown - ask your admin", "material_status_unknown"),
+]
+for (key, androidName) in addedWithHyphen {
+    check(value(key, "de") != nil && value(key, "de") == androidString(androidName),
+          "'\(key)' has Android's German '\(androidString(androidName) ?? "?")' verbatim (\(androidName)); got '\(value(key, "de") ?? "nil")'")
+    check(value(key, "en") == key, "'\(key)' has an explicit English entry equal to the key; got '\(value(key, "en") ?? "nil")'")
+}
 for (key, androidName) in added {
     check(value(key, "de") != nil && value(key, "de") == androidString(androidName),
           "'\(key)' has Android's German '\(androidString(androidName) ?? "?")' verbatim (\(androidName)); got '\(value(key, "de") ?? "nil")'")
@@ -409,6 +509,8 @@ check(catalogue["Log"] == nil, "the dead tab label 'Log' is gone from the catalo
 check(catalogue["Clocked in"] == nil && catalogue["Shift running"] == nil,
       "the retired running heading 'Clocked in' and the nav title 'Shift running' are gone (nothing uses them; 'eingestempelt' lives on elsewhere)")
 check(catalogue["TimeSheet"] == nil, "the idle navigation title 'TimeSheet' is gone from the catalogue (nothing uses it)")
+check(catalogue["Write it in your own words, for example: two mops and a large bottle of glass cleaner"] == nil,
+      "the long VoiceOver hint is gone: the example is a visible caption under the field now")
 check(catalogue["Tag missing or unreachable? Pick the zone instead. The office sees this as a manual entry."] == nil,
       "the manual start's idle footer is gone: the explanation lives in the sheet and the confirmation dialog")
 

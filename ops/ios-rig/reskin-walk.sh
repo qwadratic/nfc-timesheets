@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ops/ios-rig/reskin-walk.sh - the PRESENTATION walks of the "Blue Hour" worker reskin
-# (TASK-365.9 / .10 / .11). Where walk.sh drives BEHAVIOUR and asks Postgres and the wire what
+# (TASK-365.9 / .10 / .11 / .12). Where walk.sh drives BEHAVIOUR and asks Postgres and the wire what
 # happened, this puts the worker's screens in front of the camera across the matrix the backlog
 # asks for - appearance x language x text size - and leaves a PNG per step. It asserts nothing
 # about the server; the structural assertions are the XCUITests' (WorkerRigReskinUITests).
@@ -26,9 +26,9 @@ SYNC="$RIG_HOME/sync"
 CLASS=WorkerRigReskinUITests
 
 DEFAULT_COMBOS="light-en-m dark-en-m light-de-m dark-de-xxxl light-en-xxxl"
-DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB3RunningField"
+DEFAULT_STEPS="testB1IdleTabsMoreAndHistory testB2IdleStartCard testB2ReceiptThenRecentCard testB3RunningField testB4MaterialsComposerAndDialog"
 # Steps that need a server flip, or only one pair of combinations to prove: STEPS="testB2UnsentRowSaysWaiting
-# testB3PendingAndDeliverySheet testB3OverdueNeutralField" reskin-walk.sh light-en-m dark-de-xxxl
+# testB3PendingAndDeliverySheet testB3OverdueNeutralField testB4MaterialsForTheBuilding" reskin-walk.sh light-en-m dark-de-xxxl
 
 size_category() {
   case "$1" in

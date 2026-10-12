@@ -11,6 +11,22 @@
         }
       }
     },
+    "Approved - not ordered yet" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genehmigt – noch nicht bestellt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approved - not ordered yet"
+          }
+        }
+      }
+    },
     "%@ at %@" : {
       "localizations" : {
         "de" : {
@@ -41,6 +57,38 @@
         }
       }
     },
+    "Check updates here. No push notifications." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status hier prüfen. Keine Push-Mitteilungen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check updates here. No push notifications."
+          }
+        }
+      }
+    },
+    "Collected" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abgeholt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collected"
+          }
+        }
+      }
+    },
     "Delivery" : {
       "localizations" : {
         "de" : {
@@ -57,6 +105,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Frühester Schichtbeginn: %@"
+          }
+        }
+      }
+    },
+    "For example: 2 mops, glass cleaner" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Beispiel: 2 Mopps, Glasreiniger"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For example: 2 mops, glass cleaner"
+          }
+        }
+      }
+    },
+    "How updates work" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So erhalten Sie Rückmeldung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How updates work"
           }
         }
       }
@@ -157,6 +237,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Noch kein Übertragungsversuch."
+          }
+        }
+      }
+    },
+    "Not approved" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht genehmigt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not approved"
+          }
+        }
+      }
+    },
+    "Ordered" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestellt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordered"
+          }
+        }
+      }
+    },
+    "Request saved. It will be sent as soon as you're online." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anfrage gespeichert. Sie wird gesendet, sobald Sie online sind."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request saved. It will be sent as soon as you're online."
           }
         }
       }
@@ -287,6 +415,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Beginn: %@"
+          }
+        }
+      }
+    },
+    "Status unknown - ask your admin" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status unbekannt – bitte bei der Verwaltung nachfragen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status unknown - ask your admin"
           }
         }
       }
@@ -3332,6 +3476,22 @@
         }
       }
     },
+    "Waiting for the office" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf die Verwaltung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for the office"
+          }
+        }
+      }
+    },
     "We checked your old records" : {
       "localizations" : {
         "de" : {
@@ -3448,16 +3608,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Weitere Karte schreiben"
-          }
-        }
-      }
-    },
-    "Write it in your own words, for example: two mops and a large bottle of glass cleaner" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schreiben Sie es in Ihren eigenen Worten, zum Beispiel: zwei Mopps und eine große Flasche Glasreiniger"
           }
         }
       }

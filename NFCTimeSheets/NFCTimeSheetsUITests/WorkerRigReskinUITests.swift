@@ -2,7 +2,7 @@
 //  WorkerRigReskinUITests.swift
 //  NFCTimeSheetsUITests
 //
-//  THE "BLUE HOUR" SCREEN WALKS (TASK-365.9 / .10 / .11, iOS B1-B3) on the worker rig. Where the
+//  THE "BLUE HOUR" SCREEN WALKS (TASK-365.9 / .10 / .11 / .12, iOS B1-B4) on the worker rig. Where the
 //  other WorkerRig* classes walk BEHAVIOUR (what a tap does to the server's rows), this one walks
 //  PRESENTATION: it puts the worker's screens in front of the camera in one language, one
 //  appearance and one text size and writes a PNG of each. Nothing here asserts a server row; the
@@ -350,6 +350,121 @@ final class WorkerRigReskinUITests: XCTestCase {
         var swipes = 0
         while !help.isHittable, swipes < 10 { app.swipeUp(); swipes += 1 }
         snap("b3-05-overdue-bottom")
+    }
+
+    // MARK: - B4: Materials
+
+    private struct MaterialsWords {
+        let heading, ask, field, example, send, saved, noPush, details, longSentence, dismiss, waiting: String
+    }
+    private var materialsWords: MaterialsWords {
+        language == "de"
+            ? MaterialsWords(heading: "Material", ask: "Etwas anfordern", field: "Was brauchen Sie?",
+                             example: "Zum Beispiel: 2 Mopps, Glasreiniger", send: "Anfrage senden",
+                             saved: "Anfrage gespeichert. Sie wird gesendet, sobald Sie online sind.",
+                             noPush: "Status hier prüfen. Keine Push-Mitteilungen.", details: "So erhalten Sie Rückmeldung",
+                             longSentence: "Ihr Telefon meldet sich nicht von selbst", dismiss: "Ausblenden",
+                             waiting: "Wartet auf die Verwaltung")
+            : MaterialsWords(heading: "Materials", ask: "Ask for something", field: "What do you need?",
+                             example: "For example: 2 mops, glass cleaner", send: "Send request",
+                             saved: "Request saved. It will be sent as soon as you're online.",
+                             noPush: "Check updates here. No push notifications.", details: "How updates work",
+                             longSentence: "your phone will not notify you", dismiss: "Dismiss",
+                             waiting: "Waiting for the office")
+    }
+
+    /// The idle phone, Materials tab: a flat composer (heading and mark, the field, the VISIBLE example, ONE
+    /// filled button that starts disabled), ONE short no-push line and the long explanation behind its
+    /// button - never printed. Then a request is typed and sent: the saved line is visible and the row says
+    /// what it is WAITING for in the walk's language (it used to arrive in English on a German phone).
+    func testB4MaterialsComposerAndDialog() throws {
+        let app = launch()
+        let w = materialsWords
+        app.tabBars.buttons[words.materials].tap()
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout), "the page heading '\(w.heading)'")
+        XCTAssertTrue(app.staticTexts[w.ask].exists, "the composer heading '\(w.ask)'")
+        let field = app.textFields[w.field]
+        XCTAssertTrue(field.waitForExistence(timeout: Rig.timeout), "the field '\(w.field)'")
+        XCTAssertTrue(app.staticTexts[w.example].exists, "the example is VISIBLE under the field: '\(w.example)'")
+        let send = app.buttons[w.send]
+        XCTAssertTrue(send.exists && !send.isEnabled, "the one filled button starts disabled (nothing typed)")
+        XCTAssertGreaterThanOrEqual(send.frame.height, 56, "Send is the shared primary button, at least 56 pt tall: \(send.frame.height)")
+        XCTAssertTrue(app.staticTexts[w.noPush].exists, "the short no-push line is always visible: '\(w.noPush)'")
+        XCTAssertFalse(anyElement(app, containing: w.longSentence).exists, "the long explanation is NOT printed on the screen")
+        let details = app.buttons[w.details]
+        XCTAssertTrue(details.exists, "the explanation button '\(w.details)'")
+        XCTAssertGreaterThanOrEqual(details.frame.height, 48, "the quiet button is at least 48 pt tall: \(details.frame.height)")
+        snap("b4-01-materials-composer")
+
+        details.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: Rig.timeout), "the dialog opens")
+        XCTAssertTrue(anyElement(app, containing: w.longSentence).waitForExistence(timeout: 3), "the dialog holds the long explanation")
+        sleep(1)
+        snap("b4-02-no-push-dialog")
+        alert.buttons[w.dismiss].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: Rig.timeout))
+
+        field.tap()
+        field.typeText("2 Mopps")
+        XCTAssertTrue(app.buttons[w.send].isEnabled, "typing enables Send")
+        sleep(1)
+        snap("b4-03-typed")
+        // Send is scrolled TOWARDS, measured against what the keyboard leaves: at the largest text sizes it is
+        // BEHIND the keyboard, which is below the fold as far as a thumb is concerned (up brings a button from
+        // below, down brings one back).
+        let sendButton = app.buttons[w.send]
+        func visibleBottom() -> CGFloat {
+            let keyboard = app.keyboards.firstMatch
+            return keyboard.exists ? keyboard.frame.minY : app.windows.firstMatch.frame.height
+        }
+        // A drag down the right-hand margin: a swipe from the middle of the screen can start INSIDE the
+        // focused field, which keeps the gesture for itself and never scrolls the list.
+        func drag(from: CGFloat, to: CGFloat) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: from))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: to)))
+        }
+        var swipes = 0
+        while !(sendButton.isHittable && sendButton.frame.maxY <= visibleBottom()), swipes < 10 {
+            if sendButton.frame.midY > visibleBottom() { drag(from: 0.45, to: 0.12) } else { drag(from: 0.12, to: 0.45) }
+            swipes += 1
+        }
+        if !sendButton.isHittable { snap("b4-03b-send-not-reachable") }
+        XCTAssertTrue(sendButton.isHittable, "Send is reachable: exists \(sendButton.exists), frame \(sendButton.frame), window \(app.windows.firstMatch.frame)")
+        sendButton.tap()
+        XCTAssertTrue(anyElement(app, containing: w.saved).waitForExistence(timeout: Rig.timeout),
+                      "the saved line is VISIBLE, not only announced: '\(w.saved)'")
+        sleep(2)                                   // the push is acknowledged: the row now carries the server's word
+        snap("b4-04-saved-and-listed")
+        var below = 0
+        while !anyElement(app, containing: w.waiting).exists, below < 6 { app.swipeUp(); below += 1 }
+        XCTAssertTrue(anyElement(app, containing: w.waiting).waitForExistence(timeout: Rig.timeout),
+                      "the sent row says '\(w.waiting)' in the walk's language")
+        snap("b4-05-requests")
+    }
+
+    /// A RUNNING shift: the composer carries the building ("For <building>") and the dialog is the other
+    /// explanation (the one that says the request is sent with it). Still the same one short line.
+    func testB4MaterialsForTheBuilding() throws {
+        startShiftManuallyInEnglish()
+        let app = launch()
+        let w = materialsWords
+        app.tabBars.buttons[words.materials].tap()
+        XCTAssertTrue(app.staticTexts[w.heading].waitForExistence(timeout: Rig.timeout))
+        let forBuilding = language == "de" ? "Für Rig Haus Alpha" : "For Rig Haus Alpha"
+        XCTAssertTrue(anyElement(app, containing: forBuilding).waitForExistence(timeout: Rig.timeout),
+                      "the building is CONTEXT under the field: '\(forBuilding)'")
+        snap("b4-06-materials-with-building")
+        app.buttons[w.details].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: Rig.timeout), "the dialog opens")
+        let sentWith = language == "de" ? "Wird mit dem Objekt gesendet" : "Sent with the building"
+        XCTAssertTrue(anyElement(app, containing: sentWith).waitForExistence(timeout: 3),
+                      "the building variant of the explanation: '\(sentWith)'")
+        sleep(1)
+        snap("b4-07-no-push-dialog-with-building")
+        app.alerts.firstMatch.buttons[w.dismiss].tap()
+        backgroundAndKill(app)
+        _ = finishShiftManuallyInEnglish()
     }
 
     // MARK: - B1: three tabs, More, History

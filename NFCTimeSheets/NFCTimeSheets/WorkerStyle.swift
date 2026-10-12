@@ -155,6 +155,9 @@ struct WorkerPrimaryButtonStyle: ButtonStyle {
 /// button with a real label.
 struct WorkerQuietButtonStyle: ButtonStyle {
     var ink: Color? = nil
+    /// Centred under a centred block (the idle start card); `.leading` under left-aligned content, where a
+    /// centred text button would hang in the middle of nothing (the Materials composer, More).
+    var alignment: HorizontalAlignment = .center
 
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.workerField) private var onField
@@ -163,8 +166,9 @@ struct WorkerQuietButtonStyle: ButtonStyle {
         configuration.label
             .font(.body)
             .foregroundStyle(ink ?? onField?.ink ?? Color.secondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity, minHeight: WorkerStyle.quietButtonMinHeight)
+            .multilineTextAlignment(alignment == .leading ? .leading : .center)
+            .frame(maxWidth: .infinity, minHeight: WorkerStyle.quietButtonMinHeight,
+                   alignment: alignment == .leading ? .leading : .center)
             .contentShape(Rectangle())
             .opacity(isEnabled ? (configuration.isPressed ? 0.6 : 1) : 0.4)
     }
@@ -176,17 +180,35 @@ extension ButtonStyle where Self == WorkerPrimaryButtonStyle {
 
 extension ButtonStyle where Self == WorkerQuietButtonStyle {
     static var workerQuiet: WorkerQuietButtonStyle { WorkerQuietButtonStyle() }
+    /// The same quiet text button, left-aligned and in the full ink (Android's TextButton in onSurface): the
+    /// action under left-aligned content, where the secondary grey would read as a caption.
+    static var workerQuietLeading: WorkerQuietButtonStyle { WorkerQuietButtonStyle(ink: Color.primary, alignment: .leading) }
 }
 
 // MARK: - The one local mark
 
 /// A symbol in a soft circle: iOS's stand-in for Android's drawn entrance mark. Decoration only -
-/// hidden from VoiceOver, because the words beside it say everything it says. The circle scales with
-/// Dynamic Type through @ScaledMetric so the glyph never outgrows its disc.
+/// hidden from VoiceOver, because the words beside it say everything it says. By default the circle
+/// scales with Dynamic Type through @ScaledMetric so the glyph never outgrows its disc.
+///
+/// `size` / `scales: false` is the SMALL, fixed one: Android's 64 dp supplies picture beside the
+/// Materials heading is a fixed `Modifier.size(64.dp)` that does not follow the font scale, and a disc
+/// that grew with the text would push the heading it sits beside off the line.
 struct WorkerGlyph: View {
     let systemName: String
+    private let size: CGFloat
+    private let scales: Bool
 
-    @ScaledMetric(relativeTo: .largeTitle) private var diameter: CGFloat = 88
+    @ScaledMetric(relativeTo: .largeTitle) private var scaledDiameter: CGFloat = 88
+
+    init(systemName: String, size: CGFloat = 88, scales: Bool = true) {
+        self.systemName = systemName
+        self.size = size
+        self.scales = scales
+        _scaledDiameter = ScaledMetric(wrappedValue: size, relativeTo: .largeTitle)
+    }
+
+    private var diameter: CGFloat { scales ? scaledDiameter : size }
 
     var body: some View {
         Image(systemName: systemName)
