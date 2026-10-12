@@ -4,7 +4,7 @@ title: 'iOS P6: Delivery status: count rows, details sheet, sign-in screen'
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-12 10:43'
+updated_date: '2026-10-12 17:42'
 labels:
   - ios
   - parity
@@ -87,16 +87,16 @@ Dynamic Type 200% | rows wrap, stay >= 44pt
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 decision-79 recorded (backlog decision create) BEFORE the code, and listed in the epic
-- [ ] #2 Driven: Idle, empty queue (+) | nothing sent unsent | no rows, no sheet
+- [x] #2 Driven: Idle, empty queue (+) | nothing sent unsent | no rows, no sheet
 - [ ] #3 Driven: Waiting (+) | tap-start then Stop with server down | idle shows '1 shift still on this phone' row; tap opens sheet: count, 'Automatic delivery is not currently active...', earliest start, 'No delivery attempt yet.' | no server rows
-- [ ] #4 Driven: Attempted (+) | pull-to-refresh with server still down | sheet shows 'Last attempt: <time>' | -
-- [ ] #5 Driven: Recovery (+) | start server, pull-to-refresh | row disappears | server has both halves
-- [ ] #6 Driven: Blocked (-) | zone_unverified-turned-removed / unknown_location row | red '1 shift needs your office' row; sheet detail names earliest start; waiting+blocked shows two rows | 422
-- [ ] #7 Driven: Running screen (+) | open shift acked | no row for it; a previous closed-unsent row DOES show
-- [ ] #8 Driven: Sign-in (+) | sign out with unsent rows | SignInView shows the rows and sheet says 'Sign in with the same account...', never 'open the app' | -
-- [ ] #9 Driven: Wording (-) | read every state | never says 'automatically' or force-stop
-- [ ] #10 Driven: Device-wide (-) | A's unsent row, B signed in | B's counts include it (blocked wrong account); lists do not
-- [ ] #11 Driven: Dynamic Type 200% | rows wrap, stay >= 44pt
+- [x] #4 Driven: Attempted (+) | pull-to-refresh with server still down | sheet shows 'Last attempt: <time>' | -
+- [x] #5 Driven: Recovery (+) | start server, pull-to-refresh | row disappears | server has both halves
+- [x] #6 Driven: Blocked (-) | zone_unverified-turned-removed / unknown_location row | red '1 shift needs your office' row; sheet detail names earliest start; waiting+blocked shows two rows | 422
+- [x] #7 Driven: Running screen (+) | open shift acked | no row for it; a previous closed-unsent row DOES show
+- [x] #8 Driven: Sign-in (+) | sign out with unsent rows | SignInView shows the rows and sheet says 'Sign in with the same account...', never 'open the app' | -
+- [x] #9 Driven: Wording (-) | read every state | never says 'automatically' or force-stop
+- [x] #10 Driven: Device-wide (-) | A's unsent row, B signed in | B's counts include it (blocked wrong account); lists do not
+- [x] #11 Driven: Dynamic Type 200% | rows wrap, stay >= 44pt
 - [x] #12 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
 - [x] #13 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
 - [x] #14 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
@@ -148,4 +148,20 @@ NOT VERIFIED (criteria #2-#11 stay open)
 RESKIN COLLISIONS (B1-B5 must touch these): (1) DeliveryStatusRows / DeliveryDetailsSheet are bare: system .bordered buttons (roundedRectangle), the red of a blocked row, system fonts; B1's tokens decide colours and B3's on-blue ink for the running screen (there is no `ink` parameter yet). (2) pending-work-check pins the CURRENT structure as text: the rows between the resolver card and notifications-off, after BOTH controls; the idle rows right after the unresolved banner and NOT in a Section; the sign-in rows between the brand block and the code form; the ShiftScreen call-site order (deliveryRows before syncError); no surface in the views; a reskin that moves things updates those assertions in the same commit. (3) The running screen's stack order pins from P5 and P4 are untouched.
 
 PINS CHANGED: worker-scope-check.swift (b) "every use of allShifts goes through the helper" gained ONE allowed prefix, `.deviceWide()`, and was TIGHTENED in the same commit: deviceWide() may appear in ContentView.swift only as the exact two delivery-row lines, never in MaterialsView, History, handleTap, the tab lock, currentRunning or startManual. localisation-check.swift's plural guard gained the two new keys plus an assertion that their English plural exists (the key is the 'other' form: without it a count of 1 reads "1 shifts"). No pin was deleted or loosened; schedule-check, pending-notice-check and shift-signal-check are byte-identical.
+
+2026-10-12 DRIVEN against the loopback rig (TASK-365.22, ops/ios-rig commits 8070c4f + b688541). Driver `ops/ios-rig/walk.sh p6` (+ p6-device-wide in the p3 batch); tests NFCTimeSheetsUITests/WorkerRigDeliveryUITests.swift and WorkerRigSharedPhoneUITests.swift. Offline = TLS front stopped (connection refused). Evidence <scratchpad>/rig/shots/p6-*.png and the sheet texts p6-03/06/08-sheet-text.txt (<scratchpad>=/private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad).
+
+TICKED
+#2 empty queue: signed in idle, nothing unsent -> no 'still on this phone' row, no 'needs your office' row, no 'Delivery' sheet.
+#4 attempted: after a pull-to-refresh with the front still down the sheet shows 'Last attempt: 12 Oct 2026 at 14:03'. (It already showed that on first open - see #3 below - so this proves the line is there, not that the time moved.)
+#5 recovery: front started, pull-to-refresh on the idle list -> the row disappears; the server then holds the shift with BOTH halves (open and close). (The close arrived as manual_close=false although the worker used 'Finish without a tag': defect D1 in TASK-365.22.)
+#6 blocked: a deactivated zone (unknown_location, terminal) tapped and finished -> RED row '1 shift needs your office'; sheet 'Your office needs to review these entries. They remain on this phone and are not sent again. Please tell your office the time shown below.' + 'Earliest shift start: 12 Oct 2026 at 14:12'; then an offline start/finish at Beta -> TWO rows (blocked red + '1 shift still on this phone'). shots/p6-06-two-rows.png. (zone_unverified alone is RETRYABLE, so that row is 'waiting', not blocked.)
+#7 running screen: with a blocked closed row on the phone a new acknowledged shift's running screen shows '1 shift needs your office' and NO row for the open acknowledged shift. Variant: the previous closed-unsent row was BLOCKED; a WAITING closed row cannot survive an online start (the same sync pass delivers it), so that exact variant is not constructible.
+#8 sign-in: offline start/finish, Settings > Sign out -> sign-in screen shows '1 shift still on this phone'; sheet 'Sign in with the same account so these entries can be delivered.' and never 'Open the app'.
+#9 wording: texts of the waiting, blocked and sign-in sheets captured (p6-03/06/08-sheet-text.txt): none contains 'force' and 'automatic' appears only in the mandated 'Automatic delivery is not currently active' (decision-82's one exception, asserted).
+#10 device-wide: A's offline start/finish unsent, A signs out, front started, B signs in -> B's idle shows '1 shift needs your office' (A's row, blocked: wrong account) while B's Recent ('No completed shifts yet.') and History ('No shifts yet.') hold none of A's rows; A's row never reached the server (quirk (c) of TASK-365.4).
+#11 Dynamic Type: launched with UICTContentSizeCategoryAccessibilityL (AX2, 194%): the count row wraps to two lines and is taller than 44 pt (asserted >= 44), 'Close' in the sheet stays on screen, hittable and >= 44 pt. shots/p6-11-*.png
+
+LEFT OPEN
+#3 waiting: offline tap-start then 'Finish without a tag' -> idle shows '1 shift still on this phone' (count 1), the sheet shows the count, 'Automatic delivery is not currently active. Open the app with an internet connection to try delivery again.' and 'Earliest shift start: ...' - BUT it says 'Last attempt: <time>', not 'No delivery attempt yet.': iOS pushes at tap time (PendingWork DeliveryAttempt.stamp in pushOpen/pushClose before the request) so an attempt always exists once the row was written online-or-not. The matrix's 'No delivery attempt yet.' is only reachable on a row nothing ever tried to push. Needs a decision (matrix wrong for iOS, or sentence unreachable); not ticked.
 <!-- SECTION:NOTES:END -->

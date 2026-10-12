@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 13:46'
+updated_date: '2026-10-12 17:42'
 labels:
   - ios
   - parity
@@ -94,10 +94,10 @@ Manual stop (+) | Finish without a tag then ack | re-arm happens after the push,
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Driven: Running, online (+) | tap-start against loopback server | heading 'Clocked in' / 'Running'; 'Not confirmed yet' never flashes (2 s grace) | row openSyncedAt set, server open row
-- [ ] #2 Driven: Running, server unreachable (-) | stop server, tap-start | after ~2 s heading 'Not confirmed yet', word 'Time recorded on this phone', notice 'No connection - will send when you're back online.' + Refresh; clock keeps counting; Stop/Scan/tabs all usable | no server row
+- [x] #1 Driven: Running, online (+) | tap-start against loopback server | heading 'Clocked in' / 'Running'; 'Not confirmed yet' never flashes (2 s grace) | row openSyncedAt set, server open row
+- [x] #2 Driven: Running, server unreachable (-) | stop server, tap-start | after ~2 s heading 'Not confirmed yet', word 'Time recorded on this phone', notice 'No connection - will send when you're back online.' + Refresh; clock keeps counting; Stop/Scan/tabs all usable | no server row
 - [ ] #3 Driven: Recovery (+) | start server, press Refresh | heading flips to 'Clocked in', notice disappears, ladder re-armed with normal wording | server open row
-- [ ] #4 Driven: Refusal (-) | zone_unverified / unknown_location tap | notice shows the row's sentence (red icon when blocked), heading 'Not confirmed yet' | 422
+- [x] #4 Driven: Refusal (-) | zone_unverified / unknown_location tap | notice shows the row's sentence (red icon when blocked), heading 'Not confirmed yet' | 422
 - [ ] #5 Driven: Overdue (+) | shift past 8h | overdue wording wins over pending
 - [ ] #6 Driven: VoiceOver | focus the clock and the notice | label 'N hours M minutes recorded on this phone for B. Not confirmed...'; Refresh is a separate focusable button
 - [ ] #7 Driven: Reminders | pending shift: inspect scheduled request text (print in DEBUG or checks) | every rung 'Not confirmed yet: B'; after ack re-armed to 'Still clocked in' wording
@@ -143,4 +143,18 @@ VERIFIED
 NOT VERIFIED (criteria #1-#8 stay open): that an online tap never flashes "Not confirmed yet" (the 2 s grace is a unit-proven rule plus a text-pinned wiring, not seen); that a stopped server / a real 422 shows heading, word, notice and red icon as designed; that Refresh flips the heading and the ladder; that a state read inside the TimelineView closure (@State graceElapsed) re-renders at 2 s (expected, not seen); VoiceOver order and the separate Refresh focus; that the announcement is spoken; that the re-armed ladder's text is what iOS shows (the pending-request text was not inspected on a device); the manual-stop walk. The Android check (android/checks/run.sh) was NOT run: it downloads org.json from Maven Central on first use; its only read of an iOS file is ShiftSignal.swift's three literals, which shift-signal-check re-asserts.
 
 RESKIN COLLISIONS (B1-B5 must touch these): (1) ShiftScreen.header()/clock() now take `presentation:` and call headingText / stateWord / spokenState; B3 keeps those three and restyles where they are drawn. (2) PendingNoticeView is bare on the blue field (default .primary text, system .bordered button, system .red for a refused row): B3's on-blue ink and B1's tokens decide its colours; it has no `ink` parameter yet. (3) pending-notice-check pins the CURRENT structure as text: the stack order header < clock < notice < instruction < Scan < Finish, exactly four `if` lines in the stack, `if presentation == .overdue {` / `} else {` in clock(), ShiftScreen reading the flag in exactly two places, the call-site argument order in ContentView (syncError, syncBlocked, onRefresh before schedule), the notice view having no surface; a reskin that moves things updates those assertions in the same commit. (4) P4's schedule-check pins still hold (scheduleCard before helpCard, exactly eight "schedule" lines in ContentView.swift: do not write that word in a ContentView code line). (5) P6 (confirmation motion) reads ShiftSignal.isConfirmed; P7 (delivery) reuses the same syncError / syncBlocked / refresh and the grace if it shows a pending line.
+
+2026-10-12 DRIVEN against the loopback rig (TASK-365.22, ops/ios-rig commits 8070c4f + b688541). Driver `ops/ios-rig/walk.sh p5`; tests NFCTimeSheetsUITests/WorkerRigDeliveryUITests.swift (P5 half). Taps are the DEBUG `--ts-demo-tap` hook; 'server unreachable' is the TLS front STOPPED (connection refused = status 0, the 'No connection' sentence); with the API stopped instead (front answers 502) the same sentence appeared in the P2 server-down walk. Evidence <scratchpad>/rig/shots/p5-*.png (<scratchpad>=/private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad).
+
+TICKED
+#1 online: tap-start -> 'Clocked in' / 'Running', 'Not confirmed yet' never appeared in a 5 s poll, no Refresh button; server: ONE open row (tap start, not manual, start_zone = the zone), POST 201.
+#2 unreachable: app launched with the front stopped, tap injected -> after the 2 s grace heading 'Not confirmed yet', word 'Time recorded on this phone', notice 'No connection - will send when you're back online.' + Refresh; the clock card changed between two pictures 3 s apart (counting from the local start), 'Finish shift without a tag', 'Scan a tag' and the Materials/Settings tabs present and hittable; server held 0 rows. shots/p5-02-unreachable.png
+#4 refusal: (a) zone_unverified -> notice 'This tag hasn't been activated yet. No shift was started. Please contact your administration.', heading 'Not confirmed yet', wire 422, no server row; (b) a deactivated zone (unknown_location, TERMINAL -> blocked row) -> 'This location was removed. Ask your admin.' with the RED octagon beside it (shots/p5-04-blocked-refusal.png). Note: zone_unverified is RETRYABLE (waiting, no red icon); only the terminal refusal is red.
+
+LEFT OPEN
+#3 recovery: front started again, Refresh pressed -> heading 'Clocked in', notice and Refresh disappear, the server holds exactly ONE open row with the client_uuid that was on the wire. NOT observed: 'ladder re-armed with normal wording' (pending notification requests have no out-of-process reader on the Simulator).
+#5 overdue: a 9 h old server shift adopted by the phone renders 'Over 8 hours' + 'passed 8 hours and was closed automatically' (not 'Not confirmed yet'). 'wins over pending' is NOT drivable: no UI path writes a back-dated UNACKNOWLEDGED local row; the precedence stays pinned by shift-signal-check.swift (overdue beats pending at exactly 8 h).
+#6 VoiceOver: the clock card's accessibility label reads '0 hours and 0 minutes recorded on this phone for Rig Haus Alpha. Not confirmed by the office yet.' and 'Refresh' is a separate hittable button (accessibility tree). VoiceOver itself was not run, focus order not observed.
+#7 reminders: not observable (no reader for pending local notification requests).
+#8 manual stop then ack: 'Finish shift without a tag' closes and the server row is closed (P2 #11); 're-arm happens after the push, ladder cleared' NOT observable.
 <!-- SECTION:NOTES:END -->

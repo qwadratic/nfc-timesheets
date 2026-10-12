@@ -4,7 +4,7 @@ title: 'iOS P2: ''Start without a tag'' picks a zone and asks the server first'
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 12:27'
+updated_date: '2026-10-12 17:41'
 labels:
   - ios
   - parity
@@ -84,16 +84,16 @@ Stop without tag (regression) | Finish shift without a tag | still closes with m
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 decision-77 recorded (backlog decision create) BEFORE the code, and listed in the epic
-- [ ] #2 Driven: Idle/manual sheet (-) | open with no cached zones (fresh, offline) | empty sentence 'No zones are available. Please refresh first...' | no request
-- [ ] #3 Driven: Idle/manual sheet (+) | open with cached zones | rows 'B · Z' sorted, none selected, Start disabled until picked, confirm dialog names the label
-- [ ] #4 Driven: Start online verified zone (+) | pick, Start, confirm | sheet closes, running screen, row acked at once, 'Manual' pill later | POST /shifts/open location_uuid=Z manual:true -> 201, shifts.manual_start=true, location_id=B
-- [ ] #5 Driven: Unverified zone (-) | pick zone with verified_at null | inline 'This tag hasn't been activated yet. No shift was started...', sheet open | no local row, no server row
-- [ ] #6 Driven: Other open shift on server (-) | second device holds an open shift | inline 409 sentence | no row
-- [ ] #7 Driven: Deactivated zone (-) | zone deactivated after cache | inline 'This location was removed...' | no row
+- [x] #2 Driven: Idle/manual sheet (-) | open with no cached zones (fresh, offline) | empty sentence 'No zones are available. Please refresh first...' | no request
+- [x] #3 Driven: Idle/manual sheet (+) | open with cached zones | rows 'B · Z' sorted, none selected, Start disabled until picked, confirm dialog names the label
+- [x] #4 Driven: Start online verified zone (+) | pick, Start, confirm | sheet closes, running screen, row acked at once, 'Manual' pill later | POST /shifts/open location_uuid=Z manual:true -> 201, shifts.manual_start=true, location_id=B
+- [x] #5 Driven: Unverified zone (-) | pick zone with verified_at null | inline 'This tag hasn't been activated yet. No shift was started...', sheet open | no local row, no server row
+- [x] #6 Driven: Other open shift on server (-) | second device holds an open shift | inline 409 sentence | no row
+- [x] #7 Driven: Deactivated zone (-) | zone deactivated after cache | inline 'This location was removed...' | no row
 - [ ] #8 Driven: Server down (-) | stop server, Start | sheet closes, running screen, local row queued; start server + pull-to-refresh | exactly ONE server row (201 or duplicate 200), same client_uuid
-- [ ] #9 Driven: Wire (-) | inspect requests | no POST /shifts/open ever carries a building uuid
-- [ ] #10 Driven: Mock armed (+) | arm 'accepts a manual start', pick the mock zone, Start | works with no server (ShiftMocks echo)
-- [ ] #11 Driven: Stop without tag (regression) | Finish shift without a tag | still closes with manual:true
+- [x] #9 Driven: Wire (-) | inspect requests | no POST /shifts/open ever carries a building uuid
+- [x] #10 Driven: Mock armed (+) | arm 'accepts a manual start', pick the mock zone, Start | works with no server (ShiftMocks echo)
+- [x] #11 Driven: Stop without tag (regression) | Finish shift without a tag | still closes with manual:true
 - [x] #12 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
 - [x] #13 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
 - [x] #14 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
@@ -104,4 +104,19 @@ Stop without tag (regression) | Finish shift without a tag | still closes with m
 
 <!-- SECTION:NOTES:BEGIN -->
 2026-10-07 implementation complete on branch ios-worker-parity: decision-79 recorded FIRST (the plan called it decision-77; 77 and 78 are taken by branch admin-declutter), ManualStart.swift (zone picker rows + refuse/queue split), ContentView startManual asks ShiftFlowAPI.open BEFORE any local write (one client_uuid and start time, reused on the queue fallback), refusals shown in the sheet with no row, copy says zone (de from Android verbatim, formal Sie). Verified: manual-start-check green with three red cases reproduced (picker fed from buildings, refusal that still writes, row written before the server is asked); NFCTimeSheets/checks/run.sh 19/19; Debug and Release build. check-branding: all ok, no TODO printed. NOT DONE: criteria #2-#11 are DRIVEN walks (empty state, sorted rows, online start, 422/409 refusals, server down, wire inspection, mock, stop regression). They need a worker session against a server, which no existing rig provides (decision-50 retired the Apple token path the demo server used). Filed as the verification-rig task; this task stays In Progress until those are driven.
+
+2026-10-12 DRIVEN against the loopback rig (TASK-365.22: ops/ios-rig, commits 8070c4f + b688541, branch ios-verification-rig). Real server + real RLS + real Postgres + TLS front on 127.0.0.1, iPhone 17 Pro simulator CLONE, worker signed in through the REAL code form, taps by the DEBUG `--ts-demo-tap <zone>` hook. Driver: `ops/ios-rig/walk.sh p2`; tests: NFCTimeSheetsUITests/WorkerRigManualStartUITests.swift. Full run `walk.sh all`: 146 PASS / 3 FAIL (the 3 are ONE product defect, see TASK-365.22). Evidence: <scratchpad>/rig/{shots,logs/walks.log,logs/front.jsonl} with <scratchpad>=/private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad.
+
+TICKED (observed on the phone AND on the server/wire):
+#2 empty: roster refused by the front (503) on a fresh install -> sheet says 'No zones are available. Please refresh first. If your zone is still missing, contact the office.', no picker, Start disabled, ZERO requests between sheet-opened and sheet-checked (marks vs wire). shots/p2-02-empty-state.png
+#3 picker: rows exactly ['Rig Haus Alpha . Dachboden','... . Keller','... . Stiege 1','Rig Haus Beta . Haupteingang'] in that on-screen order (unverified Keller included, no bare building), nothing preselected ('Choose a zone'), Start disabled until picked, dialog 'Start a shift at Rig Haus Alpha . Stiege 1?'; looking starts nothing (0 shifts, 0 POST). shots/p2-03-*.png
+#4 online verified: sheet closes, running screen, 'Clocked in'/'Running', 'Not confirmed yet' never seen in a 4.5 s poll. Wire: POST /shifts/open location_uuid = ZONE uuid, manual:true -> 201, THEN the sync pass re-posts the SAME client_uuid -> 200 duplicate (by design: ask first, then handleTap's push). Server row: manual_start=true, location_id=building, start_zone_id=zone. After a TAG tap-out at the same zone Recent shows the 'Manual' pill (manual_start true, manual_close false). shots/p2-04-*.png
+#5 unverified (Keller): inline 'This tag hasn't been activated yet. No shift was started...', sheet stays open, Start usable, History empty (no local row), wire 422, server 0 rows, exactly one request (no retry queued).
+#6 other open shift: a second device's open shift inserted AFTER the picker was filled -> inline 'Another shift is still running - finishing it first.', no row; wire 409.
+#7 deactivated (Dachboden, flipped after the pick) -> inline 'This location was removed. Ask your admin.', no row; wire 422.
+#9 wire: across the whole log (122 POST /shifts/open of this and earlier rig instances) 0 carry a building uuid; all carry zone ids.
+#10 mock armed: front DOWN (connection refused), 'Mock: the server accepts a manual start', pick the '(mock)' zone, Start -> running screen, sheet closed, nothing reached the server.
+#11 stop regression: tap start (DemoHooks), 'Finish shift without a tag' -> dialog names the building -> closes; wire close manual:true; server manual_close=true, corrected_at set, auto_closed=false; open went up with NO manual field.
+
+LEFT OPEN #8 (server down): the queue half is driven and passes - API stopped (front answers 502), Start -> sheet closes, running screen, after 2 s 'Not confirmed yet' / 'Time recorded on this phone' / 'No connection - will send when you're back online.'; server holds 0 rows; API started again; ONE server row after recovery, same client_uuid as both 502'd POSTs. BUT the matrix says pull-to-refresh: the pull gesture on the RUNNING screen did start refresh() (GET /roster 200, GET /flags 200) and then NOTHING (no GET /shifts/open, no POST) in two runs; the 'Refresh' button under the clock delivered it (POST 201). The same pull on the IDLE list delivers (P6 recovery). Finding F2 in TASK-365.22 notes. Not ticked because the literal path failed.
 <!-- SECTION:NOTES:END -->

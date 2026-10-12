@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 12:52'
+updated_date: '2026-10-12 17:41'
 labels:
   - ios
   - parity
@@ -83,13 +83,13 @@ History (-) | swipe-delete as B | only B's rows removable
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 Driven: Sign-out (+) | A signs in (real enrolment code on loopback server), tap-start, Settings > Sign out | sign-in screen; home-screen badge 0; no shift reminder pending/delivered | A's server shift still open; local row kept
-- [ ] #2 Driven: Sign-in B (+) | B signs in | idle Log (no running screen), History tab present, Recent/History/totals empty of A's rows, Materials shows no 'For <A's building>' | -
-- [ ] #3 Driven: B taps same place as A's open row (-) | DemoHooks tap at A's building | B gets ITS OWN running shift; A's row not closed, no switch card | server: new open row for B; A's row unchanged
-- [ ] #4 Driven: B taps elsewhere (-) | tap another building | no flagged auto-close of A's row | A unchanged
+- [x] #2 Driven: Sign-in B (+) | B signs in | idle Log (no running screen), History tab present, Recent/History/totals empty of A's rows, Materials shows no 'For <A's building>' | -
+- [x] #3 Driven: B taps same place as A's open row (-) | DemoHooks tap at A's building | B gets ITS OWN running shift; A's row not closed, no switch card | server: new open row for B; A's row unchanged
+- [x] #4 Driven: B taps elsewhere (-) | tap another building | no flagged auto-close of A's row | A unchanged
 - [ ] #5 Driven: Return of A (+) | B signs out, A signs in | A's running screen and signals (badge 1) return; tap closes A's row | server closes A's shift
 - [ ] #6 Driven: Session rejected (-) | revoke session server-side mid-shift, trigger any request | drops to signed-out, badge 0, reminders gone
 - [ ] #7 Driven: Worker replaced without signed-out (+) | cached A, /auth/session answers B | no A rows, unresolved list and switch notice reset
-- [ ] #8 Driven: History (-) | swipe-delete as B | only B's rows removable
+- [x] #8 Driven: History (-) | swipe-delete as B | only B's rows removable
 - [x] #9 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
 - [x] #10 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
 - [x] #11 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
@@ -127,4 +127,20 @@ VERIFIED
 - Debug and Release builds (generic iOS Simulator, CODE_SIGNING_ALLOWED=NO): BUILD SUCCEEDED both, no warnings in the touched files. No edit to project.pbxproj or the entitlements.
 
 NOT VERIFIED (criteria #1-#8 stay open): sign-out badge/reminders/Live Activity actually cleared on a device or simulator; B signing in on A's phone; B tapping A's building / elsewhere; A's return; a rejected session mid-shift; cached-A / server-B replace; History swipe as B. The .id(worker.id) reset and the stale-refresh guard are pinned as source text only; their runtime behaviour is unobserved.
+
+2026-10-12 DRIVEN against the loopback rig (TASK-365.22, ops/ios-rig commits 8070c4f + b688541). Two workers (Anna Rig = A, Bernd Rig = B) on ONE simulator clone, each signed in through the real code form. Driver `ops/ios-rig/walk.sh p3`; tests NFCTimeSheetsUITests/WorkerRigSharedPhoneUITests.swift. Evidence: <scratchpad>/rig/shots/p3-*.png, logs/walks.log, logs/front.jsonl (<scratchpad>=/private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad).
+
+TICKED
+#2 Sign-in B: A taps in (server row open), signs out, B signs in -> idle Log (no running screen), History tab present, Recent 'No completed shifts yet.', History 'No shifts yet.' with 0.0 h totals, Materials shows no 'For Rig Haus Alpha'. Server: A's shift still open, B has no row.
+#3 B taps A's open place: B gets ITS OWN running shift ('Clocked in', no switch card, no unresolved banner). Server: A's row open/auto_closed=false/unchanged, a NEW open row for B at the same zone; ZERO POST /shifts/close on the wire (nothing went out under B's cookie).
+#4 B taps elsewhere (Beta): no switch card, no unresolved banner; A's row unchanged (open, auto_closed=false), B's row at building B, nothing closed.
+#8 swipe-delete as B: A finishes a shift, B works one, History as B lists ONLY 'Rig Haus Beta' (no 'Rig Haus Alpha'), swipe-Delete removes it; A signs in again (fresh code) and her finished row is still there. Server keeps both finished shifts (delete is local only).
+
+LEFT OPEN - what WAS observed, and what could not be:
+#1 sign-out: the phone returns to the sign-in screen, POST /auth/logout 200, the worker session row is gone, A's server shift is still open. NOT observable: 'home-screen badge 0' and 'no reminder pending/delivered'. The Simulator's icon accessibility label/value never carries a badge (label 'NFCTimeSheets', value ''), the static home grid showed no badge in ~17 screenshots over ~40 s with the shift running and the permission granted (one launch-animation frame did draw a red '1'), and UNUserNotificationCenter has no out-of-process reader. Covered by shift-signal-check.swift + worker-scope-check.swift (text pins), NOT driven. Needs a device.
+#5 return of A: B signs out, A signs in with a fresh code -> A's running screen is back ('Clocked in', local row kept), a tag tap at A's zone closes it: server row closed, auto_closed=false, B has no row. NOT observed: 'signals (badge 1) return' (same reason as #1).
+#6 session rejected: A running, her sessions deleted server-side, app foregrounded -> sign-in screen with 'Your session ended. Sign in again.'; A's server shift still open. NOT observed: badge 0 / reminders gone.
+#7 worker replaced without signed-out: A has a finished row; GET /auth/session is made to answer Bernd Rig after 4 s (front fault) -> A's rows are visible for the first seconds (cached A), then Settings shows Bernd Rig WITHOUT passing the sign-in screen, Recent 'No completed shifts yet.', History 'No shifts yet.'; the TabView is rebuilt (selection back on Log). 'unresolved list and switch notice reset' NOT exercised: Session.restore() runs only at launch, so no switch notice/unresolved state of A can exist at that moment; a runtime A->B replacement does not occur in the product.
+
+Related (TASK-365.7 #10): B signed in on A's phone with A's UNSENT closed row sees '1 shift needs your office' (blocked: wrong account) in its counts and nothing of A's in Recent/History; A's row never reached the server (documented quirk (c) of this task: the wrong-account block persists).
 <!-- SECTION:NOTES:END -->

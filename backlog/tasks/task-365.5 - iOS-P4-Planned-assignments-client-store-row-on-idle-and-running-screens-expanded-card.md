@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 13:18'
+updated_date: '2026-10-12 17:41'
 labels:
   - ios
   - parity
@@ -138,18 +138,18 @@ Decoupling (-) | schedule request fails | clock-in, sync and signals unaffected
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 decision-78 recorded (backlog decision create) BEFORE the code, and listed in the epic
-- [ ] #2 Driven: Idle (+) | worker with one same-day assignment, open Log | collapsed row 'Next planned assignment · View' with building and 'date · 08:00–12:00' in Vienna time | GET /me/schedule 200
-- [ ] #3 Driven: Idle expand (+) | tap View | 'My schedule' card, 'Planned · Clock in separately', first assignment, 'All upcoming assignments' toggle only when >1; toggle lists all with notes | -
-- [ ] #4 Driven: Cross-midnight (+) | assignment 22:00-02:00 | long form 'd, 22:00 – d+1, 02:00' | -
-- [ ] #5 Driven: Empty (+) | no assignments | collapsed row shows nothing under it; expanded shows the 31-day sentence | 200 []
-- [ ] #6 Driven: Offline (-) | server stopped | collapsed nothing; expanded 'without a connection' + Try again; Try again re-fetches | status 0
-- [ ] #7 Driven: Route missing (-) | 404 | expanded generic error + Try again | 404
-- [ ] #8 Driven: Session revoked (-) | 401 | app signs out; no schedule error rendered | 401
-- [ ] #9 Driven: Running (+) | start shift, running screen | same row before the help card; expanding does not collapse after the minute tick
-- [ ] #10 Driven: Resume (+) | switch tabs and back, background/foreground | each triggers one fetch; a slow stale response does not overwrite a newer one
-- [ ] #11 Driven: Cancel (-) | leave the tab mid-request | no offline sentence painted
-- [ ] #12 Driven: Identity (-) | A signs out, B signs in | B never sees A's assignment, store starts Loading
-- [ ] #13 Driven: Refresh icon (+) | tap refresh icon | re-fetch, VoiceOver label 'Refresh assignments'
+- [x] #2 Driven: Idle (+) | worker with one same-day assignment, open Log | collapsed row 'Next planned assignment · View' with building and 'date · 08:00–12:00' in Vienna time | GET /me/schedule 200
+- [x] #3 Driven: Idle expand (+) | tap View | 'My schedule' card, 'Planned · Clock in separately', first assignment, 'All upcoming assignments' toggle only when >1; toggle lists all with notes | -
+- [x] #4 Driven: Cross-midnight (+) | assignment 22:00-02:00 | long form 'd, 22:00 – d+1, 02:00' | -
+- [x] #5 Driven: Empty (+) | no assignments | collapsed row shows nothing under it; expanded shows the 31-day sentence | 200 []
+- [x] #6 Driven: Offline (-) | server stopped | collapsed nothing; expanded 'without a connection' + Try again; Try again re-fetches | status 0
+- [x] #7 Driven: Route missing (-) | 404 | expanded generic error + Try again | 404
+- [x] #8 Driven: Session revoked (-) | 401 | app signs out; no schedule error rendered | 401
+- [x] #9 Driven: Running (+) | start shift, running screen | same row before the help card; expanding does not collapse after the minute tick
+- [x] #10 Driven: Resume (+) | switch tabs and back, background/foreground | each triggers one fetch; a slow stale response does not overwrite a newer one
+- [x] #11 Driven: Cancel (-) | leave the tab mid-request | no offline sentence painted
+- [x] #12 Driven: Identity (-) | A signs out, B signs in | B never sees A's assignment, store starts Loading
+- [x] #13 Driven: Refresh icon (+) | tap refresh icon | re-fetch, VoiceOver label 'Refresh assignments'
 - [ ] #14 Driven: Decoupling (-) | schedule request fails | clock-in, sync and signals unaffected
 - [x] #15 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
 - [x] #16 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
@@ -203,4 +203,22 @@ NOT VERIFIED (criteria #2-#14 stay open): that .onAppear fires on every return t
 RESKIN COLLISIONS (B1-B5 must touch these): (1) ContentView.swift idleList: `Section { ScheduleSummary }` sits above Section("Recent"); B2's new idle order (day heading, start card, action first, receipts as cards) has to move it (Android: after the start card, delivery rows and NFC banner, before Recent) and swap the List-row container for a card. (2) ShiftScreen.swift scheduleCard uses the current card() helper (secondary-background rounded rectangle + SF icon) and system text colours; B3's fixed dark-blue field needs on-blue ink - ScheduleSummary has no `ink` parameter (Android passes onContainer), so B3 either adds one or sets the foreground style on the container. (3) .borderless buttons take the system tint; B1's tokens decide the accent. (4) Fonts are system text styles (.headline / .subheadline / .footnote); B1's type tokens replace them in ScheduleViews.swift only. (5) The SF symbol "calendar" and "arrow.clockwise" are placeholders for the reskin's icons. (6) LogView.body is now `content.onAppear { loadSchedule() }` with the NavigationStack in `content`: keep the onAppear on the stack, not on the idle/running Group, or starting a shift refetches. (7) schedule-check pins the CURRENT structure as text (exact eight ContentView lines, the idle section order, scheduleCard before helpCard, the foreground handler order): a reskin that moves things must update those assertions in the same commit; that is their job. (8) None of the new strings change; only the placement and styling do.
 
 Code commit: 12b0f72 (ios: planned assignments ... (P4, decision-80)). This notes commit follows it.
+
+2026-10-12 DRIVEN against the loopback rig (TASK-365.22, ops/ios-rig commits 8070c4f + b688541). Worker A's plan shaped by `rig.sh schedule-set none|one|cross|multi` (times are Vienna wall-clock: tomorrow 08:00-12:00, tomorrow 22:00 -> day-after 02:00, a 'now+1h' one); real GET /me/schedule; app locale en_GB. Driver `ops/ios-rig/walk.sh p4`; tests NFCTimeSheetsUITests/WorkerRigScheduleUITests.swift. Evidence <scratchpad>/rig/shots/p4-*.png, logs/walks.log, logs/front.jsonl (<scratchpad>=/private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad). All 15 P4 walks PASS in the final `walk.sh all`.
+
+#2 idle: 'Next planned assignment . View' row, building 'Rig Haus Alpha', '13 Oct 2026 . 08:00-12:00'; GET /me/schedule 200 (server plan 2026-10-13 08:00 -> 12:00 Vienna).
+#3 expand: 'My schedule' card, 'Planned . Clock in separately', first assignment; with ONE assignment no 'All upcoming assignments' toggle; with three the toggle lists all and the notes ('Schluessel beim Portier' for the first, 'Fenster putzen' after the toggle), button flips to 'Show less'.
+#4 cross-midnight: '13 Oct 2026, 22:00 - 14 Oct 2026, 02:00' (long form, no ' . ').
+#5 empty: 200 [] -> collapsed shows nothing under the row; expanded 'No assignments planned for the next 31 days.'
+#6 offline: front stopped (connection refused = status 0): collapsed shows nothing, expanded 'Could not load assignments without a connection.' + Try again; Try again re-fetches (1 GET, 200) and the assignment is back.
+#7 route missing: the FRONT answers 404 {"error":"not_found"} for GET /me/schedule (a server without migration 025 / the route; the status the phone sees is the status on the wire): expanded 'Could not load assignments.' (NOT the offline sentence) + Try again; after the route answers again, Try again shows the assignment.
+#8 session revoked: A's session rows deleted, tab bounce -> the REAL server answers 401 -> sign-in screen, no 'Could not load assignments' anywhere.
+#9 running: same row on the running screen, ABOVE the help card ('Something wrong? ...'); expanded, still 'My schedule' after 66 s (past the once-a-minute TimelineView tick).
+#10 resume: switching tabs and back = exactly 1 GET /me/schedule; background then foreground = exactly 1 GET. Stale answer: answer #1 ('one', computed server-side at once) held by the front for 8 s, plan changed to 'cross', answer #2 fast -> '22:00 - 02:00' shown and STILL shown after the held answer was delivered. (A superseding load also cancels the request in flight, so this proves the outcome, not which of the store's two guards did it; ScheduleStore's generation guard is pinned by schedule-check.)
+#11 cancel: held 8 s, load started, left the tab and came back (supersede): during 14 s 'Could not load assignments without a connection.' never appeared; the schedule loads.
+#12 identity: A signs out, B signs in with answers held 6 s: expanded card says 'Loading assignments ...' straight away, 'Rig Haus Alpha' never shown to B, then 'No assignments planned for the next 31 days.'
+#13 refresh icon: the button is exposed as 'Refresh assignments' (accessibility tree; VoiceOver itself not run) and costs exactly 1 GET /me/schedule.
+#14 decoupling: every GET /me/schedule answers 500; tap start still 201 'Clocked in' (no 'Not confirmed yet'), the schedule card carries 'Could not load assignments.', the manual finish is delivered (server row closed, manual_close).
+
+Correction (same day): #14 UNTICKED. Clock-in and sync were observed unaffected by a failing schedule (see above), but 'signals unaffected' was NOT: the badge/reminder ladder are not observable on the Simulator (see TASK-365.4 #1). Left open for a device; source-level pin remains schedule-check.swift.
 <!-- SECTION:NOTES:END -->
