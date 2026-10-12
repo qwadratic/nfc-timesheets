@@ -1,10 +1,10 @@
 ---
 id: TASK-365.8
 title: 'iOS P7: Shift receipt, confirmation motion, My hours'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-07 12:27'
+updated_date: '2026-10-12 10:45'
 labels:
   - ios
   - parity

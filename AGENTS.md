@@ -191,6 +191,13 @@ Decision checklist (keep updated as decisions are added):
   the SAME predicate `syncPending` iterates, and worded so that nothing promises automatic delivery -
   iOS has no background delivery. "Last attempt" is one UserDefaults date, never a SwiftData column
   (decision-82, ports Android TASK-339/363 with iOS wording)
+- iOS shows a "Shift finished" receipt on the idle list (offered when the newest finish is 0-120 s
+  old, then kept until Continue) and a read-only "My hours" list in Settings (the server's last 60
+  days, fetched on every entry, never cached), and plays the one-shot ring-then-check ONLY after a
+  clean server ACK of an event under 45 s old, once per identity (consumed before it animates, also
+  under Reduce Motion), never for a pending, failed or blocked row. PRESENTATION-ONLY: it never
+  gates, delays or alters a tap, a sync, an accounting figure or navigation; ZERO new endpoints
+  (decision-83, ports Android TASK-363/TASK-189 at 60f6886)
 - BOTH apps carry an in-app language control: `Deutsch` / `English` / follow the phone, value
   set `""`/`"de"`/`"en"`, on the signed-out screen and in settings. Android by decision-71, iOS
   by decision-74. It is ONE value shared with the OS per-app language setting, never a second
