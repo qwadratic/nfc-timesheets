@@ -71,7 +71,15 @@ android {
         // PendingIntent is mutable, which is acceptable only because it carries no extras.
         // If either becomes a real problem, raise this to 23 or 26 rather than working
         // around it further.
-        minSdk = 23
+        //
+        // 23 -> 24 on 2026-10-12, because Google Play REFUSED the upload of the 2026-10-11
+        // internal-testing bundle (workflow "Play Internal Testing", step "Upload to Play
+        // Console"): "Play automatic protection requires a minimum SDK version of 24 or
+        // higher. The uploaded App Bundle has a minimum SDK version of 23." Cost: Android 6.0
+        // phones can no longer install the app. The SDK_INT >= M / >= N guards that remain in
+        // ShiftSignals.kt and SyncScheduler.kt are now always true; they are harmless and left
+        // in place so this is a one-line change.
+        minSdk = 24
         targetSdk = 36
         versionCode = brand("ts.versionCode").toInt()
         versionName = brand("ts.versionName")
