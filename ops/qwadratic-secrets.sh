@@ -12,6 +12,7 @@
 #
 # Prerequisites: gh authenticated as an account with admin on qwadratic/nfc-timesheets,
 # psst vault of the main checkout (below), ~/keys/nfc-upload.jks, ssh access to exe.dev.
+# Vault values are read via the `psst NAME -- cmd` injection form and never printed.
 #
 # NOT done here, because it needs a value only a human has:
 #   PLAY_SERVICE_ACCOUNT_JSON  -> gh secret set PLAY_SERVICE_ACCOUNT_JSON --repo "$REPO" < sa.json
@@ -42,24 +43,44 @@ put() {
   local name="$1" value
   value="$(cat)"
   [ -n "$value" ] || die "$name: empty value"
-  [ "$value" != "Run: psst init" ] || die "$name: psst answered 'Run: psst init' (wrong project root)"
   if [ -n "$DRY_RUN" ]; then say "  would set $name (${#value} bytes)"; return; fi
   printf '%s' "$value" | gh secret set "$name" --repo "$REPO" >/dev/null
   say "  set $name"
 }
 
-vault() { (cd "$PSST_ROOT" && psst get "$1"); }
+# vault_put VAULT_NAME TARGET — the vault value never leaves psst's injected environment:
+# `psst NAME -- cmd` injects it and the gh call inside reads it from there. (Piping `psst get`
+# would also work for a human, but psst redacts its OWN stdout, so the injection form is the
+# one that cannot silently upload the literal text "[REDACTED]".)
+# The command is a tiny helper FILE, not an inline `sh -c '...'`: psst does not preserve the
+# quoting of an inline script (the first version of this uploaded nothing and said so).
+helper="$(mktemp)"
+cat > "$helper" <<'HELPER'
+#!/bin/sh
+v="$(printenv "$VAULT_NAME")"
+[ -n "$v" ] || { echo "empty/missing $VAULT_NAME" >&2; exit 1; }
+printf '%s' "$v" | gh secret set "$TARGET" --repo "$REPO" >/dev/null
+HELPER
+chmod 700 "$helper"
+trap 'rm -f "$helper"; [ -z "${tmp:-}" ] || rm -rf "$tmp"' EXIT
+vault_put() {
+  local vault_name="$1" target="$2"
+  if [ -n "$DRY_RUN" ]; then say "  would set $target from vault $vault_name"; return; fi
+  (cd "$PSST_ROOT" && VAULT_NAME="$vault_name" TARGET="$target" REPO="$REPO" psst "$vault_name" -- "$helper") \
+    || die "$target: vault read/upload failed ($vault_name)"
+  say "  set $target"
+}
 
 say "== secrets for $REPO"
 base64 < "$KEYSTORE" | tr -d '\n' | put TS_KEYSTORE_BASE64
 printf '%s' "$KEY_ALIAS"                     | put TS_KEY_ALIAS
-vault ANDROID_KEYSTORE_PASSWORD              | put TS_KEYSTORE_PASSWORD
-vault ANDROID_KEYSTORE_PASSWORD              | put TS_KEY_PASSWORD
-vault NEXT_PUBLIC_GOOGLE_MAPS_KEY            | put WEB_MAPS_KEY
-vault SENTRY_DSN_WEB                         | put WEB_SENTRY_DSN
+vault_put ANDROID_KEYSTORE_PASSWORD TS_KEYSTORE_PASSWORD
+vault_put ANDROID_KEYSTORE_PASSWORD TS_KEY_PASSWORD
+vault_put NEXT_PUBLIC_GOOGLE_MAPS_KEY WEB_MAPS_KEY
+vault_put SENTRY_DSN_WEB WEB_SENTRY_DSN
 
 say "== deploy key (CI-only ed25519, registered on the exe.dev ACCOUNT)"
-tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+tmp="$(mktemp -d)"
 ssh-keygen -q -t ed25519 -N '' -C "nfc-timesheets-ci@$REPO" -f "$tmp/k"
 if [ -n "$DRY_RUN" ]; then
   say "  would register $(cut -d' ' -f1-2 "$tmp/k.pub" | cut -c1-40)… on $EXE_HOST and set SERVER_DEPLOY_SSH_KEY"
@@ -79,4 +100,4 @@ else
 fi
 
 say
-say "Still yours: PLAY_SERVICE_ACCOUNT_JSON (see header), Xcode Cloud repo repoint, Trader status."
+say "Still yours: PLAY_SERVICE_ACCOUNT_JSON (see header) and the Xcode Cloud repo repoint."
