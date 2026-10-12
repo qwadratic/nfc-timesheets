@@ -27,7 +27,7 @@ object Scrub {
      */
     private val sensitiveKey = Regex(
         "token|cookie|passwd|password|hash|secret|identity|app[-_]?key|apple[-_]?sub|" +
-            "nonce|e-?mail|hourly|rate_cents|authorization|credential|session",
+            "nonce|e-?mail|hourly|rate_cents|authorization|credential|session|jpeg|latitude|longitude|accuracy[-_]?m|proof[-_]?id|challenge[-_]?id",
         RegexOption.IGNORE_CASE,
     )
 

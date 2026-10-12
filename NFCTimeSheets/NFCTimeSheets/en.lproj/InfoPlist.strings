@@ -1,0 +1,2 @@
+"NSCameraUsageDescription" = "A new photo confirms the completed work when ending your shift.";
+"NSLocationWhenInUseUsageDescription" = "During an active shift your location is recorded at the interval set by your company, including in the background.";

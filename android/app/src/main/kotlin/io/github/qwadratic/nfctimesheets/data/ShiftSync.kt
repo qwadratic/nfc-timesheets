@@ -56,7 +56,7 @@ class ShiftSync(
                         // The server's row wins. If the 8h timer got there first this comes
                         // back auto_closed=true / corrected_at=null and the worker is routed
                         // to the resolution sheet: closing does NOT silently resolve it.
-                        val shift = api.closeShift(step.clientUuid, step.endTime, step.autoClosed)
+                        val shift = api.closeShift(step.clientUuid, step.endTime, step.autoClosed, proofId = store.all().firstOrNull { it.clientUuid == step.clientUuid }?.proofId)
                         store.applyServer(shift)
                         store.markCloseSynced(step.clientUuid)
                     }
@@ -110,6 +110,6 @@ class ShiftSync(
         } catch (_: ApiFailure) {
             return
         }
-        remote?.let(store::adopt)
+        remote?.let { store.adopt(it); store.applyServer(it) }
     }
 }

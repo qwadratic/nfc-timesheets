@@ -14,6 +14,7 @@ import { ListPanel } from '@/components/ListPanel'
 import { LoadStatus } from '@/components/LoadStatus'
 import { PageHeader } from '@/components/PageHeader'
 import { PeriodPicker } from '@/components/PeriodPicker'
+import { ShiftEvidenceDetails } from '@/components/ShiftEvidenceDetails'
 import { type BadgeState, StateBadge } from '@/components/StateBadge'
 import {
   ApiError,
@@ -1349,6 +1350,12 @@ export default function ShiftsPage() {
               </select>
             </Field>
           </form>
+        )}
+        {draft?.original.client_uuid && (
+          <ShiftEvidenceDetails
+            key={draft.original.client_uuid}
+            uuid={draft.original.client_uuid}
+          />
         )}
       </Drawer>
 

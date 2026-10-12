@@ -35,7 +35,7 @@
 // a 4xx diagnosable, to hide a value that is not in them. `enrol{1,2}ment` catches both
 // spellings wherever a future caller decides to nest it.
 const SECRET_KEY_RE =
-  /(token|cookie|passwd|password|secret|authorization|hash|app[-_]?key|apple[-_]?sub|nonce|e-?mail|hourly|rate_cents|^code$|enrol{1,2}ment[-_]?code)/i;
+  /(token|cookie|passwd|password|secret|authorization|hash|app[-_]?key|apple[-_]?sub|nonce|e-?mail|hourly|rate_cents|^code$|enrol{1,2}ment[-_]?code|jpeg|latitude|longitude|accuracy[-_]?m|proof[-_]?id|challenge[-_]?id)/i;
 
 // Keys whose value is a URL and therefore gets the full URL treatment (query dropped).
 const URL_KEY_RE = /(^|\.)(url|href|target|full|path|uri)$/i;

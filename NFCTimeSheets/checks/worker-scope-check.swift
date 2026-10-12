@@ -160,7 +160,16 @@ check(view.contains("ShiftSignal.visibleTabs(shiftRunning: shiftRunning(for: wor
       "the lock is computed inside the .eligible branch, from the session's worker")
 check(view.contains("private var openRow: Shift? { allShifts.openShift(for: worker.id) }"),
       "LogView's open row is THIS worker's newest open row")
-check(between(view, "private func manualStop() {", "\n    }").contains("openRow"), "manualStop closes this worker's row")
+// origin/main (shift evidence, PR 17) split manualStop in three: manualStop() is now only the hand-off,
+// prepareCompletion() the proof gate and finishManualStop() the old close-the-local-row body. The
+// assertion that was about manualStop's body moved with the code it was about, and the two new
+// pieces are held to the same scope: BOTH read THIS worker's row (openRow), never the device-wide store.
+check(between(view, "private func manualStop() {", "\n    }").contains("prepareCompletion(manual: true) { finishManualStop() }"),
+      "manualStop hands the stop to the evidence gate, which then runs finishManualStop")
+check(between(view, "private func finishManualStop() {", "\n    }").contains("openRow"),
+      "finishManualStop closes this worker's row")
+check(between(view, "private func prepareCompletion(", "\n    }").contains("openRow"),
+      "the proof gate looks at this worker's row - another account's open row never starts a camera")
 check(between(view, "private func startManual() {", "private func manualStop() {").contains("openRow != nil"),
       "the manual-start 'already open' answer is about THIS worker's open shift")
 check(between(view, "private func handleTap(", "\n    private func outcome(").contains("if let running = openRow {"),
@@ -226,7 +235,9 @@ check(between(view, "private func refresh() async {", "\n    }").contains("armIf
 check(between(view, "private func handleTap(", "\n    private func outcome(").contains("armIfStillCurrent()"),
       "handleTap's post-roster re-arm is the guarded one")
 
-// THE TAP IS STILL UNGATED: nothing before the local save reads the session or asks WorkerScope.isCurrent.
+// THE TAP IS STILL UNGATED BY THE SESSION: nothing before the local save reads the session or asks
+// WorkerScope.isCurrent. (The shift-evidence proof gate that origin/main put in front of a FINISH is
+// pinned in shift-signal-check.swift: it reads openRow, never the session, so it passes this too.)
 let tapToSave = between(view, "private func handleTap(", "try? context.save()")
 check(!tapToSave.contains("session.") && !tapToSave.contains("isCurrent") && !tapToSave.contains("armIfStillCurrent"),
       "nothing waits on, or is refused by, the session between a tap and its local write")

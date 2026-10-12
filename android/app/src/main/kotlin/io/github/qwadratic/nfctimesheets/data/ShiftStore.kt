@@ -27,7 +27,7 @@ import java.util.UUID
  * outside this file talks in [QueuedShift] and [LocalShift]; swapping the implementation
  * is one file.
  */
-class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "timesheets.db", null, 3) {
+class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext, "timesheets.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         // client_uuid is the PRIMARY KEY, not an afterthought: it is the idempotency key
@@ -48,7 +48,10 @@ class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext
               close_synced_at TEXT,
               sync_error      TEXT,
               sync_blocked    INTEGER NOT NULL DEFAULT 0,
-              last_attempt_at TEXT
+              last_attempt_at TEXT,
+              location_interval_seconds INTEGER NOT NULL DEFAULT 0,
+              proof_required INTEGER,
+              proof_id TEXT
             )
             """.trimIndent(),
         )
@@ -100,6 +103,11 @@ class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext
             // attempted", which is exactly what NULL says and exactly what the screen
             // then prints ("noch nicht versucht"), rather than inventing a timestamp.
             db.execSQL("ALTER TABLE shifts ADD COLUMN last_attempt_at TEXT")
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE shifts ADD COLUMN location_interval_seconds INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE shifts ADD COLUMN proof_required INTEGER")
+            db.execSQL("ALTER TABLE shifts ADD COLUMN proof_id TEXT")
         }
         // No downgrade arm: SQLiteOpenHelper never calls this for newVersion < oldVersion
         // (it calls onDowngrade, which throws by default). A branch here could not fire.
@@ -154,6 +162,8 @@ class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext
     /** Copy the server's version of a row over the local one. The server's row wins. */
     fun applyServer(shift: WireShift) {
         val values = ContentValues().apply {
+            put("location_interval_seconds", shift.locationIntervalSeconds)
+            put("proof_required", if (shift.proofOfWorkRequired) 1 else 0)
             put("server_id", shift.id)
             put("auto_closed", if (shift.autoClosed) 1 else 0)
             put("corrected_at", shift.correctedAt?.toString())
@@ -180,6 +190,8 @@ class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext
             autoClosed = shift.autoClosed,
             correctedAt = shift.correctedAt,
             serverId = shift.id,
+            locationIntervalSeconds = shift.locationIntervalSeconds,
+            proofRequired = shift.proofOfWorkRequired,
             openSyncedAt = Instant.now(),
         )
         writableDatabase.insertWithOnConflict("shifts", null, row.values(), SQLiteDatabase.CONFLICT_IGNORE)
@@ -192,6 +204,8 @@ class ShiftStore(context: Context) : SQLiteOpenHelper(context.applicationContext
      * process killed mid-request would otherwise leave a row that has been tried many
      * times still claiming it was never attempted.
      */
+    fun saveProof(clientUuid: String, proofId: String) = mark(clientUuid) { put("proof_id", proofId) }
+
     fun markAttempted(clientUuid: String, at: Instant = Instant.now()) = mark(clientUuid) {
         put("last_attempt_at", at.toString())
     }
@@ -353,6 +367,9 @@ data class LocalShift(
     val syncBlocked: Boolean = false,
     /** Last push ATTEMPT, success or failure. Null = never tried. See ShiftStore.markAttempted. */
     val lastAttemptAt: Instant? = null,
+    val locationIntervalSeconds: Int = 0,
+    val proofRequired: Boolean? = null,
+    val proofId: String? = null,
 ) {
     val isOpen: Boolean get() = endTime == null
     val isFullySynced: Boolean get() = openSyncedAt != null && (isOpen || closeSyncedAt != null)
@@ -386,6 +403,9 @@ data class LocalShift(
         put("sync_error", syncError)
         put("sync_blocked", if (syncBlocked) 1 else 0)
         put("last_attempt_at", lastAttemptAt?.toString())
+        put("location_interval_seconds", locationIntervalSeconds)
+        put("proof_required", proofRequired?.let { if (it) 1 else 0 })
+        put("proof_id", proofId)
     }
 }
 
@@ -407,5 +427,8 @@ private fun readShift(c: Cursor): LocalShift {
         syncError = str("sync_error"),
         syncBlocked = (int("sync_blocked") ?: 0) != 0,
         lastAttemptAt = time("last_attempt_at"),
+        locationIntervalSeconds = int("location_interval_seconds") ?: 0,
+        proofRequired = int("proof_required")?.let { it != 0 },
+        proofId = str("proof_id"),
     )
 }

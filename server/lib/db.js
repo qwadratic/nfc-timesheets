@@ -2,6 +2,7 @@
 // Every query below is parameterised. Never build SQL by string concatenation.
 import pg from "pg";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 
 // int8 (BIGSERIAL ids, COUNT) -> JS number instead of string.
 // ponytail: ceiling is 2^53 rows; a cleaning crew will not get there. Upgrade path:
@@ -73,6 +74,24 @@ export async function transaction(callback) {
 
 export async function query(text, params) {
   return transaction((client) => client.query(text, params));
+}
+
+// A caller that deliberately retries a failed statement (e.g. a random login-code
+// collision) must not leave its enclosing business transaction in an aborted state.
+export async function queryWithSavepoint(text, params) {
+  return transaction(async (client) => {
+    const name = `retry_${randomUUID().replaceAll("-", "")}`;
+    await client.query(`SAVEPOINT ${name}`);
+    try {
+      const result = await client.query(text, params);
+      await client.query(`RELEASE SAVEPOINT ${name}`);
+      return result;
+    } catch (error) {
+      await client.query(`ROLLBACK TO SAVEPOINT ${name}`);
+      await client.query(`RELEASE SAVEPOINT ${name}`);
+      throw error;
+    }
+  });
 }
 
 export async function all(text, params) {

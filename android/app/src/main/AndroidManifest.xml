@@ -3,6 +3,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!--
       THE BACKGROUND PUSH DOES NOT EXIST WITHOUT THIS LINE (TASK-225), AND ITS ABSENCE IS
@@ -47,9 +51,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
-      THERE IS NO FOREGROUND SERVICE HERE AND THERE MUST NOT BE ONE.
+      SHIFT REMINDERS MUST NOT USE A FOREGROUND SERVICE.
 
-      An FGS keeps a PROCESS alive; nothing in this app needs one. setUsesChronometer(true)
+      An FGS keeps a PROCESS alive; the reminder does not need one. setUsesChronometer(true)
       makes the SYSTEM tick the elapsed time, and the shift's truth is on the server. The
       notification is owned by NotificationManager, so it already survives a task-swipe and
       process death - strictly better than an FGS, which OEM battery managers kill.
@@ -59,8 +63,9 @@
       `specialUse` subtype property, a Play App-content declaration with a demonstration
       video, and review - on a personal Play account (decision-27).
 
-      Adding any FOREGROUND_SERVICE* permission is a review-gate BLOCK. The reasoning is
-      in notify/ShiftSignals.kt; core-check.kt asserts this manifest stays clean.
+      Only the location foreground-service type is permitted for active-shift location
+      collection with worker permission. Reminder/specialUse foreground services remain
+      prohibited. core-check.kt pins this narrow exception.
 
       Not requested either: SCHEDULE_EXACT_ALARM / USE_EXACT_ALARM. The reminder ladder
       uses AlarmManager.setWindow, because nobody cares whether the 5-hour nudge lands at
@@ -293,5 +298,9 @@
             android:launchMode="singleTop"
             android:label="@string/verify_title" />
 
+        <service android:name=".evidence.ShiftLocationService" android:exported="false" android:foregroundServiceType="location" />
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.evidence" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/evidence_paths" />
+        </provider>
     </application>
 </manifest>

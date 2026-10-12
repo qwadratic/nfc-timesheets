@@ -44,7 +44,7 @@ enum ShiftFlowAPI {
     }
 
     static func close(clientUuid: String, endTime: Date, autoClosed: Bool,
-                      manual: Bool) async throws -> WireShiftEnvelope
+                      manual: Bool, proofId: String? = nil) async throws -> WireShiftEnvelope
     {
         #if DEBUG
         if ShiftMocks.active != nil {
@@ -53,7 +53,7 @@ enum ShiftFlowAPI {
         }
         #endif
         return try await ShiftAPI.close(clientUuid: clientUuid, endTime: endTime,
-                                        autoClosed: autoClosed, manual: manual)
+                                        autoClosed: autoClosed, manual: manual, proofId: proofId)
     }
 }
 

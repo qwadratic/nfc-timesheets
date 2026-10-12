@@ -46,6 +46,12 @@ final class Shift {
     // lightweight migration adds them to an existing store without a mapping model.
     var manualStart: Bool = false
     var manualClose: Bool = false
+    var locationIntervalSeconds: Int = 0
+    var proofOfWorkRequired: Bool?
+    var proofId: String?
+    var pendingEvidenceEnd: Date?
+    var pendingEvidenceManual: Bool = false
+    var pendingEvidenceAuto: Bool = false
 
 
     var serverId: Int?         // set once /shifts/open has landed

@@ -23,7 +23,7 @@ import {
   SMS_OTP_REQUESTS_MIN,
   verifyPassword,
 } from "../lib/auth.js";
-import { all, one, query, transaction } from "../lib/db.js";
+import { all, one, query, queryWithSavepoint, transaction } from "../lib/db.js";
 import { CODE_TTL_MS, newEnrolmentCode } from "../lib/enrolment.js";
 import { geocode } from "../lib/geocode.js";
 import { fail } from "../lib/http.js";
@@ -767,7 +767,7 @@ async function mintEnrolmentCode(workerId, adminId) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { code, display } = newEnrolmentCode();
     try {
-      await query(
+      await queryWithSavepoint(
         `UPDATE workers
             SET enrolment_code_hash = $2,
                 enrolment_code_expires_at = $3,
@@ -1336,7 +1336,7 @@ async function mintOperatorEnrolmentCode(operatorId, adminId) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { code, display } = newEnrolmentCode();
     try {
-      await query(
+      await queryWithSavepoint(
         `UPDATE operators
             SET enrolment_code_hash = $2,
                 enrolment_code_expires_at = $3,

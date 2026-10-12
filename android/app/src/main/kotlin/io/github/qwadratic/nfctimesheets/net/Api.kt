@@ -436,9 +436,10 @@ class Api(
         endTime: Instant,
         autoClosed: Boolean,
         manual: Boolean = false,
+        proofId: String? = null,
     ): WireShift =
         Wire.shift(
-            post("/shifts/close", CloseShiftRequest(clientUuid, endTime, autoClosed, manual).toJson())
+            post("/shifts/close", JSONObject(CloseShiftRequest(clientUuid, endTime, autoClosed, manual).toJson()).apply { proofId?.let { put("proof_id", it) } }.toString())
                 .getJSONObject("shift"),
         )
 
@@ -459,9 +460,9 @@ class Api(
     }
 
     /** POST /shifts/:id/resolve — the worker supplies the real finish time. */
-    suspend fun resolveShift(shiftId: Int, endTime: Instant): WireShift =
+    suspend fun resolveShift(shiftId: Int, endTime: Instant, proofId: String? = null): WireShift =
         Wire.shift(
-            post("/shifts/$shiftId/resolve", ResolveShiftRequest(endTime).toJson()).getJSONObject("shift"),
+            post("/shifts/$shiftId/resolve", JSONObject(ResolveShiftRequest(endTime).toJson()).apply { proofId?.let { put("proof_id", it) } }.toString()).getJSONObject("shift"),
         )
 
     /**
@@ -520,6 +521,23 @@ class Api(
      */
     suspend fun markMaterialRequestSeen(id: Int): JSONObject =
         post("/material-requests/$id/seen", "{}").getJSONObject("request")
+
+    suspend fun proofChallenge(clientUuid: String): String =
+        post("/shifts/$clientUuid/proof-challenge", "{}").getString("challenge_id")
+
+    suspend fun uploadProof(clientUuid: String, challenge: String, capturedAt: Instant, jpegBase64: String): String =
+        post("/shifts/$clientUuid/proof", JSONObject()
+            .put("challenge_id", challenge).put("captured_at", capturedAt.toString())
+            .put("jpeg_base64", jpegBase64)
+            .toString()).getString("proof_id")
+
+    suspend fun sendLocation(clientUuid: String, capturedAt: Instant, latitude: Double, longitude: Double, accuracy: Double) {
+        post("/shifts/$clientUuid/locations", JSONObject()
+            .put("sample_uuid", java.util.UUID.randomUUID().toString())
+            .put("captured_at", capturedAt.toString())
+            .put("latitude", latitude).put("longitude", longitude)
+            .put("accuracy_m", accuracy).toString())
+    }
 
     // ---- transport ----------------------------------------------------------------
 

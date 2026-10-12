@@ -232,7 +232,10 @@ if (has('android/branding.properties')) {
       'release API resolver must use only the configured API host')
     assert.ok(!releaseApi.includes('getSharedPreferences'), 'release must not read the debug API override')
     const debugApi = read('android/app/src/debug/kotlin/io/github/qwadratic/nfctimesheets/net/ApiEnvironment.kt')
-    assert.ok(debugApi.includes('override == "http://127.0.0.1:8082"'), 'debug override must be restricted to the local fixture')
+    assert.ok(debugApi.includes('uri?.scheme == "http"') && debugApi.includes('uri.host == "127.0.0.1"') &&
+      debugApi.includes('uri.port in 1..65535') && debugApi.includes('uri.userInfo == null') &&
+      debugApi.includes('uri.query == null') && debugApi.includes('uri.fragment == null') &&
+      debugApi.includes('uri.path.orEmpty().isEmpty()'), 'debug override must be restricted to a loopback fixture')
     const manifest = read('android/app/src/main/AndroidManifest.xml')
     assert.match(manifest, /android:host="\$\{tagHost\}"/, 'the intent filters must use ${tagHost}')
     assert.ok(

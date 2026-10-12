@@ -166,6 +166,66 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
         _pendingTap.value = null
     }
 
+    private val _evidenceCapture = MutableStateFlow<String?>(null)
+    val evidenceCapture = _evidenceCapture.asStateFlow()
+    private val _evidenceError = MutableStateFlow<String?>(null)
+    val evidenceError = _evidenceError.asStateFlow()
+    private val _evidenceBusy = MutableStateFlow(false)
+    val evidenceBusy = _evidenceBusy.asStateFlow()
+    private var photoResult: kotlinx.coroutines.CompletableDeferred<Pair<ByteArray, Instant>?>? = null
+
+    fun deliverEvidencePhoto(photo: ByteArray?, at: Instant = Instant.now()) {
+        photoResult?.complete(photo?.let { it to at })
+        _evidenceCapture.value = null
+    }
+
+    fun dismissEvidenceError() { _evidenceError.value = null }
+
+    /** A new challenge precedes every camera launch; cancellation never closes a shift. */
+    private suspend fun captureProof(uuid: String): String {
+        val workerId = (session.value as? SessionState.SignedIn)?.worker?.id
+            ?: throw ApiFailure(401, "no_session")
+        val challenge = app.api.proofChallenge(uuid)
+        val result = kotlinx.coroutines.CompletableDeferred<Pair<ByteArray, Instant>?>()
+        photoResult = result
+        _evidenceCapture.value = challenge
+        try {
+            val photo = result.await() ?: throw ApiFailure(422, "proof_required")
+            if ((session.value as? SessionState.SignedIn)?.worker?.id != workerId) throw ApiFailure(401, "no_session")
+            val proof = app.api.uploadProof(uuid, challenge, photo.second, android.util.Base64.encodeToString(photo.first, android.util.Base64.NO_WRAP))
+            io { app.store.saveProof(uuid, proof) }
+            return proof
+        } finally {
+            photoResult = null
+            _evidenceCapture.value = null
+        }
+    }
+
+    private suspend fun confirmedShift(open: LocalShift): LocalShift {
+        if (open.proofRequired != null) return open
+        withContext(Dispatchers.IO) { app.sync.push(open.workerId); app.sync.adoptServerOpenShift() }
+        val refreshed = io { app.store.forWorker(open.workerId).first { it.clientUuid == open.clientUuid } }
+        if (refreshed.proofRequired == null) throw ApiFailure.network()
+        return refreshed
+    }
+
+    /** Replay a persisted proof before opening a new camera challenge. The previous close
+     * may have committed even if its response was lost; the server returns it idempotently. */
+    private suspend fun closeWithEvidence(open: LocalShift, autoClosed: Boolean, manual: Boolean = false): WireShift {
+        if (open.proofRequired == true) {
+            val savedProof = io { app.store.forWorker(open.workerId).firstOrNull { it.clientUuid == open.clientUuid }?.proofId }
+            if (savedProof != null) {
+                try {
+                    return app.api.closeShift(open.clientUuid, Instant.now(), autoClosed = autoClosed, manual = manual, proofId = savedProof)
+                } catch (failure: ApiFailure) {
+                    if (failure.code !in setOf("proof_required", "proof_expired")) throw failure
+                }
+            }
+        }
+        val proof = if (open.proofRequired == true) captureProof(open.clientUuid) else null
+        return app.api.closeShift(open.clientUuid, Instant.now(), autoClosed = autoClosed, manual = manual, proofId = proof)
+    }
+
     // ---- feature flags (decision-57 §1) --------------------------------------------
     //
     // Seeded from the CACHE, not from false: the screen must not flicker out of the
@@ -558,6 +618,8 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
      * wrong name.
      */
     fun signOut() {
+        deliverEvidencePhoto(null)
+        io.github.qwadratic.nfctimesheets.evidence.ShiftLocationService.stop(app)
         viewModelScope.launch {
             runCatching { app.api.logout() }
             app.cookies.clear()
@@ -666,6 +728,7 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
         }
         if (running != null) ShiftSignals.markClockedIn(app)
         ShiftSignals.arm(app, running)
+        if (running == null) io.github.qwadratic.nfctimesheets.evidence.ShiftLocationService.stop(app)
     }
 
     /**
@@ -725,8 +788,30 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
      * A missing NAME is cosmetic; a missing SHIFT is unpaid work.
      */
     fun handleTap(locationId: String) {
+        if (_evidenceBusy.value) return
         val worker = (_session.value as? SessionState.SignedIn)?.worker ?: return
+        _evidenceBusy.value = true
         viewModelScope.launch {
+          try {
+            val active = io { app.store.openShift(worker.id) }
+            if (active != null && active.proofRequired != false) {
+                try {
+                    val confirmed = confirmedShift(active)
+                    val switched = !sameBuilding(active.locationId, locationId)
+                    val closed = closeWithEvidence(confirmed, autoClosed = switched)
+                    io {
+                        app.store.applyServer(closed)
+                        app.store.markCloseSynced(active.clientUuid)
+                        if (switched) app.store.startShift(worker.id, locationId)
+                    }
+                    reloadLocalLog(worker.id)
+                    armSignals()
+                    refresh()
+                } catch (failure: ApiFailure) {
+                    _evidenceError.value = failure.messageKey
+                }
+                return@launch
+            }
             val notice = io {
                 val result = writeTap(worker.id, locationId)
                 // AFTER the row is on disk, off the main thread, and swallowing its own
@@ -746,6 +831,7 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
             // never "reject the tap". core-check.kt pins this ordering.
             armSignals()
             refresh()
+          } finally { _evidenceBusy.value = false }
         }
     }
 
@@ -861,6 +947,7 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
      * row is closed AND resolved and never reaches the decision-10 resolver.
      */
     fun manualClose(simulation: ManualSimulation? = null, onResult: (ApiFailure?) -> Unit) {
+        if (_evidenceBusy.value) { onResult(ApiFailure(409, "proof_required")); return }
         val worker = (_session.value as? SessionState.SignedIn)?.worker ?: return
         val open = _log.value.open ?: run {
             onResult(ApiFailure(status = 404, code = "unknown_shift"))
@@ -868,10 +955,12 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
         }
         viewModelScope.launch {
             val at = Instant.now()
+            _evidenceBusy.value = true
             try {
+                val confirmed = if (simulation == null) confirmedShift(open) else open
                 val shift = withContext(Dispatchers.IO) {
                     simulation?.answer(open.clientUuid, worker.id, open.locationId, at)
-                        ?: app.api.closeShift(open.clientUuid, at, autoClosed = false, manual = true)
+                        ?: closeWithEvidence(confirmed, autoClosed = false, manual = true)
                 }
                 io {
                     app.store.closeShift(open.clientUuid, shift.endTime ?: at, autoClosed = false)
@@ -888,16 +977,19 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
                 onResult(null)
             } catch (failure: ApiFailure) {
                 onResult(failure)
-            }
+            } finally { _evidenceBusy.value = false }
         }
     }
 
     /** POST /shifts/:id/resolve, then mirror the result locally (decision-10). */
     fun resolve(shift: WireShift, endTime: Instant, onError: (String) -> Unit) {
+        if (_evidenceBusy.value) return
         val worker = (_session.value as? SessionState.SignedIn)?.worker ?: return
         viewModelScope.launch {
             try {
-                val updated = app.api.resolveShift(shift.id, endTime)
+                _evidenceBusy.value = true
+                val proof = if (shift.proofOfWorkRequired) captureProof(shift.clientUuid ?: throw ApiFailure(422, "proof_required")) else null
+                val updated = app.api.resolveShift(shift.id, endTime, proof)
                 io { app.store.applyServer(updated) }
                 if (!reloadLocalLog(worker.id)) return@launch
                 _log.value = _log.value.copy(
@@ -909,7 +1001,7 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
                 armSignals()
             } catch (failure: ApiFailure) {
                 onError(failure.messageKey)
-            }
+            } finally { _evidenceBusy.value = false }
         }
     }
 
@@ -1051,6 +1143,8 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
 
     /** A 401 came back from somewhere: expired, revoked, or the worker was deactivated. */
     private fun dropToSignedOut() {
+        deliverEvidencePhoto(null)
+        io.github.qwadratic.nfctimesheets.evidence.ShiftLocationService.stop(app)
         scheduleRequest++
         _schedule.value = ScheduleState.Loading
         app.sessionRejected.value = false
@@ -1076,6 +1170,8 @@ class TimeSheetViewModel(private val app: TimeSheetsApplication) : ViewModel() {
  * compile. android/checks asserts every key ApiFailure can produce appears below.
  */
 fun stringIdFor(key: String): Int = when (key) {
+    "err_proof_required" -> R.string.err_proof_required
+    "err_proof_expired" -> R.string.err_proof_expired
     "err_network" -> R.string.err_network
     "err_unknown_worker" -> R.string.err_unknown_worker
     "err_unknown_location" -> R.string.err_unknown_location

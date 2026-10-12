@@ -567,4 +567,14 @@
     <string name="worker_material_example">For example: 2 mops, glass cleaner</string>
     <string name="worker_material_no_push">Check updates here. No push notifications.</string>
     <string name="worker_material_details">How updates work</string>
+    <string name="evidence_location_title">Location during your shift</string>
+    <string name="evidence_location_body">Location collection is active. It stops when your shift ends.</string>
+    <string name="evidence_location_explain">Your company enabled location collection every %1$d seconds for this shift. The app collects location with the screen locked, only during your shift. Android may delay samples.</string>
+    <string name="evidence_location_unavailable">Location collection is not active. Allow location access in app settings and enable device location. Your shift continues.</string>
+    <string name="evidence_allow">Allow location</string>
+    <string name="evidence_later">Later</string>
+    <string name="evidence_ok">OK</string>
+    <string name="evidence_photo_title">Proof of work</string>
+    <string name="err_proof_required">A fresh camera photo is required to finish. The shift stays open until confirmed. Please try again.</string>
+    <string name="err_proof_expired">The photo proof expired. Please take another photo and confirm with an internet connection.</string>
 </resources>

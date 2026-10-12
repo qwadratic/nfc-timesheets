@@ -86,6 +86,8 @@ data class ApiFailure(
      */
     val messageKey: String
         get() = when (code) {
+            "proof_required", "invalid_photo" -> "err_proof_required"
+            "proof_expired", "proof_challenge_expired", "invalid_capture_time" -> "err_proof_expired"
             "network" -> "err_network"
             "unknown_worker" -> "err_unknown_worker"
             "unknown_location" -> "err_unknown_location"

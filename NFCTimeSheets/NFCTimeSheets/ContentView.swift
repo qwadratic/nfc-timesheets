@@ -25,6 +25,7 @@ struct ContentView: View {
     /// observable object over a JSON file - it does NOT touch the SwiftData store that
     /// holds unpushed shifts. See the header of Materials.swift.
     @State private var materials = MaterialStore()
+    @State private var locationReporter = ShiftLocationReporter.shared
     /// The lock reads this and nothing else. A separate @Query rather than a value passed
     /// up from LogView: the TAB BAR is what changes, and it is built here.
     ///
@@ -91,6 +92,22 @@ struct ContentView: View {
             }
             .id(worker.id)
             .environment(materials)
+            // SHIFT EVIDENCE (location). Driven from the STORE, strictly after a tap has saved its
+            // row, and failure-silent: a denied permission, no GPS or a dead network only change a
+            // footnote - nothing here is read by the tap, the sync pass or the signals. Scoped to
+            // the SIGNED-IN worker's open row like every other read (WorkerScope): another
+            // account's forgotten open shift must never start location collection for this one.
+            .task(id: worker.id) {
+                locationReporter.beginSession(workerId: worker.id)
+                defer { locationReporter.endSession() }
+                while !Task.isCancelled {
+                    locationReporter.configure(shift: allShifts.openShift(for: worker.id))
+                    try? await Task.sleep(for: .seconds(5))
+                }
+            }
+            .onChange(of: allShifts.openShift(for: worker.id)?.clientUuid) { _, _ in
+                locationReporter.configure(shift: allShifts.openShift(for: worker.id))
+            }
             // At LAUNCH, not when the Materials tab is opened: the badge is the only
             // thing telling a worker something is waiting for them at the warehouse, and
             // a badge that only appears once you have looked is not a badge. Its own
@@ -274,6 +291,17 @@ struct LogView: View {
     /// worker. DISPLAY ONLY - nothing on the tap path, in `refresh()`, in the sync pass or in the
     /// signals reads it, and `loadSchedule()` is its one trigger (see ScheduleStore.swift).
     @State private var schedule = ScheduleStore()
+    /// SHIFT EVIDENCE (photo proof, docs/shift-evidence.md). Only ever set for a FINISH whose shift
+    /// is KNOWN to require proof (`proofOfWorkRequired == true`, see prepareCompletion); a start, a
+    /// finish of a proof-disabled shift and a finish whose policy this phone does not know are never
+    /// held back by any of it. `closePending` is true exactly while the proof sheet is up or its
+    /// upload and close are in flight - it dies with this view like every other @State here.
+    @State private var proofShift: Shift?
+    @State private var closePending = false
+    @State private var afterProof: (() -> Void)?
+    @State private var proofCompleting = false
+    @State private var proofManualClose = false
+    @State private var proofAutoClose = false
 
     /// The row a tap toggles and the running screen shows: THIS worker's newest open row. Another
     /// account's forgotten open row is not it (WorkerScope.openShift) - B's first tap must start
@@ -368,6 +396,11 @@ struct LogView: View {
                     idleList
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                if let message = ShiftLocationReporter.shared.message {
+                    Text(message).font(.footnote).padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
+                }
+            }
             .navigationTitle(running == nil ? "TimeSheet" : "Shift running")
             .refreshable { await refresh() }
             // THE IN-APP SCAN IS BACK, and on NFCTagReaderSession, not the retired
@@ -403,6 +436,40 @@ struct LogView: View {
                 ResolveSheet(shifts: $unresolved, siteName: siteName)
             }
             .sheet(isPresented: $showManualStart) { manualStartSheet }
+            .sheet(item: $proofShift, onDismiss: { if !proofCompleting { closePending = false; afterProof = nil } }) { shift in
+                ShiftProofSheet(clientUuid: shift.clientUuidString) { proofId in
+                    guard shift.isOpen else { return }
+                    shift.proofId = proofId
+                    shift.pendingEvidenceEnd = .now
+                    shift.pendingEvidenceManual = proofManualClose
+                    shift.pendingEvidenceAuto = proofAutoClose
+                    try? context.save()
+                    proofCompleting = true
+                    Task {
+                        defer { proofCompleting = false }
+                        do {
+                            let response = try await ShiftAPI.close(clientUuid: shift.clientUuidString, endTime: shift.pendingEvidenceEnd ?? .now,
+                                autoClosed: proofAutoClose, manual: proofManualClose, proofId: proofId)
+                            guard case .eligible(let signedIn) = session.state, signedIn.id == worker.id else { return }
+                            let action = afterProof
+                            afterProof = nil
+                            closePending = false
+                            action?()
+                            shift.endTime = response.shift.endTime
+                            shift.autoClosed = response.shift.autoClosed
+                            shift.correctedAt = response.shift.correctedAt
+                            shift.pendingEvidenceEnd = nil
+                            shift.syncError = nil
+                            shift.syncBlocked = false
+                            shift.closeSyncedAt = .now
+                            try? context.save()
+                        } catch {
+                            scanError = String(localized: "Could not finish the shift. Check your connection and try again.")
+                            closePending = false
+                        }
+                    }
+                }
+            }
             // Coming back from the background is the only chance to re-arm a Live Activity
             // the worker dismissed by hand, or to notice that notifications were switched
             // on (or off) in Settings while the app was not running.
@@ -634,6 +701,38 @@ struct LogView: View {
     /// time in the moment, not the 8h timer guessing, so it must not enter the decision-10
     /// resolver - the server stamps corrected_at instead.
     private func manualStop() {
+        prepareCompletion(manual: true) { finishManualStop() }
+    }
+
+    /// SHIFT EVIDENCE (docs/shift-evidence.md): the ONE gate in front of a FINISH - a manual stop, a
+    /// tag tap-out, a building switch. It holds a finish back for exactly one reason: THIS worker's
+    /// open row is KNOWN to require photo proof (`proofOfWorkRequired == true`, learned from the
+    /// server's own answer to the open), because the server refuses a close without one. Then the
+    /// proof sheet runs first and `action` follows the server's acceptance.
+    ///
+    /// EVERYTHING ELSE RUNS `action` AT ONCE, in this same turn, with nothing awaited: proof not
+    /// required, and - the case that matters in a basement - policy NOT KNOWN YET (a shift opened
+    /// offline, or a row from before this build). The tap is never refused for want of a connection
+    /// and nothing waits on the network before the local write (audit R2). If the server turns out to
+    /// require proof it answers 422 proof_required to the queued close; Sync.record reopens the row,
+    /// remembers the policy, and says why, and the next stop opens the camera. A START is never
+    /// routed through here at all.
+    private func prepareCompletion(manual: Bool = false, switched: Bool = false, _ action: @escaping () -> Void) {
+        // A finish is already waiting on the camera or its upload: this tap is the same intent.
+        guard !closePending else { return }
+        guard let shift = openRow, shift.proofOfWorkRequired == true else {
+            action()
+            return
+        }
+        closePending = true
+        proofManualClose = manual
+        proofAutoClose = switched
+        afterProof = action
+        proofShift = shift
+    }
+
+    /// The close itself: the LOCAL row first (the old manualStop body, unchanged).
+    private func finishManualStop() {
         guard let running = openRow else { return }
         running.endTime = .now
         running.manualClose = true
@@ -738,8 +837,23 @@ struct LogView: View {
     ///
     /// `manual` (decision-56) changes exactly one thing: the flag stamped on a row this
     /// function was going to write anyway. It is NOT a second code path - see startManual().
+    ///
+    /// SHIFT EVIDENCE (docs/shift-evidence.md). A tap that would FINISH this worker's open shift (a
+    /// tap-out or a building switch) first asks prepareCompletion, which holds it back ONLY for a
+    /// shift known to require photo proof; every other tap, a start always, falls straight through
+    /// and `proofApproved` is true on the re-entry after the proof. The open row is THIS worker's
+    /// (openRow), so another account's forgotten shift can neither start the proof flow nor
+    /// swallow B's tap, and `switched` is the SAME building rule the branch below applies.
     private func handleTap(_ locationId: String, manual: Bool = false,
-                           clientUuid: UUID? = nil, startTime: Date? = nil) {
+                           clientUuid: UUID? = nil, startTime: Date? = nil,
+                           proofApproved: Bool = false) {
+        if let running = openRow, !proofApproved {
+            prepareCompletion(switched: leavesBuilding(of: running, for: locationId)) {
+                handleTap(locationId, manual: manual, clientUuid: clientUuid, startTime: startTime,
+                          proofApproved: true)
+            }
+            return
+        }
         let trace = Telemetry.beginTap(locationId: locationId, cachedLocations: sites.count)
         let write = trace.child("db", "shift.local_write")
 
@@ -765,8 +879,7 @@ struct LogView: View {
             // BUILDINGS, not raw ids (decision-43): two zones of one building are one place.
             // Without this a tap-out at the building's second door auto-closes the shift as
             // "left without tapping out" and opens a new one, flagged for correction.
-            if Zones.buildingIdOf(running.locationId, zones: rosterZones.zones)
-                != Zones.buildingIdOf(locationId, zones: rosterZones.zones) {
+            if leavesBuilding(of: running, for: locationId) {
                 // The worker left the last building without tapping out and is now at a
                 // new one. Auto-closing is the only non-deadlocking option: the server
                 // allows one open shift per worker, and they cannot walk back to the old
@@ -856,6 +969,15 @@ struct LogView: View {
         }
     }
 
+    /// THE ONE "did this tap leave the building the shift runs in" rule (decision-43): BUILDINGS, not
+    /// raw place ids, because two zones of one building are one place. Asked by the branch in handleTap
+    /// that decides close-versus-switch AND by the proof gate at the top of it, so a tap-out at a
+    /// building's second door is a plain close for both - never a walk-away flagged auto_closed.
+    private func leavesBuilding(of running: Shift, for locationId: String) -> Bool {
+        Zones.buildingIdOf(running.locationId, zones: rosterZones.zones)
+            != Zones.buildingIdOf(locationId, zones: rosterZones.zones)
+    }
+
     private func outcome(of shift: Shift) -> String {
         if shift.syncBlocked { return "blocked" }
         return shift.isFullySynced ? "synced" : "queued"
@@ -943,6 +1065,7 @@ struct ResolveSheet: View {
     let siteName: (String) -> String
 
     @State private var picked: [Int: Date] = [:]
+    @State private var proofTarget: WireShift?
     @State private var error: String?
     @State private var busy = false
     /// How many there were when this sheet opened, so the worker can watch the queue
@@ -978,6 +1101,13 @@ struct ResolveSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Later") { dismiss() } }
             }
             .task { if total == 0 { total = shifts.count } }
+            .sheet(item: $proofTarget) { shift in
+                if let key = shift.clientUuid {
+                    ShiftProofSheet(clientUuid: key) { proofId in
+                        Task { await save(shift, proofId: proofId) }
+                    }
+                }
+            }
         }
     }
 
@@ -993,11 +1123,19 @@ struct ResolveSheet: View {
                 set: { picked[shift.id] = $0 })
     }
 
-    private func save(_ shift: WireShift) async {
+    private func save(_ shift: WireShift, proofId: String? = nil) async {
+        if shift.proofOfWorkRequired == true && proofId == nil {
+            guard shift.clientUuid != nil else {
+                error = String(localized: "This shift is missing its location and can't be sent.")
+                return
+            }
+            proofTarget = shift
+            return
+        }
         busy = true
         defer { busy = false }
         let end = picked[shift.id] ?? shift.endTime ?? .now
-        if let failure = await resolveShift(context: context, shift: shift, end: end) {
+        if let failure = await resolveShift(context: context, shift: shift, end: end, proofId: proofId) {
             error = failure
             return
         }

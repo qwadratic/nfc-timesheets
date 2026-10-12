@@ -45,3 +45,7 @@ checks/.live-out/
 # Android Studio per-user state
 .idea/
 *.iml
+
+# Local Kotlin compiler and temporary build state
+.kotlin/
+.tmp/

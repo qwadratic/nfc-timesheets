@@ -2227,6 +2227,7 @@ try {
     "end_zone_id",
     "id",
     "location_id", //   "is the next tap the same building, or a switch?"
+    "location_interval_seconds",
     "location_name", // the lock screen names the building with no second round trip
     "location_slug", // display and log lines only, never back into a tag URI (decision-21)
     // decision-56, ADDED not renamed: which half of this shift had no tag tapped for it.
@@ -2234,6 +2235,8 @@ try {
     // TASK-316, ADDED not renamed: the reason the worker typed for a manual half, or null.
     "manual_note",
     "manual_start",
+    "proof_id",
+    "proof_of_work_required",
     "start_time", //    the ticking clock, AND the locally computed start+8h flip
     "start_zone_id",
     "worker_id",

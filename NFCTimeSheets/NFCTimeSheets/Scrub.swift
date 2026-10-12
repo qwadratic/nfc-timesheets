@@ -48,7 +48,7 @@ enum Scrub {
     /// `apple_sub` is in here because Apple's `sub` is a stable per-person identifier -
     /// it is PII even though it looks like an opaque string.
     private static let sensitiveKey = try! NSRegularExpression(
-        pattern: "token|cookie|passwd|password|hash|secret|identity|app[-_]?key|apple[-_]?sub|nonce|e-?mail|hourly|rate_cents|authorization|credential|session",
+        pattern: "token|cookie|passwd|password|hash|secret|identity|app[-_]?key|apple[-_]?sub|nonce|e-?mail|hourly|rate_cents|authorization|credential|session|jpeg|latitude|longitude|accuracy[-_]?m|proof[-_]?id|challenge[-_]?id",
         options: [.caseInsensitive])
 
     /// Value shapes that must not survive even under an innocent key. Defence in depth:

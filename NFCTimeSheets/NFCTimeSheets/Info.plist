@@ -67,5 +67,11 @@
 	     project.pbxproj edit. -->
 	<key>NFCReaderUsageDescription</key>
 	<string>Wird verwendet, um einen NFC-Tag am Objekt zu beschreiben oder zu prüfen.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ein aktuelles Foto bestätigt die erledigte Arbeit beim Schichtende.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Während einer laufenden Schicht wird Ihr Standort im vom Unternehmen festgelegten Abstand erfasst, auch im Hintergrund.</string>
+	<key>UIBackgroundModes</key>
+	<array><string>location</string></array>
 </dict>
 </plist>

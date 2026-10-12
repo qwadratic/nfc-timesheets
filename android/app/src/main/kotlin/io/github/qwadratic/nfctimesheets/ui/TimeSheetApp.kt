@@ -141,6 +141,7 @@ fun TimeSheetApp(
     openIntent: (Intent) -> Unit,
 ) {
     TimeSheetsTheme {
+        ShiftEvidenceUi(model)
         Surface(modifier = Modifier.fillMaxSize()) {
             when (val state = model.session.collectAsStateWithLifecycle().value) {
                 SessionState.Unknown -> Centered {

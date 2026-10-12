@@ -29,7 +29,7 @@ try {
   const scoped = new URL(baseUrl);
   scoped.searchParams.set("options", `-c search_path=${schema} -c role=${runtimeRole}`);
   process.env.DATABASE_URL = scoped.toString();
-  process.env.APP_KEY = "local-workspace-check";
+  process.env.APP_KEY = keep && process.env.PREVIEW_APP_KEY ? process.env.PREVIEW_APP_KEY : "local-workspace-check";
   process.env.PUBLIC_DIR = new URL("../web/out/", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
   process.env.SMS_ENABLED = "false";
   delete process.env.SENTRY_DSN;
@@ -38,7 +38,7 @@ try {
   await owner.query("INSERT INTO admins (email,password_hash,tenant_id,role) VALUES ('platform@example.test',$1,0,'superadmin'),('legacy@example.test',$1,1,'admin')", [await hashPassword(password)]);
   const { createServer } = await import("./server.js");
   server = createServer();
-  await new Promise((resolve) => server.listen(keep ? 8080 : 0, "127.0.0.1", resolve));
+  await new Promise((resolve) => server.listen(keep ? Number(process.env.PREVIEW_PORT ?? 8080) : 0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   async function call(path, { cookie, body, method = body ? "POST" : "GET" } = {}) {
     const response = await fetch(base + path, { method, headers: {
@@ -145,6 +145,8 @@ try {
     assert.equal(overview.data.material_orders.length, 2);
   }
   const { query, withWorkspace, pool } = await import("./lib/db.js");
+  const { checkShiftEvidence } = await import("./check-shift-evidence.js");
+  await checkShiftEvidence({ call, owner, a, b, base, keepEvidence: keep });
   await assert.rejects(query("SELECT * FROM workers"), /without a verified/);
   await assert.rejects(withWorkspace(a.id, () => query("INSERT INTO zones (name,location_id) VALUES ('Cross-company',$1)", [b.location.id])), { code: "23503" });
   await assert.rejects(withWorkspace(a.id, () => query("INSERT INTO workers (tenant_id,name,hourly_rate_cents) VALUES ($1,'Cross-company',1)", [b.id])), { code: "42501" });

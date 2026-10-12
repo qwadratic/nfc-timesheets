@@ -178,6 +178,8 @@ struct APIFailure: Error {
     /// rather than rendering an empty string at a door in the dark.
     var workerMessage: String {
         switch code {
+        case "proof_required", "proof_expired", "proof_challenge_expired":
+            return String(localized: "Take a new photo to finish this shift. Your shift has not been finished.")
         case "network":
             return String(localized: "No connection - will send when you're back online.")
         case "unknown_worker":
@@ -402,6 +404,8 @@ struct WireShift: Codable, Identifiable {
     let clientUuid: String?
     let locationSlug: String?
     let locationName: String?
+    var locationIntervalSeconds: Int? = nil
+    var proofOfWorkRequired: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -416,6 +420,8 @@ struct WireShift: Codable, Identifiable {
         case clientUuid = "client_uuid"
         case locationSlug = "location_slug"
         case locationName = "location_name"
+        case locationIntervalSeconds = "location_interval_seconds"
+        case proofOfWorkRequired = "proof_of_work_required"
     }
 
     /// Derived, never stored (decision-10): the 8h timer closed it and no human has
@@ -458,6 +464,7 @@ struct OpenShiftRequest: Encodable {
 }
 
 struct CloseShiftRequest: Encodable {
+    var proofId: String? = nil
     let clientUuid: String
     let endTime: Date
     /// True when the APP closed the shift rather than the worker deliberately tapping out
@@ -474,14 +481,17 @@ struct CloseShiftRequest: Encodable {
         case clientUuid = "client_uuid"
         case endTime = "end_time"
         case autoClosed = "auto_closed"
+        case proofId = "proof_id"
         case manual
     }
 }
 
 struct ResolveShiftRequest: Encodable {
+    var proofId: String? = nil
     let endTime: Date
 
     enum CodingKeys: String, CodingKey {
+        case proofId = "proof_id"
         case endTime = "end_time"
     }
 }
@@ -662,9 +672,9 @@ enum ShiftAPI {
     /// POST /shifts/close {client_uuid, end_time}. No duration ceiling any more: the old
     /// 422 shift_too_long blocked exactly the worker the 8h net exists for (decision-10).
     static func close(clientUuid: String, endTime: Date, autoClosed: Bool = false,
-                      manual: Bool = false) async throws -> WireShiftEnvelope {
+                      manual: Bool = false, proofId: String? = nil) async throws -> WireShiftEnvelope {
         try await apiPost("/shifts/close",
-                          CloseShiftRequest(clientUuid: clientUuid, endTime: endTime,
+                          CloseShiftRequest(proofId: proofId, clientUuid: clientUuid, endTime: endTime,
                                             autoClosed: autoClosed, manual: manual ? true : nil))
     }
 
@@ -696,9 +706,9 @@ enum ShiftAPI {
     }
 
     /// POST /shifts/:id/resolve {end_time} - the worker supplies the real finish time.
-    static func resolve(shiftId: Int, endTime: Date) async throws -> WireShift {
+    static func resolve(shiftId: Int, endTime: Date, proofId: String? = nil) async throws -> WireShift {
         let envelope: WireShiftEnvelope = try await apiPost("/shifts/\(shiftId)/resolve",
-                                                            ResolveShiftRequest(endTime: endTime))
+                                                            ResolveShiftRequest(proofId: proofId, endTime: endTime))
         return envelope.shift
     }
 }

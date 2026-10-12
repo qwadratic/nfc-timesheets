@@ -1201,7 +1201,7 @@ private fun zones() {
     // THE #1 THING THE OWNER MUST VERIFY BY HAND: this runs against the field phone's
     // real, already-installed SQLite file on its very next launch after `adb install -r`.
     val shiftStore = File("app/src/main/kotlin/io/github/qwadratic/nfctimesheets/data/ShiftStore.kt").readText()
-    check(shiftStore.contains("null, 3)"), "ShiftStore is on database version 3")
+    check(shiftStore.contains("null, 4)"), "ShiftStore is on database version 4")
     // COMMENTS STRIPPED. The comment inside onUpgrade quotes the old broken arm verbatim,
     // as the record of what went wrong; grepping the raw text would find that quotation and
     // report the bug as still live. A check that reads prose is not reading code.
@@ -2072,7 +2072,7 @@ private fun shiftSignal() {
     val model = File("app/src/main/kotlin/io/github/qwadratic/nfctimesheets/ui/TimeSheetViewModel.kt").readText()
     val tap = model.substringAfter("fun handleTap(").substringBefore("\n    /**")
     val write = tap.indexOf("writeTap(worker.id, locationId)")
-    val arm = tap.indexOf("armSignals()")
+    val arm = tap.lastIndexOf("armSignals()")
     check(write >= 0, "handleTap still writes the local row")
     check(arm >= 0, "handleTap arms the signal")
     check(
@@ -2100,10 +2100,9 @@ private fun shiftSignal() {
     val manifestRaw = File("app/src/main/AndroidManifest.xml").readText()
     val manifestLive = manifestRaw.replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "")
     check(
-        !manifestLive.contains("FOREGROUND_SERVICE"),
-        "NO foreground service: it buys ZERO extra visibility (FGS notifications are inside " +
-            "the same POST_NOTIFICATIONS gate) and costs a Play declaration, a demo video and " +
-            "review on a personal account (decision-27). This is a review-gate BLOCK.",
+        Regex("android:foregroundServiceType=\"([^\"]+)\"").findAll(manifestLive).map { it.groupValues[1] }.toList() == listOf("location") &&
+            !manifestLive.contains("FOREGROUND_SERVICE_SPECIAL_USE"),
+        "Only the location type is allowed; reminder/specialUse foreground services stay prohibited.",
     )
     check(
         manifestRaw.contains("FOREGROUND_SERVICE"),
@@ -2766,8 +2765,8 @@ private fun theBackgroundPush() {
             "anything but the system starting a push",
     )
     check(
-        !manifestLive.contains("FOREGROUND_SERVICE"),
-        "a JobService is NOT a foreground service and must not have dragged one in",
+        !job.contains("startForeground") && !job.contains("ShiftLocationService"),
+        "the offline sync job must never start a foreground location service",
     )
 
     // What the job must never do. Each of these is a way the same class of bug comes back.

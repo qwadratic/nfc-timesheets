@@ -21,7 +21,8 @@
 // Both halves are idempotent on client_uuid. The phone retries on flaky network and a
 // double tap at the door must not produce two rows or two invoices.
 import * as Sentry from "@sentry/node";
-import { all, one } from "../lib/db.js";
+import { all, one, transaction } from "../lib/db.js";
+import { requireShiftProof, shiftPolicy } from "../lib/shift-evidence.js";
 import { fail } from "../lib/http.js";
 import { M_MATERIAL_REQUEST_COLS, MATERIAL_REQUEST_COLS } from "../lib/materials.js";
 import * as v from "../lib/validate.js";
@@ -72,6 +73,9 @@ const SHIFT_FIELDS = [
   // shift and on a manual one where they said nothing. Additive; older builds ignore it.
   "manual_note",
   "client_uuid",
+  "location_interval_seconds",
+  "proof_of_work_required",
+  "proof_id",
 ];
 const SHIFT_COLS = SHIFT_FIELDS.join(", ");
 const S_SHIFT_COLS = SHIFT_FIELDS.map((c) => `s.${c}`).join(", "); // for the joined queries
@@ -217,13 +221,14 @@ async function openShift({ body, session }) {
   // Postgres reaches first is not ours to decide. Bare DO NOTHING absorbs either, and
   // the two lookups below tell them apart with certainty.
   let inserted;
+  const policy = await shiftPolicy();
   try {
     inserted = await one(
-      `INSERT INTO shifts (worker_id, location_id, start_zone_id, start_time, client_uuid, manual_start, manual_note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO shifts (worker_id, location_id, start_zone_id, start_time, client_uuid, manual_start, manual_note, location_interval_seconds, proof_of_work_required)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT DO NOTHING
        RETURNING ${SHIFT_COLS}`,
-      [workerId, place.location_id, place.zone_id, start, clientUuid, manual, note],
+      [workerId, place.location_id, place.zone_id, start, clientUuid, manual, note, policy.location_interval_seconds, policy.proof_of_work_required],
     );
   } catch (err) {
     if (!CONFLICT_CODES.has(err?.code)) throw err;
@@ -240,7 +245,7 @@ async function openShift({ body, session }) {
 
   // Same client_uuid => this is a retry of a request that already landed. Return the
   // stored row unchanged; the first write wins and the phone converges on it.
-  const existing = await one(`SELECT ${SHIFT_COLS} FROM shifts WHERE client_uuid = $1`, [clientUuid]);
+  const existing = await one(`SELECT ${SHIFT_COLS} FROM shifts WHERE client_uuid = $1 AND worker_id = $2`, [clientUuid, workerId]);
   if (existing) {
     recordShift("shift open", {
       "ts.shift.client_uuid": clientUuid,
@@ -314,7 +319,7 @@ async function closeShift({ body, session }) {
   // guessable, but "hard to guess" is not authorisation — one worker must not be able to
   // clock another one out. 404 rather than 403 for someone else's shift: an existence
   // oracle is not worth the marginally better error message.
-  const current = await one(`SELECT ${SHIFT_COLS} FROM shifts WHERE client_uuid = $1 AND worker_id = $2`, [
+  const current = await one(`SELECT ${SHIFT_COLS} FROM shifts WHERE client_uuid = $1 AND worker_id = $2 FOR UPDATE`, [
     clientUuid,
     session.workerId,
   ]);
@@ -339,6 +344,9 @@ async function closeShift({ body, session }) {
   if (endPlace !== null && endPlace.location_id !== current.location_id) fail(422, "wrong_building");
 
   const { end } = v.shiftWindow(current.start_time, body.end_time);
+  // A worker-supplied auto_closed flag is not the server's timeout job: every
+  // worker closing path requires the same proof, including delayed sync.
+  const proofId = await requireShiftProof(current, body.proof_id);
 
   // auto_closed is only ever raised, never cleared: a client that omits the flag must not
   // silently downgrade a shift the 8h timer already flagged.
@@ -349,13 +357,14 @@ async function closeShift({ body, session }) {
             end_zone_id = COALESCE($5::uuid, end_zone_id),
             manual_close = manual_close OR $6,
             manual_note = COALESCE($7, manual_note),
+            proof_id = COALESCE($8::uuid, proof_id),
             corrected_at = CASE WHEN $6 THEN now() ELSE corrected_at END
       WHERE client_uuid = $1 AND worker_id = $4 AND end_time IS NULL RETURNING ${SHIFT_COLS}`,
     // COALESCE, so a retry that omits the note does not erase the one that landed. A close
     // note DOES overwrite an open note — ponytail, CEILING: one column (migration 019) and
     // both halves manual is rare; the later, more complete sentence wins. UPGRADE PATH if
     // that ever loses something real: a second column, not string concatenation here.
-    [clientUuid, end, autoClosed, session.workerId, endPlace?.zone_id ?? null, manual, note],
+    [clientUuid, end, autoClosed, session.workerId, endPlace?.zone_id ?? null, manual, note, proofId],
   );
   if (updated) {
     recordShift("shift close", {
@@ -487,19 +496,20 @@ async function resolveShift({ params, body, session }) {
   // worker could walk the id space and stamp made-up end times onto other people's
   // payroll. Someone else's id answers 404, exactly as a nonexistent one does.
   const shift = await one(
-    "SELECT id, start_time, auto_closed, corrected_at FROM shifts WHERE id = $1 AND worker_id = $2",
+    "SELECT id, start_time, auto_closed, corrected_at, proof_of_work_required FROM shifts WHERE id = $1 AND worker_id = $2 FOR UPDATE",
     [shiftId, session.workerId],
   );
   if (!shift) fail(404, "unknown_shift");
   if (!shift.auto_closed || shift.corrected_at !== null) fail(409, "already_resolved");
 
   const { end } = v.shiftWindow(shift.start_time, body.end_time);
+  const proofId = await requireShiftProof(shift, body.proof_id);
   const updated = await one(
     `UPDATE shifts
-        SET end_time = $2, corrected_at = now()
+        SET end_time = $2, corrected_at = now(), proof_id = COALESCE($4::uuid, proof_id)
       WHERE id = $1 AND worker_id = $3 AND auto_closed AND corrected_at IS NULL
       RETURNING ${SHIFT_COLS}`,
-    [shiftId, end, session.workerId],
+    [shiftId, end, session.workerId, proofId],
   );
   if (!updated) fail(409, "already_resolved"); // concurrent resolve won
   return { status: 200, body: { shift: updated } };
@@ -633,10 +643,10 @@ export const appRoutes = [
   { method: "GET", path: "/roster", auth: "worker", handler: roster },
   { method: "POST", path: "/shifts/open", auth: "worker", handler: openShift },
   { method: "GET", path: "/shifts/open", auth: "worker", handler: currentOpenShift },
-  { method: "POST", path: "/shifts/close", auth: "worker", handler: closeShift },
+  { method: "POST", path: "/shifts/close", auth: "worker", handler: (ctx) => transaction(() => closeShift(ctx)) },
   { method: "GET", path: "/shifts/unresolved", auth: "worker", handler: unresolvedShifts },
   { method: "GET", path: "/shifts/mine", auth: "worker", handler: myShifts },
-  { method: "POST", path: "/shifts/:id/resolve", auth: "worker", handler: resolveShift },
+  { method: "POST", path: "/shifts/:id/resolve", auth: "worker", handler: (ctx) => transaction(() => resolveShift(ctx)) },
   { method: "POST", path: "/material-requests", auth: "worker", handler: createMaterialRequest },
   { method: "GET", path: "/material-requests/mine", auth: "worker", handler: myMaterialRequests },
   { method: "POST", path: "/material-requests/:id/seen", auth: "worker", handler: markMaterialRequestSeen },

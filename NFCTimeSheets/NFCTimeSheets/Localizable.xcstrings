@@ -381,6 +381,22 @@
         }
       }
     },
+    "Camera unavailable. Allow camera access in Settings and use a device with a camera." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kamera ist nicht verfügbar. Erlauben Sie den Kamerazugriff in den Einstellungen und verwenden Sie ein Gerät mit Kamera."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera unavailable. Allow camera access in Settings and use a device with a camera."
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "de" : {
@@ -511,6 +527,22 @@
         }
       }
     },
+    "Connect to the internet to check this shift before finishing it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stellen Sie eine Internetverbindung her, damit diese Schicht vor dem Beenden geprüft werden kann."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect to the internet to check this shift before finishing it."
+          }
+        }
+      }
+    },
     "Corrected" : {
       "localizations" : {
         "de" : {
@@ -523,6 +555,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corrected"
+          }
+        }
+      }
+    },
+    "Could not finish the shift. Check your connection and try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Schicht konnte nicht beendet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not finish the shift. Check your connection and try again."
           }
         }
       }
@@ -543,6 +591,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Einsätze konnten nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Could not prepare the photo. Check your connection and try again. Your shift has not been finished." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto konnte nicht vorbereitet werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut. Ihre Schicht wurde nicht beendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not prepare the photo. Check your connection and try again. Your shift has not been finished."
           }
         }
       }
@@ -925,6 +989,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zonen werden geladen…"
+          }
+        }
+      }
+    },
+    "Location access is off. Enable it in Settings to record your shift location." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Standortzugriff ist ausgeschaltet. Aktivieren Sie ihn in den Einstellungen, um Ihren Standort während der Schicht zu erfassen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location access is off. Enable it in Settings to record your shift location."
+          }
+        }
+      }
+    },
+    "Location could not be sent. A fresh location will be tried at the next interval." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Standort konnte nicht gesendet werden. Beim nächsten Intervall wird ein aktueller Standort erneut gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location could not be sent. A fresh location will be tried at the next interval."
+          }
+        }
+      }
+    },
+    "Location is collected during this shift at your company's interval. iOS may delay updates." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Während dieser Schicht wird Ihr Standort im vom Unternehmen festgelegten Abstand erfasst. iOS kann Aktualisierungen verzögern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location is collected during this shift at your company's interval. iOS may delay updates."
+          }
+        }
+      }
+    },
+    "Location is temporarily unavailable. Keep location access enabled." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Standort ist vorübergehend nicht verfügbar. Lassen Sie den Standortzugriff eingeschaltet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Location is temporarily unavailable. Keep location access enabled."
           }
         }
       }
@@ -1437,6 +1565,38 @@
         }
       }
     },
+    "Photo could not be prepared. Please take another photo." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto konnte nicht vorbereitet werden. Bitte nehmen Sie ein neues Foto auf."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo could not be prepared. Please take another photo."
+          }
+        }
+      }
+    },
+    "Photo could not be sent. Check your connection and take another photo. Your shift has not been finished." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Foto konnte nicht gesendet werden. Prüfen Sie Ihre Verbindung und nehmen Sie ein neues Foto auf. Ihre Schicht wurde nicht beendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo could not be sent. Check your connection and take another photo. Your shift has not been finished."
+          }
+        }
+      }
+    },
     "Pick the new object. The card is rewritten, this zone closes with its hours intact, and a fresh zone takes over." : {
       "localizations" : {
         "de" : {
@@ -1483,6 +1643,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vorherige Seite"
+          }
+        }
+      }
+    },
+    "Proof of work" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeitsnachweis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proof of work"
           }
         }
       }
@@ -2160,6 +2336,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Das Beschreiben von Tags ist in dieser Version nicht aktiviert. Bitten Sie die Entwicklerin, die Funktion „NFC Tag Reading“ in Xcode zu aktivieren – siehe docs/NFC-WRITE-SETUP.md."
+          }
+        }
+      }
+    },
+    "Take a new photo to finish this shift. Your shift has not been finished." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nehmen Sie ein neues Foto auf, um diese Schicht zu beenden. Ihre Schicht wurde nicht beendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a new photo to finish this shift. Your shift has not been finished."
+          }
+        }
+      }
+    },
+    "Take a photo of the completed work now. Gallery photos cannot be used. An internet connection is required." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografieren Sie jetzt die erledigte Arbeit. Fotos aus der Galerie sind nicht zulässig. Eine Internetverbindung ist erforderlich."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a photo of the completed work now. Gallery photos cannot be used. An internet connection is required."
+          }
+        }
+      }
+    },
+    "Take work photo" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeit fotografieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take work photo"
           }
         }
       }

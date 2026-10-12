@@ -85,11 +85,15 @@ func refreshFlags() async {
 @MainActor
 func syncPending(context: ModelContext, workerId: Int) async {
     let all = (try? context.fetch(FetchDescriptor<Shift>(sortBy: [SortDescriptor<Shift>(\.startTime)]))) ?? []
-    for shift in all where !shift.syncBlocked && !shift.isFullySynced {
+    for shift in all where !shift.syncBlocked && (!shift.isFullySynced || shift.pendingEvidenceEnd != nil) {
         if shift.openSyncedAt == nil {
             guard await pushOpen(shift, as: workerId) else { continue }  // don't close what never opened
         }
-        if let end = shift.endTime, shift.closeSyncedAt == nil {
+        // `pendingEvidenceEnd` is the finish time a proof-of-work close was sent with (shift
+        // evidence): while it is set the close is still owed, even though the row's own endTime
+        // may not be written yet. The "another account's row" guard is INSIDE pushClose
+        // (TASK-365.4), so it is one rule in one place.
+        if let end = shift.pendingEvidenceEnd ?? shift.endTime, shift.closeSyncedAt == nil {
             await pushClose(shift, end: end, as: workerId)
         }
     }
@@ -150,12 +154,13 @@ private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
         // pressed with no signal still lands flagged when the queue drains hours later.
         let envelope = try await ShiftFlowAPI.close(clientUuid: shift.clientUuidString,
                                                     endTime: end,
-                                                    autoClosed: shift.autoClosed,
-                                                    manual: shift.manualClose)
+                                                    autoClosed: shift.pendingEvidenceEnd != nil ? shift.pendingEvidenceAuto : shift.autoClosed,
+                                                    manual: shift.pendingEvidenceEnd != nil ? shift.pendingEvidenceManual : shift.manualClose, proofId: shift.proofId)
         // The server's row wins. If the 8h timer got there first this comes back with
         // auto_closed = true and corrected_at = null, and the worker is routed to the
         // resolution sheet: closing does NOT silently resolve a timer-closed shift.
         apply(envelope.shift, to: shift)
+        shift.pendingEvidenceEnd = nil
         shift.closeSyncedAt = .now
         shift.syncError = nil
     } catch let failure as APIFailure {
@@ -169,6 +174,8 @@ private func pushClose(_ shift: Shift, end: Date, as workerId: Int) async {
 @MainActor
 private func apply(_ wire: WireShift, to shift: Shift) {
     shift.serverId = wire.id
+    shift.locationIntervalSeconds = wire.locationIntervalSeconds ?? 0
+    shift.proofOfWorkRequired = wire.proofOfWorkRequired ?? false
     shift.autoClosed = wire.autoClosed
     shift.correctedAt = wire.correctedAt
     // The server's row wins here too, but ONLY upwards: a build talking to a server that has
@@ -184,6 +191,23 @@ private func apply(_ wire: WireShift, to shift: Shift) {
 /// ever - a data-loss bug wearing a clean UI.
 @MainActor
 private func record(_ failure: APIFailure, on shift: Shift) {
+    if ["proof_required", "proof_expired"].contains(failure.code) {
+        // The server refused this close for want of a photo, so the row goes back to what it was
+        // BEFORE the close was attempted - all of it. A tap-out or a manual stop (and a switch's
+        // walk-away flag) writes `autoClosed` / `manualClose` together with the end time; left
+        // behind, an open row that reads `autoClosed` is drawn as "closed automatically" instead of
+        // a running clock, and a later tap-out would go up flagged manual. Reachable since a finish
+        // whose policy the phone does not know yet runs local-first (ContentView.prepareCompletion).
+        shift.endTime = nil
+        shift.autoClosed = false
+        shift.manualClose = false
+        shift.proofId = nil
+        shift.pendingEvidenceEnd = nil
+        shift.proofOfWorkRequired = true
+        shift.syncBlocked = false
+        shift.syncError = failure.workerMessage
+        return
+    }
     shift.syncError = failure.workerMessage
     shift.syncBlocked = !failure.isRetryable
     // The one place every rejection passes through, so this is the one place it has to be
@@ -212,13 +236,20 @@ func adoptServerOpenShift(context: ModelContext) async {
     guard let key = remote.clientUuid.flatMap({ UUID(uuidString: $0) }) else { return }
 
     let known = (try? context.fetch(FetchDescriptor<Shift>())) ?? []
-    if known.contains(where: { $0.clientUuid == key }) { return }
+    if let existing = known.first(where: { $0.clientUuid == key }) {
+        existing.locationIntervalSeconds = remote.locationIntervalSeconds ?? 0
+        existing.proofOfWorkRequired = remote.proofOfWorkRequired ?? false
+        try? context.save()
+        return
+    }
 
     let local = Shift(workerId: remote.workerId,
                       workerName: "",
                       locationId: remote.locationId,
                       startTime: remote.startTime)
     local.clientUuid = key
+    local.locationIntervalSeconds = remote.locationIntervalSeconds ?? 0
+    local.proofOfWorkRequired = remote.proofOfWorkRequired ?? false
     local.serverId = remote.id
     local.openSyncedAt = .now
     local.autoClosed = remote.autoClosed
@@ -237,9 +268,9 @@ func fetchUnresolved() async -> [WireShift] {
 
 /// POST /shifts/:id/resolve, then mirror the result locally.
 @MainActor
-func resolveShift(context: ModelContext, shift: WireShift, end: Date) async -> String? {
+func resolveShift(context: ModelContext, shift: WireShift, end: Date, proofId: String? = nil) async -> String? {
     do {
-        let updated = try await ShiftAPI.resolve(shiftId: shift.id, endTime: end)
+        let updated = try await ShiftAPI.resolve(shiftId: shift.id, endTime: end, proofId: proofId)
         if let key = updated.clientUuid.flatMap({ UUID(uuidString: $0) }),
            let local = ((try? context.fetch(FetchDescriptor<Shift>())) ?? [])
                .first(where: { $0.clientUuid == key })

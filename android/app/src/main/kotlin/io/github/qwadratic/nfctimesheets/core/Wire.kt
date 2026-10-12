@@ -281,6 +281,8 @@ object Wire {
         autoClosed = o.optBoolean("auto_closed", false),
         correctedAt = o.instantOrNull("corrected_at"),
         clientUuid = o.stringOrNull("client_uuid"),
+        locationIntervalSeconds = o.optInt("location_interval_seconds", 0),
+        proofOfWorkRequired = o.optBoolean("proof_of_work_required", false),
         locationSlug = o.stringOrNull("location_slug"),
         locationName = o.stringOrNull("location_name"),
     )
@@ -449,6 +451,8 @@ data class WireShift(
     val autoClosed: Boolean,
     val correctedAt: Instant?,
     val clientUuid: String?,
+    val locationIntervalSeconds: Int = 0,
+    val proofOfWorkRequired: Boolean = false,
     val locationSlug: String?,
     val locationName: String?,
 ) {

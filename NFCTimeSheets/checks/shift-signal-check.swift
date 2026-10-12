@@ -454,7 +454,11 @@ check(!handleTap.contains("await signals.") && !tapTask.contains("await armIfSti
 let beforeTapTask = handleTap.components(separatedBy: "\n        Task {\n            // Wraps the await rather than")[0]
 check(save!.upperBound < beforeTapTask.range(of: "signals.arm(")!.lowerBound,
       "the first arm still follows context.save()")
-let manualStopBody = textBetween(view, "private func manualStop() {", "\n    #if DEBUG")
+// origin/main (shift evidence, PR 17) put a proof gate in front of the stop, so manualStop() is now
+// three functions: manualStop() (the hand-off), prepareCompletion() (the gate, pinned below) and
+// finishManualStop() - the old manualStop body, unchanged. The assertions that follow were about
+// THAT body and moved with it; none was dropped or loosened.
+let manualStopBody = textBetween(view, "private func finishManualStop() {", "\n    #if DEBUG")
 let msSave = manualStopBody.range(of: "try? context.save()"), msArm = manualStopBody.range(of: "signals.arm(for: currentRunning())")
 check(msSave != nil && msArm != nil && msSave!.upperBound < msArm!.lowerBound,
       "manualStop closes and SAVES the local row before it arms")
@@ -468,6 +472,67 @@ check(!manualStopBody.contains("await signals.") && !manualStopBody.contains("aw
       "manualStop awaits no signal call")
 check(manualStopBody.components(separatedBy: "signals.arm(").count - 1 == 1,
       "manualStop keeps exactly one direct arm (the one after its save)")
+
+// SHIFT EVIDENCE (PR 17, docs/shift-evidence.md) MEETS THE TAP PATH. Two features that both touch
+// handleTap, so the rule is written down as text and cannot erode one edit at a time:
+//   - PHOTO PROOF may stand in front of a FINISH, and only for a shift KNOWN to require it. A start is
+//     never in it; a finish whose policy this phone does not know yet is never held for the network
+//     (the server refuses a close without proof with 422 proof_required and Sync.record reopens the row).
+//   - LOCATION is driven from the store, after the row is saved, and is read by no tap, push or signal.
+let gateSource = textBetween(codeOnly(view), "private func prepareCompletion(", "\n    }")
+check(!gateSource.isEmpty, "found prepareCompletion in ContentView.swift")
+check(gateSource.contains("shift.proofOfWorkRequired == true"),
+      "the proof gate holds a finish back only for a shift KNOWN to require proof (== true): unknown is not 'required'")
+check(!gateSource.contains("await") && !gateSource.contains("Task {") && !gateSource.contains("scanError"),
+      "the proof gate awaits nothing, starts no Task and refuses nothing: a finish is never held for the network")
+check(!gateSource.contains("adoptServerOpenShift") && !gateSource.contains("syncPending"),
+      "...and learns nothing from the network before the local write (the push after the tap does that)")
+let gateRunsAtOnce = gateSource.range(of: "action()"), gateTakesCamera = gateSource.range(of: "closePending = true")
+check(gateRunsAtOnce != nil && gateTakesCamera != nil && gateRunsAtOnce!.upperBound < gateTakesCamera!.lowerBound,
+      "the run-at-once branch (action()) comes BEFORE the branch that takes the camera")
+check(codeOnly(view).components(separatedBy: "proofShift = ").count - 1 == 1,
+      "the camera sheet is presented from exactly one place: the proof gate")
+let tapHead = handleTap.components(separatedBy: "let trace = Telemetry.beginTap(")[0]
+check(tapHead.contains("if let running = openRow, !proofApproved {")
+      && tapHead.contains("prepareCompletion(switched: leavesBuilding(of: running, for: locationId))"),
+      "handleTap's only pre-save branch is the proof gate, entered for THIS worker's open row")
+check(!tapHead.contains("await") && !tapHead.contains("closePending") && !tapHead.contains("shifts"),
+      "...it awaits nothing, and a tap with no open row (a START) can never be refused by the gate's state")
+check(!handleTap.contains("?.locationId != locationId") && handleTap.contains("leavesBuilding("),
+      "the gate's `switched` is the same-building rule, never the raw place-id comparison")
+let leaves = textBetween(codeOnly(view), "private func leavesBuilding(", "\n    }")
+check(leaves.contains("Zones.buildingIdOf(running.locationId, zones: rosterZones.zones)")
+      && leaves.contains("Zones.buildingIdOf(locationId, zones: rosterZones.zones)")
+      && !leaves.contains("running.locationId != locationId"),
+      "leavesBuilding compares BUILDINGS on both sides (decision-43)")
+for (name, body) in [("handleTap", handleTap), ("finishManualStop", manualStopBody), ("prepareCompletion", gateSource)] {
+    check(!body.contains("ShiftLocationReporter") && !body.contains("locationReporter") && !body.contains("CLLocation"),
+          "\(name) never touches location collection")
+}
+for file in ["Sync.swift", "ShiftSignal.swift", "ShiftSignalCenter.swift", "TapInbox.swift", "TapScanner.swift"] {
+    check(!codeOnly(sourceText(file)).contains("ShiftLocationReporter"),
+          "\(file) never reads location collection: it is neither an input to a tap, a push nor a signal")
+}
+// The other half of "a finish with unknown policy runs local-first": when the server DOES require proof
+// it answers 422 proof_required and Sync.record puts the row back as it was BEFORE the close - endTime,
+// the walk-away flag and the manual flag together (an open row left `autoClosed` is drawn as closed).
+let recordBody = textBetween(codeOnly(sourceText("Sync.swift")), "private func record(", "\n}")
+let proofBranch = recordBody.components(separatedBy: "return")[0]
+check(proofBranch.contains("[\"proof_required\", \"proof_expired\"].contains(failure.code)")
+      && proofBranch.contains("shift.endTime = nil") && proofBranch.contains("shift.autoClosed = false")
+      && proofBranch.contains("shift.manualClose = false"),
+      "a proof_required answer to a queued close reopens the row COMPLETELY: endTime, autoClosed and manualClose")
+check(proofBranch.contains("shift.proofOfWorkRequired = true") && proofBranch.contains("shift.syncBlocked = false"),
+      "...remembers that this shift requires proof (so the next stop opens the camera) and is not left blocked")
+check(!codeOnly(view).contains("Connect to the internet to check this shift before finishing it."),
+      "no finish is refused with 'Connect to the internet to check this shift' any more")
+let reporterCalls = codeOnly(view).components(separatedBy: "locationReporter.configure(")
+check(reporterCalls.count - 1 == 2
+      && reporterCalls.dropFirst().allSatisfy { $0.hasPrefix("shift: allShifts.openShift(for: worker.id))") },
+      "location collection is configured from exactly two places, both from the SIGNED-IN worker's open row")
+let outerView = textBetween(codeOnly(view), "struct ContentView: View {", "// MARK: - State (a): signed out")
+check(outerView.components(separatedBy: "locationReporter.configure(").count - 1 == 2,
+      "...and both are in the outer ContentView, never in LogView's tap, stop or refresh code")
 
 // THE LADDER'S TEXT: ShiftSignalCenter turns each rung into a request and says what its KIND says, pending first.
 let ladderBody = textBetween(codeOnly(center), "private func scheduleLadder(for running: RunningShift, center: UNUserNotificationCenter) {", "func requestAuthorizationIfNeeded() async {")

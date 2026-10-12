@@ -696,4 +696,14 @@
     <string name="worker_material_example">Zum Beispiel: 2 Mopps, Glasreiniger</string>
     <string name="worker_material_no_push">Status hier prüfen. Keine Push-Mitteilungen.</string>
     <string name="worker_material_details">So erhalten Sie Rückmeldung</string>
+    <string name="evidence_location_title">Standort während der Schicht</string>
+    <string name="evidence_location_body">Standortaufzeichnung aktiv. Sie endet mit Ihrer Schicht.</string>
+    <string name="evidence_location_explain">Ihr Betrieb hat Standortaufzeichnung alle %1$d Sekunden für diese Schicht aktiviert. Die App erfasst Ihren Standort auch bei gesperrtem Bildschirm, nur während der Schicht. Android kann Messungen verzögern.</string>
+    <string name="evidence_location_unavailable">Standortaufzeichnung ist nicht aktiv. Erlauben Sie den Standortzugriff in den App-Einstellungen und aktivieren Sie den Gerätestandort. Ihre Schicht läuft weiter.</string>
+    <string name="evidence_allow">Standort erlauben</string>
+    <string name="evidence_later">Später</string>
+    <string name="evidence_ok">OK</string>
+    <string name="evidence_photo_title">Arbeitsnachweis</string>
+    <string name="err_proof_required">Zum Beenden ist ein neues Kamerafoto erforderlich. Die Schicht bleibt bis zur Bestätigung offen. Bitte erneut versuchen.</string>
+    <string name="err_proof_expired">Der Fotonachweis ist abgelaufen. Bitte erneut ein Foto aufnehmen und mit Internetverbindung bestätigen.</string>
 </resources>
