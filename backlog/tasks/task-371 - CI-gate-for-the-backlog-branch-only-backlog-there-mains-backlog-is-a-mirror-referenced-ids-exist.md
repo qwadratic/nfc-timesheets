@@ -3,7 +3,7 @@ id: TASK-371
 title: >-
   CI gate for the backlog branch: only backlog/** there, main's backlog/ is a
   mirror, referenced ids exist
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-13 05:40'
 updated_date: '2026-10-13 05:43'
