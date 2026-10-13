@@ -380,6 +380,13 @@ milestones, config - and nothing else. It is where every task and every decision
 4. **Main is a mirror.** main receives the backlog by `git merge origin/backlog` (only
    `backlog/` paths change); do it when a record is needed on main or before a release. The
    first sync (2026-10-13) used `--allow-unrelated-histories`; later ones are plain merges.
+5. **CI enforces it** (`.github/workflows/backlog-gate.yml`, TASK-371; same script locally:
+   `ops/backlog-guard.sh all HEAD <base>..HEAD`): `origin/backlog` holds only `backlog/**`;
+   `backlog/` in anything pushed to or proposed for main is a tree the backlog branch once had
+   (an edit made on a work branch fails it); every `TASK-N` / `decision-N` cited in a commit
+   message exists on the backlog branch. A commit that truly has no task carries a
+   `Backlog-exempt: <why>` line. The branch is re-checked every 20 minutes because a push to
+   it cannot run a workflow that lives on main.
 
 <CRITICAL_INSTRUCTION>
 

@@ -1,0 +1,63 @@
+name: Backlog gate
+
+# TASK-371. Enforces AGENTS.md "Backlog branch: record FIRST, then work":
+#   branch  - origin/backlog holds ONLY backlog/** (tip and every commit)
+#   mirror  - backlog/ in what is being pushed / merged is a tree the backlog branch ever had,
+#             i.e. nothing reaches the regular backlog from another branch
+#   ids     - every TASK-N / decision-N cited by the pushed or proposed commits exists on the
+#             backlog branch (a commit with no task carries a "Backlog-exempt: <why>" line)
+#
+# A push to the backlog branch cannot run a workflow that lives on main (a push runs the
+# workflow files of the pushed commit, and that branch carries nothing but backlog/), so the
+# branch itself is re-checked on every main push, every PR and every 20 minutes.
+#
+# Run the same thing locally:  ops/backlog-guard.sh all HEAD <base>..HEAD
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch the backlog branch
+        run: git fetch --no-tags origin '+refs/heads/backlog:refs/remotes/origin/backlog'
+
+      - name: The backlog branch holds only backlog/
+        run: ops/backlog-guard.sh branch origin/backlog
+
+      - name: backlog/ here is a mirror of the backlog branch
+        run: ops/backlog-guard.sh mirror HEAD origin/backlog
+
+      - name: Cited tasks and decisions exist on the backlog branch
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = pull_request ]; then
+            RANGE="$PR_BASE..$PR_HEAD"
+          elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            RANGE="$AFTER~1..$AFTER"
+          else
+            RANGE="$BEFORE..$AFTER"
+          fi
+          echo "range: $RANGE"
+          ops/backlog-guard.sh ids "$RANGE" origin/backlog
