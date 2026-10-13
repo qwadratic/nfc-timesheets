@@ -4,7 +4,7 @@ title: 'iOS P7: Shift receipt, confirmation motion, My hours'
 status: In Progress
 assignee: []
 created_date: '2026-10-07 12:21'
-updated_date: '2026-10-12 11:50'
+updated_date: '2026-10-13 03:17'
 labels:
   - ios
   - parity
@@ -90,19 +90,19 @@ My hours (+) | admin-corrected shift | shows 'Corrected' | server corrected_at
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 decision-80 recorded (backlog decision create) BEFORE the code, and listed in the epic
-- [ ] #2 Driven: Receipt (+) | online tap-in then tap-out | idle shows 'Shift finished': building, range, duration, delivery 'Sent'; scan/manual Sections hidden; Recent excludes it; Continue returns the start Sections | server closed row
-- [ ] #3 Driven: Receipt persists (+) | wait >120 s with it open | still shown until Continue; relaunch after 120 s shows none
+- [x] #2 Driven: Receipt (+) | online tap-in then tap-out | idle shows 'Shift finished': building, range, duration, delivery 'Sent'; scan/manual Sections hidden; Recent excludes it; Continue returns the start Sections | server closed row
+- [x] #3 Driven: Receipt persists (+) | wait >120 s with it open | still shown until Continue; relaunch after 120 s shows none
 - [ ] #4 Driven: Receipt offline (-) | Stop with server down | delivery line 'Saved on this phone · not yet confirmed' then 'Sent' after refresh
-- [ ] #5 Driven: Receipt manual stop (+) | Finish without a tag | 'Manual' + 'Corrected' | manual_close, corrected_at set
-- [ ] #6 Driven: Receipt auto-switch (-) | tap other building while open | previous row 'Auto-closed' (red) and the resolver banner is NOT hidden
-- [ ] #7 Driven: Tap while receipt (+) | tap a card with receipt up | new shift starts, receipt gone
-- [ ] #8 Driven: Ack in (+) | online tap-in | ring then check once (~900 ms) after the server answer; second launch, tab return, resume do not replay
-- [ ] #9 Driven: Ack (-) | offline tap-in; late ack >45 s; blocked row | never animates
-- [ ] #10 Driven: Ack out (+) | online tap-out | plays once on the receipt
-- [ ] #11 Driven: Reduce Motion | enable, tap-in | no animation, identity consumed
-- [ ] #12 Driven: My hours (+) | Settings > My hours | rows with building name (not 'Unknown location'), status, Vienna date/start/end/duration; open row 'No end yet', no duration | GET /shifts/mine 200
-- [ ] #13 Driven: My hours (-) | empty / server down / 401 | empty sentence / offline sentence + Refresh / signed out
-- [ ] #14 Driven: My hours (+) | admin-corrected shift | shows 'Corrected' | server corrected_at
+- [x] #5 Driven: Receipt manual stop (+) | Finish without a tag | 'Manual' + 'Corrected' | manual_close, corrected_at set
+- [x] #6 Driven: Receipt auto-switch (-) | tap other building while open | previous row 'Auto-closed' (red) and the resolver banner is NOT hidden
+- [x] #7 Driven: Tap while receipt (+) | tap a card with receipt up | new shift starts, receipt gone
+- [x] #8 Driven: Ack in (+) | online tap-in | ring then check once (~900 ms) after the server answer; second launch, tab return, resume do not replay
+- [x] #9 Driven: Ack (-) | offline tap-in; late ack >45 s; blocked row | never animates
+- [x] #10 Driven: Ack out (+) | online tap-out | plays once on the receipt
+- [x] #11 Driven: Reduce Motion | enable, tap-in | no animation, identity consumed
+- [x] #12 Driven: My hours (+) | Settings > My hours | rows with building name (not 'Unknown location'), status, Vienna date/start/end/duration; open row 'No end yet', no duration | GET /shifts/mine 200
+- [x] #13 Driven: My hours (-) | empty / server down / 401 | empty sentence / offline sentence + Refresh / signed out
+- [x] #14 Driven: My hours (+) | admin-corrected shift | shows 'Corrected' | server corrected_at
 - [x] #15 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
 - [x] #16 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n); a new file is grepped for String(localized:) / LocalizedStringKey
 - [x] #17 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary (AGENTS.md review gate)
@@ -159,4 +159,36 @@ RESKIN COLLISIONS (B1-B5 must touch these): (1) ShiftReceiptView and MyHoursView
 PINS CHANGED: none. No existing check was edited and none was deleted or loosened; every earlier pin held on the first run.
 
 Criterion #16 detail: every Text / Label / Button / NavigationLink / navigationTitle literal and both String(localized:) calls in ShiftReceiptView.swift and MyHoursView.swift (ConfirmationMark.swift, ConfirmationMotion.swift, ShiftReceipt.swift and MyHours.swift carry no user-visible string) was grepped and has a catalogue entry; xcodebuild -exportLocalizations extracted exactly those keys (none of the 14 new keys came back stale or missing; the only extra key it reported is the pre-existing 'Your session ended. Sign in again.' noted above).
+
+2026-10-13 iOS P7 DRIVEN on the local rig (worktree cleaning-timesheets-ios-p7, branch ios-p7-driven off main ba6ae5e, final UI: Blue Hour B1-B5 + in-app language; walk commit 8c1f467). No product code, pbxproj or entitlement touched. Walks: ops/ios-rig/walk.sh p7 (15 walks); phone halves WorkerRigReceiptUITests, WorkerRigMyHoursUITests, WorkerRigMotionProbe (new); rig additions rig.sh reduce-motion / app-pref, wire.mjs answered. Every walk asserts the PHONE (XCUITest) and the SERVER (Postgres rows, the wire log, the app's own UserDefaults plist).
+
+HOW THE MOTION IS SEEN. The ring is accessibilityHidden, so it has no element: the walk takes pictures (XCUIScreen screenshot loop, ~130 ms apart) and reads, per picture, the ink in the TOP LINE of the block the motion wraps (empty while the content is held back, ~720 ms of the 0.9 s) and in a box at its middle (the ring and check). A ring frame = top line empty + ink in the middle. An unheld answer lands before the first picture can be taken, so the rig front HOLDS the answer (hold_ms 8000 / 7000; the server row already exists): pictures before, at and after the answer; the driver compares the first ring frame with the moment the front released the answer. The one-shot memory is read from the app's UserDefaults (worker-motion.clock-in / .clock-out = '<zone or client uuid>:<millis>'), which ConfirmationMotion.claim writes BEFORE anything draws - so it is also the proof for the paths where nothing is drawn. Screenshots/frame tables: $RIG_HOME/shots (p7-*-frames.txt, p7-*-frame-N.png).
+
+TICKED (driven, PASS):
+#2 p7-receipt-online: tap-in, 62 s, tap-out at the second door -> idle: 'Shift finished', 'Rig Haus Alpha', '4:09 - 4:10' (= the server's 04:09-04:10 Vienna, unpadded hours), '0h 1m' (server 69 s), 'Sent'; 'Scan a tag' / 'Start without a tag' / 'Ready for your shift?' absent; Recent still lists the OLDER row (Beta, shift 1) once and Alpha only as the receipt; Continue brings the start card and both rows back. Server: 2 closed rows, no manual / auto_closed / corrected_at; both POST /shifts/close 200.
+#3 p7-receipt-persist: receipt still on screen 129.9 s after the server's finish (Continue present, start card not back), still after a pull-to-refresh and after More and back; after a relaunch past the window: start card, no receipt.
+#5 p7-receipt-manual: receipt shows 'Manual' + 'Corrected' (no 'Auto-closed'), 'Sent'. Server: manual_start f, manual_close t, corrected_at set, auto_closed f; the close body carried manual:true.
+#6 p7-receipt-switch: A at Alpha, tap at Beta (switch card names both), Beta finished without a tag -> idle: Beta's receipt AND the banner '1 unfinished shift(s) need a finish time' ABOVE it; tapping the banner opens 'Unfinished shifts' with the receipt still there afterwards; Alpha's row in Recent says 'Auto-closed' with red text pixels (562). Server: Alpha closed, auto_closed t, corrected_at NULL; the switch close carried auto_closed:true. READING: 'tap other building while open' = while a SHIFT is open; the receipt of an auto-closed row itself is not reachable (the switch leaves B running, so the next receipt is B's) - the banner and the red row beside the receipt are what was driven.
+#7 p7-tap-while-receipt: receipt up (Sent), relaunch with a tap at the same building within 2 min -> running screen 'Shift in progress', no receipt, not on the next plain launch either. Server: 2 rows (1 closed, 1 open), 2 distinct client_uuids (the finished shift was not reopened). LIMIT: --ts-demo-tap exists only at COLD launch, so the tap is a relaunch inside the two minutes, not a tap into a running app.
+#8 p7-motion-in (answer held 8 s): before the answer the clock card is shown (no ring); 6 ring frames of 38 pictures, first 123-173 ms after the front released the answer, content held back meanwhile; exactly ONE episode. Second launch (22 s after the tap), tab return (31 s), resume from background (36 s): 0 episodes - all inside 45 s, so the consumed identity is what keeps them quiet. worker-motion.clock-in = the server's start_zone_id:start_millis; clock-out memory empty (kinds independent).
+#9 p7-motion-offline (front down 52 s): pending 'Not confirmed yet', 339 pictures over 44 s: content never held back, 0 episodes; the answer lands 55.6 s after the tap (> 45 s): heading flips to 'Shift in progress', 0 episodes in 64 pictures, identity consumed all the same. p7-motion-blocked (zone deactivated, 422): 'Not confirmed yet' + 'This location was removed. Ask your admin.', 0 episodes before and after a Refresh, clock-in memory EMPTY (nothing confirmed, nothing consumed).
+#10 p7-motion-out (close answer held 7 s): receipt up at once, line 'Saved on this phone - not yet confirmed' while outstanding, then ONE ring episode (6 ring frames of 46 pictures, first 204 ms after the answer) and 'Sent'; relaunch (26 s) and tab return (34 s): receipt offered again, 0 episodes; worker-motion.clock-out = server client_uuid:end_millis.
+#11 p7-motion-reduce: the clone's Reduce Motion is switched on from a script (rig.sh reduce-motion on writes com.apple.Accessibility ReduceMotionEnabled and restarts the device; the test asserts UIAccessibility.isReduceMotionEnabled == true) and the SAME flow as #8 is walked: the answer still lands ('Shift in progress'), 0 episodes, content never held back (70 pictures, none hidden), and worker-motion.clock-in = the server's identity (consumed with nothing drawn). Setting restored afterwards.
+#12 p7-hours-rows (rows put on the server before sign-in; the phone never wrote them): window sentence; Closed 8 Oct 06:00-14:30 8h 30m; Manual+Corrected 9 Oct 22:30-01:15 2h 45m (20:30 UTC arrives as 22:30); Auto-closed 11 Oct 07:00-15:00 8h 0m; open row 'Rig Haus Beta, In progress, No end yet' with no 'End:' and no 'Duration'; exactly 4 rows (the 70-day-old row and worker B's are absent); no 'Unknown location', no total/amount. GET /shifts/mine?since=<now-60d> answered 200. LIMIT: the Mac (and so the clone) is on CEST, so Vienna vs phone zone is not distinguished here; my-hours-check.swift covers other zones.
+#13 p7-hours-empty: 'No shifts in this period.' with no rows and no Refresh (GET 200 []). p7-hours-negative: front down -> 'No connection. Your hours can't be loaded right now.' + Refresh, Refresh after net-up -> rows; injected 500 -> 'Your hours could not be loaded.' + Refresh, cleared -> rows; sessions revoked -> the entry's GET is a real 401, neither failure sentence is ever painted, the code form appears. Wire statuses 200 500 200 401.
+#14 p7-hours-corrected: 'Auto-closed ... End: 15:00 8h 0m' -> driver sets corrected_at and end 14:20 -> re-enter -> 'Corrected ... End: 14:20 Duration: 7h 20m' (2 GETs: never cached).
+
+LEFT OPEN:
+#4 - OWNER CALL, as the P7 implementation notes (decision 1) already flagged. p7-receipt-offline-stop: Stop with the front down -> the receipt's line is the row's OWN sentence 'No connection - will send when you're back online.' (never 'Sent', never 'Sending...' after the grace); after net-up + pull-to-refresh it says 'Sent' and the server row closes (200). The literal 'Saved on this phone - not yet confirmed' is NOT what a server-down stop shows; it IS shown while an answer is outstanding with no recorded error (#10 walk, p7-motion-out) and then 'Sent'. Tick it if the row's sentence is accepted as the matrix row's meaning; otherwise the product line changes.
+
+RED CASES (a green walk means something): expected values flipped and run -> red, then restored: p7-motion-in expecting 0 episodes (FAIL expected '1', got '0'); p7-receipt-manual expecting manual_close false (FAIL); p7-hours-rows expecting 'Start: 07:00' (XCUITest FAIL: closed row 'Start: 06:00'); p7-receipt-manual expecting an 'Auto-closed' pill (XCUITest FAIL). The motion detector's positive control is p7-motion-in itself (ONE episode seen) next to the negative walks.
+
+FINDINGS (product, not fixed):
+1. COSMETIC - the receipt's range and the running screen's 'Started' use Date.FormatStyle .shortened: '4:09 - 4:10', 'Started 3:46'; the task text (Android) says 'HH:mm - HH:mm' and My hours / plan lines on the same phone print '02:04' (ViennaTime). Repro: walk.sh p7-receipt-online (range note + the equality check) vs p7-hours-rows. Also those two use the phone's zone, not Vienna (untestable here, see #12 LIMIT).
+2. #4 wording above (design decision, not a defect).
+No other deviation: the receipt, the motion gate, Reduce Motion and My hours behaved as decision-83 specifies in every walk.
+
+The tab-return-past-120-s case (receipt kept) and the in-flight 'Sending...' state (grace is over by the time a walk can look) are recorded, not criteria.
+
+FINAL RESULT LINE: ops/ios-rig/walk.sh all (signin, p1-p7, bug probes; 66 walks, clone of iPhone 17 Pro, iOS 26.5) -> "walk summary: 221 passed, 0 failed" on commit 8c1f467; node ops/check-branding.mjs OK; NFCTimeSheets/checks/run.sh OK. Rig taken down with ops/ios-rig/down.sh.
 <!-- SECTION:NOTES:END -->
