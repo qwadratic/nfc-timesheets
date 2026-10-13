@@ -26,6 +26,8 @@
 #   shifts                         every shift row, readable
 #   sim-uninstall                  remove the app (and its data container) from the clone
 #   sim-shot NAME                  PNG of the clone's screen -> $RIG_HOME/shots/NAME.png
+#   reduce-motion on|off|status    the clone's Reduce Motion setting (P7; the device is restarted so the app reads it)
+#   app-pref KEY                   one value from the installed app's UserDefaults plist (nothing when absent)
 set -u
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 load_state
@@ -261,6 +263,35 @@ case "$cmd" in
     exit $rc
     ;;
 
-  ""|help|-h|--help) /usr/bin/sed -n '2,32p' "$0" ;;
+  reduce-motion)
+    need_up
+    sim_boot
+    ud="$SIM_UDID"
+    case "${1:-status}" in
+      on|off)
+        v=0; [ "$1" = on ] && v=1
+        # The setting lives in the Simulator's own com.apple.Accessibility domain; processes read it at start.
+        xcrun simctl spawn "$ud" defaults write com.apple.Accessibility ReduceMotionEnabled -int "$v" >/dev/null 2>&1
+        # Restart the device so SpringBoard, the app and the test runner all start with the new value.
+        with_timeout 60 xcrun simctl shutdown "$ud" >/dev/null 2>&1
+        sim_boot
+        log "Reduce Motion $1 (device restarted)" ;;
+      status) xcrun simctl spawn "$ud" defaults read com.apple.Accessibility ReduceMotionEnabled 2>&1 ;;
+      *) die "reduce-motion on|off|status" ;;
+    esac
+    ;;
+
+  app-pref)
+    need_up
+    sim_boot
+    container="$(xcrun simctl get_app_container "$SIM_UDID" "$(bundle_id)" data 2>/dev/null)"
+    plist="$container/Library/Preferences/$(bundle_id).plist"
+    [ -f "$plist" ] || exit 0
+    # plutil -extract would read the dots of a key like worker-motion.clock-in as a key PATH.
+    /usr/bin/plutil -p "$plist" 2>/dev/null | /usr/bin/sed -n "s/^  \"$1\" => \(.*\)$/\1/p" | tr -d '"'
+    exit 0
+    ;;
+
+  ""|help|-h|--help) /usr/bin/sed -n '2,34p' "$0" ;;
   *) die "unknown subcommand '$cmd' (rig.sh help)" ;;
 esac

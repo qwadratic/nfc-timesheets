@@ -98,6 +98,13 @@ flip() {
     sched-cross) "$RIG" schedule-set cross >/dev/null ;;
     sched-multi) "$RIG" schedule-set multi >/dev/null ;;
     fault-clear) "$RIG" fault clear >/dev/null ;;
+    # P7: a held ANSWER (the server has already stored the row) makes the moment of the ACK observable.
+    fault-500-mine) "$RIG" fault set '[{"path":"/shifts/mine","method":"GET","status":500,"body":{"error":"internal_error"}}]' >/dev/null ;;
+    # An admin's resolve of the auto-closed row (the server stamps corrected_at and the real end in one update).
+    admin-correct) rig_sql "UPDATE shifts SET corrected_at = now(), end_time = start_time + interval '7 hours 20 minutes'
+                              WHERE worker_id = $WORKER_A_ID AND auto_closed AND corrected_at IS NULL" >/dev/null ;;
+    hold-open-8s) "$RIG" fault set '[{"path":"/shifts/open","method":"POST","hold_ms":8000}]' >/dev/null ;;
+    hold-close-7s) "$RIG" fault set '[{"path":"/shifts/close","method":"POST","hold_ms":7000}]' >/dev/null ;;
     sched-hold-slow) "$RIG" fault set '[{"path":"/me/schedule","method":"GET","hold_ms":8000}]' >/dev/null ;;
     sched-hold-6s) "$RIG" fault set '[{"path":"/me/schedule","method":"GET","hold_ms":6000}]' >/dev/null ;;
     sched-fast-cross) "$RIG" schedule-set cross >/dev/null; "$RIG" fault clear >/dev/null ;;
@@ -569,7 +576,237 @@ walk_p2_wire() { # no phone: a read over everything the P2 walks put on the wire
   check_eq "of them carrying a BUILDING uuid" 0 "${buildings:-0}"
 }
 
-ALL_WALKS="signin p2-empty-state p2-picker p2-online-verified p2-unverified p2-open-elsewhere p2-deactivated p2-server-down p2-mock p2-stop p2-wire p5-online p5-unreachable p5-refused p5-blocked p5-overdue p6-empty p6-waiting p6-blocked p6-signin p6-dynamic-type p6-device-wide p4-idle p4-expand-one p4-expand-multi p4-cross p4-empty p4-offline p4-route-missing p4-session-revoked p4-running p4-resume p4-stale p4-cancel p4-identity p4-refresh-icon p4-decoupling p1-new-zone p1-same-building p1-switch p1-material p1-foreground bug-offline-manual-stop bug-offline-switch p3-signout p3-b-signin p3-b-same-place p3-b-elsewhere p3-a-returns p3-session-rejected p3-replaced p3-swipe-delete"
+# ---- P7 (TASK-365.8): receipt, confirmation motion, My hours -----------------------------------
+# The phone halves are WorkerRigReceiptUITests / WorkerRigMyHoursUITests; the motion is observed as
+# pictures (WorkerRigMotionProbe.swift) and its ONE-SHOT memory is read from the app's own
+# UserDefaults plist (rig.sh app-pref): ConfirmationMotion.claim writes it BEFORE anything draws.
+UI_RC=WorkerRigReceiptUITests
+UI_MH=WorkerRigMyHoursUITests
+
+REDUCE_ON=""
+trap '[ -n "$REDUCE_ON" ] && "$RIG" reduce-motion off >/dev/null 2>&1' EXIT
+
+check_le() { if [ "$3" -le "$2" ] 2>/dev/null; then pass "$1 (= $3, <= $2)"; else fail "$1: expected <= $2, got '$3'"; fi; }
+mark_ms() { /usr/bin/awk -v n="$1" '$1 == n { print $2; exit }' "$MARKS"; }
+mark_has() { /usr/bin/grep -c "^$1 " "$MARKS" | tr -d ' '; }
+note_file() { cat "$SHOT_DIR/$1.txt" 2>/dev/null | tr '\n' ' '; }
+pref() { "$RIG" app-pref "$1"; }
+first_answer() { wire --since $MARK0 --method "$1" --path "$2" answered | sort -n | head -1; }
+
+# identity_check LABEL PREFKEY EXPECTED_KEY EXPECTED_MS : "<key>:<millis>", millis within 2 of the server's
+identity_check() {
+  local label="$1" prefkey="$2" want_key="$3" want_ms="$4" v key ms
+  v="$(pref "$prefkey")"
+  if [ -z "$v" ]; then fail "$label: $prefkey is EMPTY (the identity was not consumed)"; return; fi
+  key="${v%:*}"; ms="${v##*:}"
+  if [ "$key" = "$want_key" ] && [ "$(( ms > want_ms ? ms - want_ms : want_ms - ms ))" -le 2 ]; then
+    pass "$label: $prefkey = '$v' = the server's $want_key:$want_ms (consumed)"
+  else
+    fail "$label: $prefkey = '$v', expected $want_key:$want_ms"
+  fi
+}
+
+# motion_after LABEL FIRSTMARK ANSWERED_MS : the first ring frame is at the answer, not before it
+ring_at_answer() {
+  local label="$1" ring="$2" answered="$3" delta
+  if [ -z "$ring" ] || [ -z "$answered" ]; then fail "$label: no ring frame mark ('$ring') or no answer on the wire ('$answered')"; return; fi
+  delta=$((ring - answered))
+  check_ge "$label: the first ring frame is not before the answer (frame - answer, ms; pictures are ~130 ms apart)" -300 "$delta"
+  check_le "$label: and within 1.5 s of it" 1500 "$delta"
+}
+
+# stayed_quiet LABEL PHASE... : each phase recorded zero episodes AND its last frame is < 45 s after the event
+stayed_quiet() {
+  local label="$1" tap="$2"; shift 2
+  local ph last
+  for ph in "$@"; do
+    check_eq "$label: '$ph' recorded no ring-then-check" 1 "$(mark_has "$ph-episodes-0")"
+    last="$(mark_ms "$ph-last-frame")"
+    if [ -n "$last" ] && [ -n "$tap" ]; then
+      check_le "$label: '$ph' ended $(( (last - tap) / 1000 )) s after the tap - inside 45 s, so only the CONSUMED identity can keep it quiet" 45000 "$((last - tap))"
+    else fail "$label: '$ph' left no last-frame mark"; fi
+  done
+}
+
+# Rows for worker A (and two that must NOT be listed) put on the SERVER before the phone signs in.
+# Vienna wall-clock times; October is still CEST (+02) until the 25th.
+seed_hours() {
+  rig_psql -c "
+    INSERT INTO shifts (tenant_id, worker_id, location_id, start_time, end_time, auto_closed, manual_start, manual_close, corrected_at, client_uuid) VALUES
+      ($TENANT_ID, $WORKER_A_ID, '$BUILDING_A', timestamptz '2026-10-08 06:00:00+02', timestamptz '2026-10-08 14:30:00+02', false, false, false, NULL, gen_random_uuid()::text),
+      ($TENANT_ID, $WORKER_A_ID, '$BUILDING_B', timestamptz '2026-10-09 22:30:00+02', timestamptz '2026-10-10 01:15:00+02', false, true, true, timestamptz '2026-10-10 01:15:00+02', gen_random_uuid()::text),
+      ($TENANT_ID, $WORKER_A_ID, '$BUILDING_A', timestamptz '2026-10-11 07:00:00+02', timestamptz '2026-10-11 15:00:00+02', true, false, false, NULL, gen_random_uuid()::text),
+      ($TENANT_ID, $WORKER_A_ID, '$BUILDING_B', now() - interval '2 hours', NULL, false, false, false, NULL, gen_random_uuid()::text),
+      ($TENANT_ID, $WORKER_A_ID, '$BUILDING_A', now() - interval '70 days', now() - interval '70 days' + interval '8 hours', false, false, false, NULL, gen_random_uuid()::text),
+      ($TENANT_ID, $WORKER_B_ID, '$BUILDING_A', timestamptz '2026-10-07 09:11:00+02', timestamptz '2026-10-07 09:47:00+02', false, false, false, NULL, gen_random_uuid()::text)" >/dev/null
+}
+
+walk_p7_receipt_online() {
+  fresh_phone; "$RIG" schedule-set none >/dev/null
+  run_test $UI_RC/testP7ReceiptAfterOnlineTapInThenTapOut
+  check_eq "server: two shifts, both closed, none manual / auto-closed / corrected" "2|true|false|false|false" \
+    "$(sql "SELECT count(*) || '|' || bool_and(end_time IS NOT NULL)::text || '|' || bool_or(manual_start OR manual_close)::text || '|' || bool_or(auto_closed)::text || '|' || bool_or(corrected_at IS NOT NULL)::text FROM shifts")"
+  check_eq "one row per building (Alpha, Beta)" "1|1" \
+    "$(sql "SELECT count(*) FILTER (WHERE location_id = '$BUILDING_A') || '|' || count(*) FILTER (WHERE location_id = '$BUILDING_B') FROM shifts")"
+  check_ge "Alpha's duration on the server, seconds (the receipt showed 0h 1m)" 62 \
+    "$(sql "SELECT extract(epoch FROM end_time - start_time)::int FROM shifts WHERE location_id = '$BUILDING_A'")"
+  check_eq "every POST /shifts/close of the walk answered 200" "200" \
+    "$(wire --since $MARK0 --method POST --path /shifts/close field status | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  check_eq "the range on the receipt is the server's start - finish (Vienna), unpadded hours" \
+    "$(sql "SELECT to_char(start_time AT TIME ZONE 'Europe/Vienna','FMHH24:MI') || ' – ' || to_char(end_time AT TIME ZONE 'Europe/Vienna','FMHH24:MI') FROM shifts WHERE location_id = '$BUILDING_A'")" \
+    "$(note_file p7-receipt-online-range | sed 's/ $//')"
+}
+
+walk_p7_receipt_persist() {
+  fresh_phone
+  run_test $UI_RC/testP7ReceiptStaysPastTwoMinutesAndIsGoneAfterARelaunch
+  local end_ms after
+  end_ms="$(sql "SELECT floor(extract(epoch FROM end_time) * 1000)::bigint FROM shifts")"
+  after="$(mark_ms receipt-after-window)"
+  if [ -n "$after" ]; then check_ge "the receipt was still on screen this long after the server's finish time, ms (> 120000)" 120001 "$((after - end_ms))"
+  else fail "no receipt-after-window mark"; fi
+  check_eq "still shown after a refresh past the window" 1 "$(mark_has receipt-after-refresh)"
+  check_eq "a relaunch past the window offered no receipt" 1 "$(mark_has relaunch-no-receipt)"
+  say "        $(note_file p7-03-tab-return)"
+  if [ "$(mark_has tab-return-lost-receipt)" = 1 ]; then
+    say "  FINDING  $CURRENT: the receipt is LOST on a tab round trip (More, then Shift) once its 120 s offer window has passed - it was shown before the trip and 'stays until Continue' (repro: walk.sh p7-receipt-persist)"
+  fi
+}
+
+walk_p7_receipt_offline_stop() {
+  fresh_phone
+  hook_net_up() {
+    check_eq "while the front was down the server's row is still OPEN (the stop never reached it)" "1|open" \
+      "$(sql "SELECT count(*) || '|' || CASE WHEN min(end_time::text) IS NULL THEN 'open' ELSE 'closed' END FROM shifts")"
+  }
+  drive $UI_RC/testP7OfflineStopShowsItsDeliveryStateThenSentAfterRefresh net-down net-up
+  unset -f hook_net_up
+  check_eq "after the refresh the server's row is closed" "1|closed" \
+    "$(sql "SELECT count(*) || '|' || CASE WHEN bool_and(end_time IS NOT NULL) THEN 'closed' ELSE 'open' END FROM shifts")"
+  check_eq "the close that finally arrived was answered 200" "200" "$(wire --since $MARK0 --method POST --path /shifts/close field status | head -1)"
+  say "        what the receipt said with the server down: $(note_file p7-04-offline-line)"
+}
+
+walk_p7_receipt_manual() {
+  fresh_phone
+  run_test $UI_RC/testP7ManualFinishReceiptShowsManualAndCorrected
+  check_eq "server row: tap start, manual_close, corrected_at set, not auto-closed" "false|true|true|false" \
+    "$(sql "SELECT manual_start::text || '|' || manual_close::text || '|' || (corrected_at IS NOT NULL)::text || '|' || auto_closed::text FROM shifts")"
+  check_eq "the close went over the wire with manual:true" "true" "$(wire --since $MARK0 --method POST --path /shifts/close field body.manual | head -1)"
+}
+
+walk_p7_receipt_switch() {
+  fresh_phone
+  run_test $UI_RC/testP7SwitchBuildingKeepsTheBannerAndTheAutoClosedRowBesideTheReceipt
+  check_eq "Alpha's row: closed, auto_closed, corrected_at NULL (unconfirmed)" "true|true|true" \
+    "$(sql "SELECT (end_time IS NOT NULL)::text || '|' || auto_closed::text || '|' || (corrected_at IS NULL)::text FROM shifts WHERE location_id = '$BUILDING_A'")"
+  check_eq "Beta's row: closed by the manual finish, corrected_at set" "true|true|true" \
+    "$(sql "SELECT (end_time IS NOT NULL)::text || '|' || manual_close::text || '|' || (corrected_at IS NOT NULL)::text FROM shifts WHERE location_id = '$BUILDING_B'")"
+  check_eq "the switch's close carried auto_closed:true (first close on the wire)" "true" \
+    "$(wire --since $MARK0 --method POST --path /shifts/close field body.auto_closed | head -1)"
+  say "        banner on the phone: $(note_file p7-06-banner); pill: $(note_file p7-06-pill-red)"
+}
+
+walk_p7_tap_while_receipt() {
+  fresh_phone
+  run_test $UI_RC/testP7TapWhileTheReceiptIsUpStartsANewShiftAndTheReceiptIsGone
+  check_eq "server: two shifts for A, one closed, one open" "2|1|1" \
+    "$(sql "SELECT count(*) || '|' || count(*) FILTER (WHERE end_time IS NOT NULL) || '|' || count(*) FILTER (WHERE end_time IS NULL) FROM shifts WHERE worker_id = $WORKER_A_ID")"
+  check_eq "two different client_uuids (the finished shift was not reopened)" 2 "$(sql "SELECT count(DISTINCT client_uuid) FROM shifts")"
+}
+
+walk_p7_motion_in() {
+  fresh_phone
+  drive $UI_RC/testP7OnlineTapInPlaysTheRingOnceAfterTheAnswer hold-open-8s
+  local answered tap; answered="$(first_answer POST /shifts/open)"; tap="$(mark_ms tap-launched)"
+  check_eq "the front held the server's answer for 8000 ms" 8000 "$(wire --since $MARK0 --method POST --path /shifts/open field held_ms | head -1)"
+  check_eq "exactly ONE ring-then-check episode while the answer was awaited and landed" 1 "$(mark_has in-episodes-1)"
+  ring_at_answer "tap-in" "$(mark_ms in-ring0-first)" "$answered"
+  say "        ring frames: $(/usr/bin/grep -c RING "$SHOT_DIR/p7-in-frames.txt") of $(/usr/bin/wc -l < "$SHOT_DIR/p7-in-frames.txt" | tr -d ' ') pictures; ring first at $(( $(mark_ms in-ring0-first) - answered )) ms and last at $(( $(mark_ms in-ring0-last) - answered )) ms after the answer"
+  stayed_quiet "tap-in" "$tap" in-relaunch in-tab in-resume
+  identity_check "tap-in" worker-motion.clock-in "$(sql "SELECT start_zone_id FROM shifts")" "$(sql "SELECT floor(extract(epoch FROM start_time) * 1000)::bigint FROM shifts")"
+  check_eq "the clock-out memory is still empty (independent kinds)" "" "$(pref worker-motion.clock-out)"
+}
+
+walk_p7_motion_offline() {
+  fresh_phone
+  drive $UI_RC/testP7OfflineTapInAndALateAnswerNeverAnimate net-down net-up
+  local answered tap; answered="$(first_answer POST /shifts/open)"; tap="$(mark_ms tap-launched)"
+  check_eq "the pending start recorded no ring-then-check for 52 s" 1 "$(mark_has late-episodes-0)"
+  if [ -n "$answered" ] && [ -n "$tap" ]; then
+    check_ge "the server's answer came this long after the tap, ms (> 45000: a LATE ack)" 45001 "$((answered - tap))"
+  else fail "no answer on the wire after the front came back"; fi
+  check_eq "the server holds one open shift for A" "1|open" "$(sql "SELECT count(*) || '|' || CASE WHEN min(end_time::text) IS NULL THEN 'open' ELSE 'closed' END FROM shifts")"
+  identity_check "late ack" worker-motion.clock-in "$(sql "SELECT start_zone_id FROM shifts")" "$(sql "SELECT floor(extract(epoch FROM start_time) * 1000)::bigint FROM shifts")"
+}
+
+walk_p7_motion_blocked() {
+  fresh_phone
+  drive $UI_RC/testP7BlockedRowNeverAnimates zone-deactivated
+  check_eq "POST /shifts/open answered 422 (refused)" 422 "$(wire --since $MARK0 --method POST --path /shifts/open field status | head -1)"
+  check_eq "no server row" 0 "$(sql "SELECT count(*) FROM shifts")"
+  check_eq "nothing was confirmed, so the clock-in memory is EMPTY" "" "$(pref worker-motion.clock-in)"
+  "$RIG" zone A_DEACT active >/dev/null
+}
+
+walk_p7_motion_out() {
+  fresh_phone
+  drive $UI_RC/testP7OnlineTapOutPlaysOnceOnTheReceipt hold-close-7s
+  local answered tap; answered="$(first_answer POST /shifts/close)"; tap="$(mark_ms tap-launched)"
+  check_eq "the front held the close's answer for 7000 ms" 7000 "$(wire --since $MARK0 --method POST --path /shifts/close field held_ms | head -1)"
+  check_eq "exactly ONE ring-then-check episode on the receipt" 1 "$(mark_has out-episodes-1)"
+  ring_at_answer "tap-out" "$(mark_ms out-ring0-first)" "$answered"
+  say "        ring frames: $(/usr/bin/grep -c RING "$SHOT_DIR/p7-out-frames.txt") of $(/usr/bin/wc -l < "$SHOT_DIR/p7-out-frames.txt" | tr -d ' ') pictures; $(note_file p7-10-line-before-answer)"
+  stayed_quiet "tap-out" "$tap" out-relaunch out-tab
+  identity_check "tap-out" worker-motion.clock-out "$(sql "SELECT client_uuid FROM shifts")" "$(sql "SELECT floor(extract(epoch FROM end_time) * 1000)::bigint FROM shifts")"
+}
+
+walk_p7_motion_reduce() {
+  REDUCE_ON=1
+  "$RIG" reduce-motion on >/dev/null
+  check_eq "the Simulator's Reduce Motion setting" 1 "$("$RIG" reduce-motion status | tail -1)"
+  fresh_phone
+  drive $UI_RC/testP7ReduceMotionPlaysNothingAndConsumesTheIdentity hold-open-8s
+  check_eq "no ring-then-check episode with Reduce Motion on" 1 "$(mark_has reduce-episodes-0)"
+  identity_check "reduce motion" worker-motion.clock-in "$(sql "SELECT start_zone_id FROM shifts")" "$(sql "SELECT floor(extract(epoch FROM start_time) * 1000)::bigint FROM shifts")"
+  "$RIG" reduce-motion off >/dev/null
+  REDUCE_ON=""
+}
+
+walk_p7_hours_rows() {
+  fresh_phone; seed_hours
+  run_test $UI_MH/testP7MyHoursRowsAreTheServersList
+  check_eq "server: 6 rows seeded (4 of A in the window, one 70 days old, one of B)" 6 "$(sql "SELECT count(*) FROM shifts")"
+  check_eq "GET /shifts/mine answered 200" 200 "$(wire --since $MARK0 --method GET --path /shifts/mine field status | head -1)"
+  say "        request: $(wire --since $MARK0 --method GET --path /shifts/mine field path | head -1)"
+  say "        open row on the phone: $(note_file p7-12-open-row)"
+}
+
+walk_p7_hours_empty() {
+  fresh_phone
+  run_test $UI_MH/testP7MyHoursEmptyList
+  check_eq "GET /shifts/mine answered 200 (an empty list, not an error)" 200 "$(wire --since $MARK0 --method GET --path /shifts/mine field status | head -1)"
+}
+
+walk_p7_hours_negative() {
+  fresh_phone; seed_hours
+  drive $UI_MH/testP7MyHoursOfflineGenericErrorAndSignedOut net-down net-up fault-500-mine fault-clear revoke-A
+  check_eq "GET /shifts/mine statuses after the front came back: 200, the injected 500, 200, then the 401" "200 500 200 401" \
+    "$(wire --since $MARK0 --method GET --path /shifts/mine field status | tr '\n' ' ' | sed 's/ $//')"
+  check_eq "the worker's session rows are gone (the 401 was real)" 0 "$(sql "SELECT count(*) FROM worker_sessions WHERE worker_id = $WORKER_A_ID")"
+}
+
+walk_p7_hours_corrected() {
+  fresh_phone; seed_hours
+  drive $UI_MH/testP7MyHoursShowsAnAdminCorrection admin-correct
+  check_eq "server: the auto-closed row now has corrected_at and the corrected end 14:20 (Vienna)" "true|14:20" \
+    "$(sql "SELECT (corrected_at IS NOT NULL)::text || '|' || to_char(end_time AT TIME ZONE 'Europe/Vienna','HH24:MI') FROM shifts WHERE auto_closed AND worker_id = $WORKER_A_ID")"
+  check_ge "the screen asked the server again on the second entry: GET /shifts/mine count" 2 "$(wire --since $MARK0 --method GET --path /shifts/mine n)"
+  say "        before: $(note_file p7-14-before)"
+  say "        after:  $(note_file p7-14-after)"
+}
+
+ALL_WALKS="signin p2-empty-state p2-picker p2-online-verified p2-unverified p2-open-elsewhere p2-deactivated p2-server-down p2-mock p2-stop p2-wire p5-online p5-unreachable p5-refused p5-blocked p5-overdue p6-empty p6-waiting p6-blocked p6-signin p6-dynamic-type p6-device-wide p4-idle p4-expand-one p4-expand-multi p4-cross p4-empty p4-offline p4-route-missing p4-session-revoked p4-running p4-resume p4-stale p4-cancel p4-identity p4-refresh-icon p4-decoupling p1-new-zone p1-same-building p1-switch p1-material p1-foreground bug-offline-manual-stop bug-offline-switch p3-signout p3-b-signin p3-b-same-place p3-b-elsewhere p3-a-returns p3-session-rejected p3-replaced p3-swipe-delete p7-receipt-online p7-receipt-persist p7-receipt-offline-stop p7-receipt-manual p7-receipt-switch p7-tap-while-receipt p7-motion-in p7-motion-offline p7-motion-blocked p7-motion-out p7-motion-reduce p7-hours-rows p7-hours-empty p7-hours-negative p7-hours-corrected"
 
 run_walk() {
   local name="$1" fn
@@ -590,7 +827,7 @@ SELECTED=""
 for arg in "$@"; do
   case "$arg" in
     all) SELECTED="$SELECTED $ALL_WALKS" ;;
-    p1|p2|p3|p4|p5|p6|bug) for w in $ALL_WALKS; do case "$w" in "$arg"-*) SELECTED="$SELECTED $w" ;; esac; done ;;
+    p1|p2|p3|p4|p5|p6|p7|bug) for w in $ALL_WALKS; do case "$w" in "$arg"-*) SELECTED="$SELECTED $w" ;; esac; done ;;
     *) SELECTED="$SELECTED $arg" ;;
   esac
 done

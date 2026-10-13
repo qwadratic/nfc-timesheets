@@ -10,7 +10,7 @@ export RIG_HOME=<an absolute directory OUTSIDE the repo>     # keys, cluster, lo
 ops/ios-rig/up.sh            # ~25 s: Postgres + API + TLS front + simulator clone + codes
 ops/ios-rig/rig.sh build     # the app, built against 127.0.0.1:8444 (incremental)
 ops/ios-rig/walk.sh list     # the walks
-ops/ios-rig/walk.sh p2       # a phase (p1 p2 p3 p4 p5 p6 bug), or one walk, or `all`
+ops/ios-rig/walk.sh p2       # a phase (p1 p2 p3 p4 p5 p6 p7 bug), or one walk, or `all`
 ops/ios-rig/down.sh          # processes, cluster, CA + keys, codes, simulator clone: gone
 ops/ios-rig/down.sh --purge  # ... and DerivedData, the wire log, screenshots
 ```
@@ -46,11 +46,12 @@ API process by environment only; it is never written to `$RIG_HOME`. Every OTHER
 | File | Job |
 |---|---|
 | `up.sh` / `down.sh` | bring the rig up / take it down and leave nothing behind (each external call is wrapped in a timeout) |
-| `rig.sh` | state flips and reads: `zone`, `zone-add`, `building`, `schedule-set`, `shift-open-elsewhere`, `revoke-sessions`, `server-stop/start`, `net-down/up`, `fault`, `wire-*`, `new-code`, `reset-data`, `shifts`, `sim-uninstall`, `sim-shot`, `build`, `test` |
+| `rig.sh` | state flips and reads: `zone`, `zone-add`, `building`, `schedule-set`, `shift-open-elsewhere`, `revoke-sessions`, `server-stop/start`, `net-down/up`, `fault`, `wire-*`, `new-code`, `reset-data`, `shifts`, `sim-uninstall`, `sim-shot`, `reduce-motion on|off|status`, `app-pref KEY`, `build`, `test` |
 | `walk.sh` | the DRIVERS: set state, run one XCUITest, flip state at the test's named rendezvous points, then assert on the database and the wire |
 | `reskin-walk.sh` | the PRESENTATION walks of the Blue Hour worker reskin (TASK-365.9/.10/.11/.12/.13): `WorkerRigReskinUITests` across appearance x language x text size (`light-en-m dark-de-xxxl ...`, set on the clone with `simctl ui` and restored on exit), one PNG per step in `$RIG_HOME/shots`. Asserts nothing about the server; `STEPS="testB3RunningField" reskin-walk.sh dark-en-m` runs one step |
 | `WorkerRigLanguageUITests` (driven by `reskin-walk.sh` with `CLASS=WorkerRigLanguageUITests`) | the IN-APP LANGUAGE walks (decision-74, TASK-365.14/.15/.16): `testL1` the signed-out switch (live), follow-the-phone, relaunch, signing in while chosen; `testL2` a shift running, `testL3` a material draft open (the driver asserts the server saw nothing: `check-open-shift`, `check-no-material-request`); `testL4` the operator screens; `testL5` iOS Settings > Apps > NFCTimeSheets > Language IS the same value (an in-app choice is checked there, a Settings choice - incl. "Default" - is what the app shows and selects when opened again; the app is launched with NO arguments, like the home screen does); `testL6` the reminders are armed AGAIN in the new language - a pending local notification has no out-of-process reader, so the driver streams the phone's own log (`log-start` / `log-mark` / `log-check-de|en` / `log-stop`): CFBundle's debug log prints every string lookup with the localization it resolved in and its result, SpringBoard prints each request it receives, and the check is that after the switch the ladder came again (7-8 `shift-reminder-Nh` requests) with its words resolved in the new language and in no other. The lines are kept in `$RIG_HOME/logs/reminders-<lang>.log`. The combination's language is the PHONE's (`-AppleLanguages`), so `light-de-m` walks "German phone, choose English". `STEPS="testL1..." CLASS=WorkerRigLanguageUITests ops/ios-rig/reskin-walk.sh light-en-m light-de-m` |
 | `seed.sql`, `serve.mjs`, `front.mjs`, `wire.mjs`, `lib.sh` | the pieces above |
+| `walk.sh p7` | the P7 walks (TASK-365.8, decision-83): the "Shift finished" receipt (`WorkerRigReceiptUITests`), the one-shot ring-then-check, and My hours (`WorkerRigMyHoursUITests`). See "Watching a motion" below |
 | `NFCTimeSheets/NFCTimeSheetsUITests/WorkerRig*.swift` | the XCUITests: `WorkerRigSupport` (sign-in through the REAL code form, rendezvous, screenshots), `...SignIn`, `...ManualStart` (P2), `...SharedPhone` (P3 + P6 device-wide), `...Schedule` (P4), `...Delivery` (P5, P6), `...Zones` (P1 + two defect probes) |
 
 ## How a walk works
@@ -71,6 +72,28 @@ existed (a simulator has no NFC radio). Signing in does not.
 `net-down` stops the front (the phone's connection is REFUSED: status 0, the "No connection"
 sentence). `fault set` makes the front answer a given status for a path (used for "a server
 WITHOUT the route", a held slow answer, and a `GET /auth/session` that answers another worker).
+
+## Watching a motion (P7)
+
+The ring-then-check is `accessibilityHidden` on purpose, so it has no element to wait for. The walks
+take PICTURES: `WorkerRigMotionProbe.swift` loops `XCUIScreen.main.screenshot()` (about 130 ms apart)
+and reduces each to the ink in the top line of the block the motion wraps (empty while the content
+is held back, the first ~720 ms of the 0.9 s) and in a box at its middle (the ring and check). A run
+of frames with an empty top line and ink in the middle is one motion. An unheld answer lands before
+the first picture can be taken, so the walk holds the ANSWER with the front's `hold_ms` fault
+(`hold-open-8s`, `hold-close-7s`): pictures BEFORE the answer, AT it and after it, and the driver
+compares the first ring frame's time with the moment the front released the answer (wire.mjs
+`answered`). The one-shot memory is read from the app's own UserDefaults (`rig.sh app-pref
+worker-motion.clock-in`): `ConfirmationMotion.claim` writes the identity BEFORE anything animates,
+so it also proves the paths where nothing is drawn (Reduce Motion, a late answer) consumed it.
+`rig.sh reduce-motion on` writes the clone's `com.apple.Accessibility ReduceMotionEnabled` and
+restarts the device; `walk.sh p7-motion-reduce` turns it back off on exit.
+
+Limits: a picture costs 100-250 ms here, so the 900 ms curve (the ring's 432 ms, the check's
+387-567 ms) is `ConfirmationMotion.stage` and `worker-motion-check`'s, not this; what is proved is
+that the content was held back and the mark drawn over it, once, at the answer, or never. A tag tap
+can only be injected at COLD launch (`--ts-demo-tap`), so "a tap while the receipt is up" is a
+relaunch inside the two minutes.
 
 ## What the rig proves
 

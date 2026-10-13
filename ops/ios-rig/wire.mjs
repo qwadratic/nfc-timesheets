@@ -5,6 +5,7 @@
 //   node wire.mjs --log FILE --since 12 --method POST --path /shifts/open list
 //   node wire.mjs --log FILE --since 12 --path /me/schedule n    how many matched
 //   node wire.mjs --log FILE --since 12 --method POST --path /shifts/open field body.location_uuid
+//   node wire.mjs --log FILE --since 12 --method POST --path /shifts/open answered   when each was ANSWERED (epoch ms: start + duration)
 //
 // `--path` is a PREFIX match, like the front's fault rules. `field` prints the dotted field of
 // every matching entry, one per line (nothing when it is absent). Reads only; never writes.
@@ -44,6 +45,9 @@ const entries = lines.slice(since).map((l) => JSON.parse(l))
   .filter((e) => { const t = Date.parse(e.ts); return t >= windowStart && t <= windowEnd; });
 
 if (verb === "n") console.log(entries.length);
+else if (verb === "answered") {
+  for (const e of entries) console.log(Date.parse(e.ts) + (typeof e.ms === "number" ? e.ms : 0));
+}
 else if (verb === "field") {
   const dotted = positional[1];
   for (const e of entries) {
