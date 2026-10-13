@@ -315,6 +315,9 @@ struct LogView: View {
     /// The app language's locale (decision-74). Read by everything on this screen that is built from a
     /// stored sentence or a catalogue string in code, so a language switch re-evaluates it.
     @Environment(\.locale) private var locale
+    /// Which language is in force. Read for ONE reason: iOS fixes a notification's text when it is
+    /// SCHEDULED, so the reminders are armed again when it changes (decision-74 rule 4).
+    @Environment(AppLanguageModel.self) private var language
     /// "Your open shift at A was finished and one at B was started." A CARD, not an
     /// alert: SwiftUI silently drops one of an alert and a sheet presented together, so
     /// the old alert could eat the decision-10 resolver on exactly the tap that created
@@ -521,6 +524,13 @@ struct LogView: View {
             .onChange(of: inbox.pendingLocationId) { _, id in
                 guard id != nil, let tapped = inbox.take() else { return }
                 handleTap(tapped)
+            }
+            // A CHANGE OF LANGUAGE RE-ARMS the ladder (decision-74 rule 4, TASK-365.16): the rungs already
+            // scheduled carry the old language's words and iOS cannot rewrite them. The same call the
+            // foreground return makes, from the store and guarded on the session worker - so it is
+            // idempotent, never in the tap path, and arms nothing when no shift is open.
+            .onChange(of: language.effective) { _, _ in
+                armIfStillCurrent()
             }
             .task {
                 if let pending = inbox.take() { handleTap(pending) }  // tap that launched the app
@@ -1175,12 +1185,12 @@ struct ShiftRow: View {
                 else if shift.autoClosed && shift.correctedAt == nil { pill("Auto-closed", .red) }
                 else if shift.correctedAt != nil { pill("Corrected", .purple) }
             }
-            Text(shift.startTime.formatted(date: .abbreviated, time: .omitted))
+            Text(AppLanguage.formatted(shift.startTime, date: .abbreviated, locale: locale))
                 .font(WorkerStyle.Typeface.caption)
                 .foregroundStyle(.secondary)
             if let end = shift.endTime {
                 // THE DOMINANT LINE: the range, in the app's heaviest row style, in tabular digits.
-                Text("\(shift.startTime.formatted(date: .omitted, time: .shortened)) – \(end.formatted(date: .omitted, time: .shortened))")
+                Text("\(AppLanguage.formatted(shift.startTime, time: .shortened, locale: locale)) – \(AppLanguage.formatted(end, time: .shortened, locale: locale))")
                     .font(WorkerStyle.Typeface.lead)
                     .monospacedDigit()
                     .minimumScaleFactor(0.7)
@@ -1189,7 +1199,7 @@ struct ShiftRow: View {
                         .font(.subheadline)
                 }
             } else {
-                Text(shift.startTime.formatted(date: .omitted, time: .shortened))
+                Text(AppLanguage.formatted(shift.startTime, time: .shortened, locale: locale))
                     .font(WorkerStyle.Typeface.lead)
                     .monospacedDigit()
             }
@@ -1220,7 +1230,7 @@ struct ShiftRow: View {
                 Label("Waiting for a connection", systemImage: "clock.arrow.circlepath")
                     .font(.caption)
                 if let attempt = shift.lastAttemptAt {
-                    Text("Last tried \(attempt.formatted(date: .omitted, time: .shortened))")
+                    Text("Last tried \(AppLanguage.formatted(attempt, time: .shortened, locale: locale))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -1249,6 +1259,12 @@ func pill(_ t: LocalizedStringKey, _ c: Color) -> some View {
 
 /// Not private: LegacyClassifier's "worthless" ceiling is defined as "what this renders
 /// as 0h 0m", and MigrationReceiptView shows archived rows with the same spelling.
+///
+/// NOT routed through the language control, deliberately (TASK-365.16: "decide separately on
+/// fmtDur"): it is whole numbers and the letters h / m, which read the same in German and in
+/// English, and MigrationCore's classifier is defined by this exact output. The one number a
+/// worker READS as a figure - History's "This week" / "Total" - is a different matter and is
+/// `AppLanguage.hours` ("7,5 Std." / "7.5 h").
 func fmtDur(_ s: TimeInterval) -> String { "\(Int(s) / 3600)h \((Int(s) % 3600) / 60)m" }
 
 // MARK: - Resolution (decision-10)
@@ -1284,7 +1300,7 @@ struct ResolveSheet: View {
                 ForEach(shifts) { shift in
                     Section(shift.locationName ?? siteName(shift.locationId)) {
                         LabeledContent("Started",
-                                       value: shift.startTime.formatted(date: .abbreviated, time: .shortened))
+                                       value: AppLanguage.formatted(shift.startTime, date: .abbreviated, time: .shortened, locale: locale))
                         DatePicker("Finished",
                                    selection: binding(for: shift),
                                    in: Self.range(for: shift))
@@ -1377,8 +1393,11 @@ struct HistoryView: View {
     var body: some View {
         List {
             Section("Summary") {
-                LabeledContent("This week", value: String(format: "%.1f h", weekHours))
-                LabeledContent("Total", value: String(format: "%.1f h", totalHours))
+                // The figure and its unit follow the app language ("7,5 Std." / "7.5 h"): AppLanguage.hours,
+                // never String(format:) with a literal unit. "This week" is still Calendar.current's week:
+                // a total must not change because the UI language did (decision-74 rule 8).
+                LabeledContent("This week", value: AppLanguage.hours(weekHours, locale: locale))
+                LabeledContent("Total", value: AppLanguage.hours(totalHours, locale: locale))
             }
             Section("Shifts") {
                 if mine.isEmpty { Text("No shifts yet.").foregroundStyle(.secondary) }

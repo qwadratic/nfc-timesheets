@@ -31,6 +31,12 @@
 //  resolving it (`String(localized:bundle:locale:)` ignores the locale for choosing the lproj; the
 //  resource form does not - measured the same way).
 //
+//  WHAT CANNOT FOLLOW A LIVE SWITCH, and says so here (decision-74 "Consequences"): text the OS draws
+//  itself from the app's bundle at LAUNCH - the permission prompts (InfoPlist.strings: camera, location,
+//  NFC), the Core NFC reader sheet's chrome, the system alert buttons' own words. They are in the language
+//  the process started in and take the new one at the next launch, from the same per-app value. Nothing
+//  the app draws is in that class: every screen, sentence, date, number and reminder follows at once.
+//
 //  FOUNDATION ONLY, like TagLink.swift and ShiftSignal.swift: the check cats this file in and runs it
 //  on a Mac with a throwaway bundle of de.lproj / en.lproj, a fake store and no Xcode.
 //
@@ -241,6 +247,24 @@ enum AppLanguage {
     static func language(of locale: Locale) -> String {
         let language = primary(of: locale.identifier)
         return supported.contains(language) ? language : effective
+    }
+
+    // MARK: - Numbers and dates (decision-74 "Consequences": format styles, never a literal unit)
+
+    /// "7,5 Std." / "7.5 h": one decimal, the language's separator, the language's unit word
+    /// (the catalogue key is "%@ h", German "%@ Std."). Android: `hours_format`.
+    static func hours(_ value: Double, locale: Locale) -> String {
+        let number = value.formatted(.number.precision(.fractionLength(1)).locale(locale))
+        return string("\(number) h", locale: locale)
+    }
+
+    /// A date and/or time in `locale` - `Date.formatted(date:time:)`, which takes no locale and reads the
+    /// phone's. The zone is the phone's, as before; the Vienna-pinned plan lines go through ViennaTime.
+    static func formatted(_ instant: Date,
+                          date: Date.FormatStyle.DateStyle = .omitted,
+                          time: Date.FormatStyle.TimeStyle = .omitted,
+                          locale: Locale) -> String {
+        instant.formatted(Date.FormatStyle(date: date, time: time, locale: locale))
     }
 
     // MARK: - A sentence that was said earlier, said again in the language in force now

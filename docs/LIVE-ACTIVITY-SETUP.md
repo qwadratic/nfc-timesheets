@@ -57,9 +57,28 @@ in this whole piece of work and it is closed.
    type. It is in its own file precisely so this is one tick.
 9. In the extension's `...LiveActivity.swift`, render `context.attributes.locationName`,
    `Text(timerInterval: context.attributes.startTime...context.attributes.startTime.addingTimeInterval(8*3600), countsDown: false)`
-   and, when `context.state.overdue`, the words "Über 8 Stunden — muss bestätigt werden"
-   instead of the clock. **The state must be in words, not only in colour.**
-10. Build. Run on a real phone. Tap a tag.
+   and, when `context.state.overdue`, the app's own overdue heading instead of the clock:
+   `Text(AppLanguage.string("Over 8 hours"))`. **The state must be in words, not only in
+   colour - and the words come from the string catalogue, never from a typed sentence.**
+   An earlier version of this step said to type a German sentence into the extension; that
+   would stay German for a worker who chose English in the app (decision-74).
+   `Over 8 hours` is already in `Localizable.xcstrings` in both languages (German:
+   "Über 8 Stunden"); a new sentence needs its de AND en entry there in the same commit
+   (AGENTS.md i18n).
+10. **The strings must come from a catalogue the language resolver can reach.** In the File
+    Inspector give `NFCTimeSheets/NFCTimeSheets/AppLanguage.swift` (Foundation-only, written
+    to be shared) and `Localizable.xcstrings` **Target Membership of `ShiftActivity`** too,
+    the same one tick as step 8. `AppLanguage` reads the OS's per-app language value, so the
+    extension answers in the language the worker chose; a literal in the extension, a
+    separate catalogue it cannot resolve through `AppLanguage`, or `String(localized:)` is
+    exactly the bypass `checks/app-language-check.swift` bans in the app. **Verify on
+    hardware** after a switch in the app (More > Language): the Lock Screen words follow.
+    The app arms its signals again on a change of language (`LogView`), which re-states the
+    running activity (`LiveActivityController.start` updates the one it already has); whether
+    the extension renders in the new language without a relaunch of the extension is the
+    thing to look at. The extension is the owner's target and nothing in this repo has
+    driven it.
+11. Build. Run on a real phone. Tap a tag.
 
 ### The rules that survive step 1
 

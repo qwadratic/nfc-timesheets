@@ -310,7 +310,7 @@ check(view.contains("fmtDur(duration)") && content.contains("func fmtDur(_ s: Ti
       "the duration is fmtDur, and fmtDur is UNCHANGED (LegacyClassifier and the migration receipt depend on its spelling)")
 check(view.contains("Button(action: onContinue) {") && view.contains(".buttonStyle(.workerPrimary)") && view.contains("Text(\"Continue\").frame(maxWidth: .infinity)"),
       "Continue is one explicitly styled, full-width button (a default Button swallows a whole List row)")
-check(inOrder(view, ["Text(\"Shift finished\")", "Text(verbatim: name)", "formatted(date: .omitted, time: .shortened)", "fmtDur(duration)",
+check(inOrder(view, ["Text(\"Shift finished\")", "Text(verbatim: name)", "AppLanguage.formatted(shift.startTime, time: .shortened, locale: locale)", "fmtDur(duration)",
                      "badges", "DeliveryLine(delivery: ShiftReceipt.delivery(row: row, syncError: shift.syncError, now: .now))", "Button(action: onContinue) {"]),
       "the receipt reads: heading, building, range, duration, pills, ONE delivery line, Continue")
 check(count(view, "DeliveryLine(") == 1, "exactly one delivery line")
@@ -349,7 +349,7 @@ for (key, androidName) in [("Shift finished", "worker_receipt_title"), ("Continu
 check(german("Auto-closed") != nil, "the reused 'Auto-closed' pill key is in the catalogue")
 check(german("%@ \u{2013} %@") == "%1$@ \u{2013} %2$@" && androidString("worker_receipt_range") == "%1$s \u{2013} %2$s",
       "the range key is '%@ – %@' (a spaced en dash) with positional markers in German, like Android's worker_receipt_range")
-check(view.contains("Text(\"\\(shift.startTime.formatted(date: .omitted, time: .shortened)) \u{2013} \\(end.formatted(date: .omitted, time: .shortened))\")"),
+check(view.contains("Text(\"\\(AppLanguage.formatted(shift.startTime, time: .shortened, locale: locale)) \u{2013} \\(AppLanguage.formatted(end, time: .shortened, locale: locale))\")"),
       "the range literal in the view is the catalogue key to the character (en dash)")
 check(german("Sending…") == "Wird gesendet …", "'Sending…' is the existing German key the in-flight line reuses")
 check(german("Manual") != nil && german("Unknown location") == androidString("unknown_location"),

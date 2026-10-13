@@ -278,7 +278,7 @@ struct ShiftScreen: View {
                 .font(.title2.weight(.medium))
                 .foregroundStyle(tint)
                 .multilineTextAlignment(.center)
-            Text("Started \(running.startTime.formatted(date: .omitted, time: .shortened))")
+            Text("Started \(AppLanguage.formatted(running.startTime, time: .shortened, locale: locale))")
                 .font(.callout)
                 .foregroundStyle(tint.opacity(0.8))
         }

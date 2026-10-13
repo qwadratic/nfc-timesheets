@@ -552,8 +552,8 @@ let verbatim: [(String, String, String)] = [
      "Text(\"Sign in with the same account so these entries can be delivered.\")"),
     ("delivery_not_scheduled", "Automatic delivery is not currently active. Open the app with an internet connection to try delivery again.",
      "Text(\"Automatic delivery is not currently active. Open the app with an internet connection to try delivery again.\")"),
-    ("pending_oldest", "Earliest shift start: %@", "Text(\"Earliest shift start: \\(oldest.formatted(date: .abbreviated, time: .shortened))\")"),
-    ("pending_last_try", "Last attempt: %@", "Text(\"Last attempt: \\(attempt.formatted(date: .abbreviated, time: .shortened))\")"),
+    ("pending_oldest", "Earliest shift start: %@", "Text(\"Earliest shift start: \\(AppLanguage.formatted(oldest, date: .abbreviated, time: .shortened, locale: locale))\")"),
+    ("pending_last_try", "Last attempt: %@", "Text(\"Last attempt: \\(AppLanguage.formatted(attempt, date: .abbreviated, time: .shortened, locale: locale))\")"),
     ("delivery_no_attempt", "No delivery attempt yet.", "Text(\"No delivery attempt yet.\")"),
 ]
 for (name, key, written) in verbatim {

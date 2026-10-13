@@ -275,13 +275,13 @@ check(count(idle, "showManualStart = true") == 1 && count(idle, "manualPick = ni
 let row = between(content, "struct ShiftRow: View {", "func pill(")
 check(!row.isEmpty && row.contains(".workerCard()") && row.contains(".workerListRow()"),
       "a shift row is a worker card on a chrome-free list row (History's swipe-to-delete still has a row to swipe)")
-check(inOrder(row, ["Text(verbatim: name)", "pill(\"Manual\", .blue)", "formatted(date: .abbreviated, time: .omitted)",
-                    "Text(\"\\(shift.startTime.formatted(date: .omitted, time: .shortened)) – \\(end.formatted(date: .omitted, time: .shortened))\")",
+check(inOrder(row, ["Text(verbatim: name)", "pill(\"Manual\", .blue)", "AppLanguage.formatted(shift.startTime, date: .abbreviated, locale: locale)",
+                    "Text(\"\\(AppLanguage.formatted(shift.startTime, time: .shortened, locale: locale)) – \\(AppLanguage.formatted(end, time: .shortened, locale: locale))\")",
                     ".font(WorkerStyle.Typeface.lead)", "Text(verbatim: fmtDur(d))", "syncStatus"]),
       "a row reads: name and pills, date, the time RANGE in the lead style, the duration, the delivery line")
 check(!row.contains("Sending…"), "a row never says 'Sending…' (Android: an unsent row is WAITING)")
 check(inOrder(row, ["Label(\"Sent\"", "Label(\"Waiting for a connection\"", "shift.lastAttemptAt",
-                    "Text(\"Last tried \\(attempt.formatted(date: .omitted, time: .shortened))\")", "Text(\"Not attempted yet\")"]),
+                    "Text(\"Last tried \\(AppLanguage.formatted(attempt, time: .shortened, locale: locale))\")", "Text(\"Not attempted yet\")"]),
       "an unsent row says 'Waiting for a connection' and either 'Last tried HH:mm' or 'Not attempted yet'")
 check(content.contains("func fmtDur(_ s: TimeInterval) -> String { \"\\(Int(s) / 3600)h \\((Int(s) % 3600) / 60)m\" }"), "fmtDur is unchanged")
 
@@ -388,7 +388,7 @@ check(!digitsFile.contains("Text(\"") && !digitsFile.contains("String(localized:
 // THE HEADER: a quiet state heading, the building one step down, the start time.
 let headerBlock = between(shiftScreen, "private func header(presentation: ShiftPresentation, tint: Color) -> some View {", "\n    /// The dominant element")
 check(inOrder(headerBlock, ["headingText(presentation)", ".font(WorkerStyle.Typeface.label)", ".accessibilityAddTraits(.isHeader)",
-                            "Text(running.locationName)", ".font(.title2.weight(.medium))", "Text(\"Started \\(running.startTime.formatted(date: .omitted, time: .shortened))\")"]),
+                            "Text(running.locationName)", ".font(.title2.weight(.medium))", "Text(\"Started \\(AppLanguage.formatted(running.startTime, time: .shortened, locale: locale))\")"]),
       "the header is a quiet label-weight state heading, the site at title2 medium, then 'Started HH:mm'")
 check(shiftScreen.contains("case .running: return Text(\"Shift in progress\")"), "running says 'Shift in progress' (Android worker_active_title), not 'Clocked in'")
 

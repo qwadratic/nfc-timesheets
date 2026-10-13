@@ -4015,6 +4015,22 @@
           }
         }
       }
+    },
+    "%@ h" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Std."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ h"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

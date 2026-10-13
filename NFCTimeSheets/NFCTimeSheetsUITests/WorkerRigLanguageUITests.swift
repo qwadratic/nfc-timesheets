@@ -286,6 +286,50 @@ final class WorkerRigLanguageUITests: XCTestCase {
         backgroundAndKill(app)
     }
 
+    // MARK: - L6: the reminders are armed again in the new language
+
+    /// iOS fixes a notification's text when it is SCHEDULED. A pending reminder has no out-of-process reader
+    /// on the Simulator, so the driver reads what the phone logs: every string lookup with the localization
+    /// it resolved in, and every request SpringBoard receives (reskin-walk.sh `log-*`). The walk starts a shift
+    /// in the phone's language, switches from More, and the driver then requires that the ladder came again,
+    /// worded in the chosen language and in no other.
+    func testL6SwitchArmsTheRemindersAgainInTheNewLanguage() throws {
+        let zone = Rig.zone("A_VER")
+        XCTAssertFalse(zone.isEmpty, "the rig exports the seed's zone uuids")
+        XCTAssertTrue(Rig.rendezvous("log-start"), "driver: the phone's log is being streamed")
+        let app = launch(tap: zone)
+        let home = words(phone), away = words(other)
+        XCTAssertTrue(anyElement(app, containing: home.running).waitForExistence(timeout: Rig.timeout),
+                      "the running screen is up in the phone's language")
+        dismissSystemAlerts()
+        sleep(5)                                   // armed at the tap, armed again after the server's answer
+        openMore(app, in: phone)
+        XCTAssertTrue(Rig.rendezvous("log-mark"), "driver: the switch is about to be made")
+        pickerButton(app, other).tap()
+        XCTAssertTrue(app.staticTexts[away.settings].waitForExistence(timeout: 5), "More is re-worded at once")
+        snap("l6-01-switched-with-a-shift-running")
+        XCTAssertTrue(Rig.rendezvous("log-check-\(other)"), "driver check: the ladder was scheduled again, in '\(other)'")
+        XCTAssertTrue(Rig.rendezvous("check-open-shift"), "driver check: and the shift is still the one open shift")
+        XCTAssertTrue(Rig.rendezvous("log-stop"), "driver: the log stream is stopped")
+
+        // Finish it (in the chosen language) so the next walk starts idle; put the choice back.
+        app.tabBars.buttons[away.shift].tap()
+        let finish = app.buttons[away.finish]
+        var swipes = 0
+        while !finish.isHittable, swipes < 8 { app.swipeUp(); swipes += 1 }
+        XCTAssertTrue(finish.waitForExistence(timeout: Rig.timeout), "the quiet finish")
+        finish.tap()
+        let now = app.buttons[away.finishNow]
+        XCTAssertTrue(now.waitForExistence(timeout: Rig.timeout))
+        now.tap()
+        XCTAssertTrue(app.staticTexts[away.working].waitForExistence(timeout: Rig.timeout), "back on the idle screen")
+        openMore(app, in: other)
+        restoreFollowThePhone(app)
+        XCTAssertTrue(app.staticTexts[home.settings].waitForExistence(timeout: 5))
+        sleep(3)
+        backgroundAndKill(app)
+    }
+
     // MARK: - L5: iOS Settings is the same value
 
     private let settingsApp = XCUIApplication(bundleIdentifier: "com.apple.Preferences")

@@ -79,11 +79,13 @@ struct MigrationReceiptSheet: View {
 
 private struct MigrationRow: View {
     let shift: ArchivedShift
+    /// The app language's locale (decision-74): dates and times are formatted in it, not the phone's.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
-                Text(shift.startTime.formatted(date: .abbreviated, time: .shortened))
+                Text(AppLanguage.formatted(shift.startTime, date: .abbreviated, time: .shortened, locale: locale))
                     .font(.subheadline)
                 Spacer()
                 // Words, not a String ternary: `Text(x ?? "literal")` is the VERBATIM initialiser and shipped

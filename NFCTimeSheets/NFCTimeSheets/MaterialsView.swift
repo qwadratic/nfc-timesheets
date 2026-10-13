@@ -28,6 +28,8 @@ import SwiftUI
 struct MaterialsView: View {
     @Environment(MaterialStore.self) private var store
     let worker: WireWorker
+    /// The app language's locale (decision-74): dates and times are formatted in it, not the phone's.
+    @Environment(\.locale) private var locale
 
     /// Read-only, from the app's existing container. Used for two cosmetic things: which
     /// building to attach as CONTEXT, and what to call it. Nothing branches on either -
@@ -117,7 +119,7 @@ struct MaterialsView: View {
                         Text(request.itemName ?? request.body)
                             .font(.body)
                         if let arrived = request.arrivedAt {
-                            Text("Arrived \(arrived.formatted(date: .abbreviated, time: .shortened))")
+                            Text("Arrived \(AppLanguage.formatted(arrived, date: .abbreviated, time: .shortened, locale: locale))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -295,7 +297,7 @@ private struct QueuedMaterialRow: View {
             if let id = row.locationId, let name = siteName(id) {
                 Text(name).font(.caption).foregroundStyle(.secondary)
             }
-            Text(row.createdAt.formatted(date: .abbreviated, time: .shortened))
+            Text(AppLanguage.formatted(row.createdAt, date: .abbreviated, time: .shortened, locale: locale))
                 .font(.caption).foregroundStyle(.secondary)
             if let error = row.errorMessage {
                 Label(AppLanguage.rerender(error, locale: locale),
@@ -317,6 +319,8 @@ private struct QueuedMaterialRow: View {
 /// always rendered as WORDS - the colour is a second signal, never the only one.
 private struct SentMaterialRow: View {
     let row: WireMaterialRequest
+    /// The app language's locale (decision-74): dates and times are formatted in it, not the phone's.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -338,7 +342,7 @@ private struct SentMaterialRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text(row.createdAt.formatted(date: .abbreviated, time: .shortened))
+            Text(AppLanguage.formatted(row.createdAt, date: .abbreviated, time: .shortened, locale: locale))
                 .font(.caption).foregroundStyle(.secondary)
         }
         .workerCard()

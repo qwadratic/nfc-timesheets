@@ -846,12 +846,12 @@ struct VerifyZoneScreen: View {
     /// server. Saying "still running" is the honest rendering of that; an em dash where the
     /// end time goes would read as a data hole.
     private func shiftLine(_ shift: WireZoneShift) -> String {
-        let start = shift.startTime.formatted(date: .abbreviated, time: .shortened)
+        let start = AppLanguage.formatted(shift.startTime, date: .abbreviated, time: .shortened, locale: locale)
         let duration = fmtDur(shift.durationMinutes * 60)
         guard let end = shift.endTime else {
             return AppLanguage.string("\(start) · still running · \(duration)", locale: locale)
         }
-        return AppLanguage.string("\(start) – \(end.formatted(date: .omitted, time: .shortened)) · \(duration)", locale: locale)
+        return AppLanguage.string("\(start) – \(AppLanguage.formatted(end, time: .shortened, locale: locale)) · \(duration)", locale: locale)
     }
 
     /// One place the whole per-zone state is reset, because there are now four pieces of it
@@ -1052,6 +1052,6 @@ struct VerifyZoneScreen: View {
     }
 
     private func formatted(_ date: Date) -> String {
-        date.formatted(date: .abbreviated, time: .shortened)
+        AppLanguage.formatted(date, date: .abbreviated, time: .shortened, locale: locale)
     }
 }

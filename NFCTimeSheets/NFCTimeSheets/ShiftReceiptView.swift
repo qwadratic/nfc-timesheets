@@ -45,6 +45,8 @@ struct ShiftReceiptView: View {
     /// The building's name, already resolved by the caller (the zone's building, or "Unknown location").
     let name: String
     let onContinue: () -> Void
+    /// The app language's locale (decision-74): dates and times are formatted in it, not the phone's.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         if let end = shift.endTime {
@@ -59,7 +61,7 @@ struct ShiftReceiptView: View {
                     Text(verbatim: name)
                         .font(.title2.bold())
                         .multilineTextAlignment(.center)
-                    Text("\(shift.startTime.formatted(date: .omitted, time: .shortened)) – \(end.formatted(date: .omitted, time: .shortened))")
+                    Text("\(AppLanguage.formatted(shift.startTime, time: .shortened, locale: locale)) – \(AppLanguage.formatted(end, time: .shortened, locale: locale))")
                         .font(.largeTitle.weight(.semibold))
                         .monospacedDigit()
                         .minimumScaleFactor(0.5)

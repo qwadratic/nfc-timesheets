@@ -129,6 +129,8 @@ struct DeliveryDetailsSheet: View {
     let signedOut: Bool
 
     @Environment(\.dismiss) private var dismiss
+    /// The app language's locale (decision-74): dates and times are formatted in it, not the phone's.
+    @Environment(\.locale) private var locale
 
     var body: some View {
         VStack(spacing: 0) {
@@ -168,11 +170,11 @@ struct DeliveryDetailsSheet: View {
                     Divider()
 
                     if let oldest = summary.oldestStart {
-                        Text("Earliest shift start: \(oldest.formatted(date: .abbreviated, time: .shortened))")
+                        Text("Earliest shift start: \(AppLanguage.formatted(oldest, date: .abbreviated, time: .shortened, locale: locale))")
                             .font(.footnote)
                     }
                     if let attempt = summary.lastAttemptAt {
-                        Text("Last attempt: \(attempt.formatted(date: .abbreviated, time: .shortened))")
+                        Text("Last attempt: \(AppLanguage.formatted(attempt, date: .abbreviated, time: .shortened, locale: locale))")
                             .font(.footnote)
                     } else {
                         Text("No delivery attempt yet.")

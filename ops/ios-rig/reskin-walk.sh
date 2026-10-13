@@ -53,6 +53,7 @@ mkdir "$LOCK" 2>/dev/null || die "another reskin walk is running (or died: remov
 
 restore_phone() {
   rmdir "$LOCK" 2>/dev/null
+  [ -f "$RUN_DIR/logstream.pid" ] && kill "$(cat "$RUN_DIR/logstream.pid")" 2>/dev/null && rm -f "$RUN_DIR/logstream.pid"
   xcrun simctl ui "$SIM_UDID" appearance light >/dev/null 2>&1
   xcrun simctl ui "$SIM_UDID" content_size large >/dev/null 2>&1
   [ -f "$RUN_DIR/front.pid" ] && pid_alive "$(cat "$RUN_DIR/front.pid")" || "$RIG" net-up >/dev/null 2>&1
@@ -71,6 +72,41 @@ flip() {
     fault-clear) "$RIG" fault clear >/dev/null ;;
     new-code-A) "$RIG" new-code A >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_A" > "$SYNC/code_A.txt" ;;
     new-code-O) "$RIG" new-code O >/dev/null; . "$CODES_ENV"; printf '%s' "$CODE_O" > "$SYNC/code_O.txt" ;;
+    # The language walk that re-arms the reminders (TASK-365.16): a pending reminder has no out-of-process reader on
+    # the Simulator, so the evidence is what the phone itself logs. CFBundle's debug log prints EVERY string lookup
+    # with the localization it was resolved in and its result (`key: Still clocked in, ..., localizationNames: [de],
+    # result: Noch eingestempelt`), and SpringBoard prints each request it receives (`identifier: shift-reminder-1h`;
+    # the title and body are <redacted> there). So: stream those lines, note where the switch happened, and require
+    # that AFTER it the ladder was scheduled again, with its words resolved in the new language and in no other.
+    log-start)
+      : > "$RUN_DIR/reminders.log"; echo 0 > "$RUN_DIR/reminders.mark"
+      xcrun simctl spawn "$SIM_UDID" log stream --level debug --style compact --predicate \
+        'eventMessage CONTAINS "key: Still clocked in" OR eventMessage CONTAINS "key: Shift closed automatically" OR eventMessage CONTAINS "key: Not confirmed yet" OR eventMessage CONTAINS "identifier: shift-reminder-"' \
+        > "$RUN_DIR/reminders.log" 2>&1 &
+      echo $! > "$RUN_DIR/logstream.pid"; sleep 3 ;;
+    log-mark)
+      sleep 3; wc -l < "$RUN_DIR/reminders.log" | tr -d ' ' > "$RUN_DIR/reminders.mark" ;;
+    log-check-de|log-check-en)
+      lang="${1#log-check-}"; sleep 5
+      mark="$(cat "$RUN_DIR/reminders.mark" 2>/dev/null || echo 0)"
+      before="$(head -n "$mark" "$RUN_DIR/reminders.log")"
+      after="$(tail -n +"$((mark + 1))" "$RUN_DIR/reminders.log")"
+      names() { /usr/bin/grep "key: Still clocked in," | sed -n 's/.*localizationNames: \[\([^]]*\)\].*/\1/p' | sort -u | tr '\n' ' '; }
+      b="$(printf '%s\n' "$before" | names)"; a="$(printf '%s\n' "$after" | names)"
+      sent="$(printf '%s\n' "$after" | /usr/bin/grep -c 'identifier: shift-reminder-')"
+      if [ -n "$b" ]; then log "      before the switch the ladder was worded in: [$b]"
+      else log "      FAIL reminders: no lookup of the ladder's words before the switch (is a shift running?)"; FAILS=$((FAILS+1)); fi
+      if [ "$a" = "$lang " ]; then log "      PASS reminders: after the switch the ladder's words were resolved in [$lang] and in no other"
+      else log "      FAIL reminders: after the switch the ladder's words were resolved in [$a] (expected only [$lang])"; FAILS=$((FAILS+1)); fi
+      if [ "$sent" -ge 7 ]; then log "      PASS reminders: SpringBoard received the ladder again after the switch ($sent requests)"
+      else log "      FAIL reminders: SpringBoard received $sent shift-reminder request(s) after the switch (expected the ladder, 7-8)"; FAILS=$((FAILS+1)); fi
+      if [ "$lang" = "de" ]; then
+        if printf '%s\n' "$after" | /usr/bin/grep "key: Still clocked in," | /usr/bin/grep -q 'result: Noch eingestempelt'; then
+          log "      PASS reminders: the re-armed title reads 'Noch eingestempelt'"
+        else log "      FAIL reminders: no re-armed title resolved to 'Noch eingestempelt'"; FAILS=$((FAILS+1)); fi
+      fi
+      cp "$RUN_DIR/reminders.log" "$LOG_DIR/reminders-$lang.log" ;;
+    log-stop) [ -f "$RUN_DIR/logstream.pid" ] && kill "$(cat "$RUN_DIR/logstream.pid")" 2>/dev/null; rm -f "$RUN_DIR/logstream.pid" ;;
     # The language walks' assertions about SERVER state: a language switch must not touch a shift or a request.
     check-open-shift)
       n="$(rig_sql "SELECT count(*) FROM shifts WHERE end_time IS NULL")"

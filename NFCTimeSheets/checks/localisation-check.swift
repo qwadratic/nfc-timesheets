@@ -248,5 +248,27 @@ for file in sources where file != "AppLanguage.swift" && file != "DemoHooks.swif
 }
 check(resolverCalls > 100, "the sweep found the resolver's call sites (\(resolverCalls)): the scanner is reading the sources")
 
+// MARK: - String(format:) with a LETTER UNIT (TASK-365.16)
+//
+// `String(format: "%.1f h", hours)` was History's total: the decimal point and the unit are the phone's English
+// whatever the language, and the unit never reaches the catalogue. A unit is copy: `AppLanguage.hours` is
+// "%@ h" in the catalogue ("%@ Std." in German) with the number formatted in the app language's locale. This
+// fails on the SHAPE - a numeric conversion followed by a letter run inside a format literal - wherever it
+// appears, so the next "%d min" is caught too. "%02d:%02d" and "%02x" have no unit and pass.
+//
+// RED CASE: put `String(format: "%.1f h", weekHours)` back into ContentView.swift and this fails naming it.
+let letterUnit = try! NSRegularExpression(
+    pattern: #"String\(format:\s*"[^"]*%[-+ 0#]*\d*(?:\.\d+)?(?:l{1,2})?[dfeEgGiuxXs@]\s*\p{L}{1,6}\b[^"]*""#)
+for file in sources where file != "DemoHooks.swift" {
+    guard let text = try? String(contentsOfFile: "NFCTimeSheets/\(file)", encoding: .utf8) else { continue }
+    let code = text.components(separatedBy: "\n")
+        .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }.joined(separator: "\n")
+    for match in letterUnit.matches(in: code, range: NSRange(code.startIndex..., in: code)) {
+        let literal = String(code[Range(match.range, in: code)!])
+        check(false, "\(file) formats a number with a literal unit (\(literal)): use AppLanguage.hours or a catalogue key, "
+              + "so the unit and the decimal separator follow the app language")
+    }
+}
+
 if failed { exit(1) }
 print("localisation-check: OK (\(strings.count) keys, all German; \(resolverCalls) AppLanguage.string literals)")

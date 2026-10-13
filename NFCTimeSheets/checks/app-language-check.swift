@@ -287,6 +287,8 @@ let bypasses: [(pattern: String, why: String)] = [
     ("Locale.autoupdatingCurrent", "the phone's locale, not the app language's"),
     ("Locale.preferredLanguages", "only AppLanguage reads the phone's languages"),
     ("Bundle.main.preferredLocalizations", "only AppLanguage decides the language"),
+    (".formatted(date:", "Date.formatted(date:time:) reads the PHONE's locale and ignores the app language - use AppLanguage.formatted(_, date:, time:, locale: locale)"),
+    ("String(format: \"%.1f h", "a literal unit with an unlocalised decimal point - use AppLanguage.hours(_, locale: locale)"),
     ("\"AppleLanguages\"", "the OS key is AppLanguage.overrideKey, written by AppLanguage only (no second flag)"),
     ("AppleLanguages", "the OS key is AppLanguage.overrideKey, written by AppLanguage only (no second flag)"),
 ]
@@ -445,6 +447,75 @@ func inOrder(_ s: String, _ needles: [String]) -> Bool {
     }
     return true
 }
+
+// ---------------------------------------------------------------------------------
+// 11. REACH (TASK-365.16): dates, numbers and hours follow the choice; the reminders are armed again
+// ---------------------------------------------------------------------------------
+
+// Real runs of the two helpers: in German "7,5", in English "7.5"; a time of day is 24 h for the bare
+// German and 12 h for the bare English - the app language's, not the phone's region.
+check(AppLanguage.hours(7.5, locale: Locale(identifier: "de")).hasPrefix("7,5"), "hours: German reads 7,5 (got '\(AppLanguage.hours(7.5, locale: Locale(identifier: "de")))')")
+check(AppLanguage.hours(7.5, locale: Locale(identifier: "en")).hasPrefix("7.5"), "hours: English reads 7.5 (got '\(AppLanguage.hours(7.5, locale: Locale(identifier: "en")))')")
+check(AppLanguage.hours(0, locale: Locale(identifier: "de")).hasPrefix("0,0") && AppLanguage.hours(12.04, locale: Locale(identifier: "en")).hasPrefix("12.0"),
+      "hours: one decimal, always (0,0 / 12.0)")
+let instant = Date(timeIntervalSince1970: 1_784_000_000)       // a fixed instant; only the style is under test
+let germanTime = AppLanguage.formatted(instant, time: .shortened, locale: Locale(identifier: "de"))
+let englishTime = AppLanguage.formatted(instant, time: .shortened, locale: Locale(identifier: "en"))
+check(!germanTime.contains("AM") && !germanTime.contains("PM") && (englishTime.contains("AM") || englishTime.contains("PM")),
+      "a time is formatted in the app language's locale: '\(germanTime)' vs '\(englishTime)'")
+check(AppLanguage.formatted(instant, date: .abbreviated, locale: Locale(identifier: "de"))
+      != AppLanguage.formatted(instant, date: .abbreviated, locale: Locale(identifier: "en")),
+      "a date is formatted in the app language's locale")
+
+// The unit is catalogue copy, in both languages ("%@ h" -> "%@ Std.") - never a letter typed into a format string.
+if let data = FileManager.default.contents(atPath: "NFCTimeSheets/Localizable.xcstrings"),
+   let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+   let strings = root["strings"] as? [String: Any] {
+    func unit(_ language: String) -> String? {
+        (((((strings["%@ h"] as? [String: Any])?["localizations"] as? [String: Any])?[language] as? [String: Any])?["stringUnit"]) as? [String: Any])?["value"] as? String
+    }
+    check(unit("de") == "%@ Std." && unit("en") == "%@ h",
+          "the hours unit is a catalogue key with both languages: '%@ h' -> '%@ Std.' (Android's hours_format); got de '\(unit("de") ?? "nil")' en '\(unit("en") ?? "nil")'")
+}
+
+// History: the totals go through AppLanguage.hours, and the week is STILL Calendar.current's - a total must not
+// change because the UI language did (decision-74 rule 8, deliberately not ported from Android).
+let history = between2(content, "struct HistoryView: View {", "// MARK: - Settings tab")
+check(history.contains("AppLanguage.hours(weekHours, locale: locale)") && history.contains("AppLanguage.hours(totalHours, locale: locale)"),
+      "History's 'This week' and 'Total' are AppLanguage.hours in the app language's locale")
+check(!history.contains("String(format:"), "History formats no number with String(format:)")
+let weekBody = between2(history, "private var weekHours: Double {", "\n    }")
+check(weekBody.contains("Calendar.current.dateInterval(of: .weekOfYear, for: .now)")
+      && !weekBody.contains("locale") && !weekBody.contains("AppLanguage") && !weekBody.contains("language"),
+      "the 'this week' boundary is Calendar.current's, independent of the display language (decision-74 rule 8)")
+
+// A DateFormatter in this app always has a locale it was GIVEN - never the phone's by default.
+for file in sourceFiles where file != "AppLanguage.swift" {
+    let text = code(source(file))
+    let formatters = try! NSRegularExpression(pattern: #"(?<![A-Za-z0-9])DateFormatter\(\)"#)
+    if formatters.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text)) > 0 {
+        check(text.contains(".locale = locale"), "\(file) builds a DateFormatter and never sets its locale to the one it was given")
+    }
+}
+
+// THE REMINDERS ARE ARMED AGAIN on a change of language (rule 4): iOS fixes a notification's text when it is
+// scheduled. LogView watches the language in force and runs the same session-guarded arm the foreground
+// return makes; the arm reads AppLanguage.effective (checked above), so the new rungs carry the new words.
+let logView = between2(content, "struct LogView: View {", "// MARK: - Rows")
+check(logView.contains("@Environment(AppLanguageModel.self) private var language")
+      && inOrder(logView, [".onChange(of: language.effective) { _, _ in", "armIfStillCurrent()", "}"]),
+      "LogView re-arms the signals (armIfStillCurrent: from the store, guarded on the session worker) when the language in force changes")
+let rearm = between2(logView, ".onChange(of: language.effective) { _, _ in", "}")
+check(!rearm.contains("signals.arm(") && !rearm.contains("handleTap") && !rearm.contains("context.save") && !rearm.contains("syncPending"),
+      "...and does nothing else: no row is written, no push is made, the tap path is not entered")
+
+// The Live Activity has no extension target yet: its setup doc says where its words must come from.
+let liveDoc = (try? String(contentsOfFile: "../docs/LIVE-ACTIVITY-SETUP.md", encoding: .utf8)) ?? ""
+check(liveDoc.contains("AppLanguage.string(\"Over 8 hours\")") && liveDoc.contains("catalogue the language resolver can reach")
+      && liveDoc.contains("Target Membership of `ShiftActivity`"),
+      "docs/LIVE-ACTIVITY-SETUP.md: the extension's overdue words are a catalogue key through AppLanguage, with target membership for both files")
+check(!liveDoc.contains("the words \"Über 8 Stunden — muss bestätigt werden\""),
+      "...and no longer tells the owner to type a German sentence into the extension")
 
 if failed { exit(1) }
 print("app-language-check: OK")
