@@ -39,11 +39,13 @@ jobs:
       - name: The backlog branch holds only backlog/
         run: ops/backlog-guard.sh branch origin/backlog
 
+      # always(): a violation in one check must not hide the others from the same run.
       - name: backlog/ here is a mirror of the backlog branch
+        if: always()
         run: ops/backlog-guard.sh mirror HEAD origin/backlog
 
       - name: Cited tasks and decisions exist on the backlog branch
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        if: always() && (github.event_name == 'push' || github.event_name == 'pull_request')
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
