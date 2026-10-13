@@ -363,6 +363,24 @@ This section documents THIS machine's setup, discovered from real incidents — 
 portability guarantee for any other machine.
 
 <!-- BACKLOG.MD GUIDELINES START -->
+### Backlog branch: record FIRST, then work
+
+The branch `backlog` (`origin/backlog`) carries ONLY `backlog/**` - tasks, decisions, docs,
+milestones, config - and nothing else. It is where every task and every decision is born.
+
+1. **No record, no work.** A task or decision must exist on `backlog` (task file with its
+   acceptance criteria, or the decision record) BEFORE anyone starts on it. If the work was
+   asked for in conversation, first create the record there, push it, then begin. Work branches
+   cite the id (`TASK-N`, `decision-N`) in their commit messages.
+2. **One writer.** Creating tasks/decisions, ticking criteria, status changes and notes happen
+   in the backlog worktree - `git worktree add ../cleaning-timesheets-backlog backlog` - with
+   the `backlog` CLI run from there (always `</dev/null`). Work branches do NOT edit `backlog/`.
+3. **Only backlog on that branch.** Nothing outside `backlog/` is ever committed to `backlog`
+   (`git diff --name-only origin/backlog~1 origin/backlog` must list only `backlog/...`).
+4. **Main is a mirror.** main receives the backlog by `git merge origin/backlog` (only
+   `backlog/` paths change); do it when a record is needed on main or before a release. The
+   first sync (2026-10-13) used `--allow-unrelated-histories`; later ones are plain merges.
+
 <CRITICAL_INSTRUCTION>
 
 ## Backlog.md Workflow
