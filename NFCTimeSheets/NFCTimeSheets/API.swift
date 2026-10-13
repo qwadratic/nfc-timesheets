@@ -496,14 +496,42 @@ struct ResolveShiftRequest: Encodable {
     }
 }
 
+// MARK: - Request URLs (TASK-365.17)
+//
+// The one place a request URL is built from a path and a query. WHY: `base.appending(path:
+// "/operator/zones/<id>/shifts?page=2")` percent-encodes the "?" to %3F INSIDE THE PATH. The
+// server matches on pathname segments, so "who worked at this door" answered 404 on iOS while
+// Android (string concatenation) rendered the page. A query string belongs in
+// URLComponents.queryItems, never in a path. Lives in API.swift because every Foundation-only
+// check that cats the request layer in already cats this file.
+enum RequestURL {
+    /// `base` + `path` (+ `query`) as a URL.
+    ///
+    /// A `?` inside `path` is treated as the start of a query string, not as a path character, so
+    /// a caller that still writes "/x/y?page=2" cannot reproduce the %3F bug. Its pairs are
+    /// appended AFTER the explicit `query` ones. Names and values are percent-encoded by
+    /// URLComponents, which is the only thing that should ever encode them.
+    static func make(base: URL, path: String, query: [(name: String, value: String)] = []) -> URL {
+        var purePath = path
+        var items = query.map { URLQueryItem(name: $0.name, value: $0.value) }
+        if let mark = path.firstIndex(of: "?") {
+            purePath = String(path[..<mark])
+            var inline = URLComponents()
+            inline.percentEncodedQuery = String(path[path.index(after: mark)...])
+            items.append(contentsOf: inline.queryItems ?? [])
+        }
+        var parts = URLComponents(url: base.appending(path: purePath), resolvingAgainstBaseURL: false)!
+        if !items.isEmpty { parts.queryItems = items }
+        return parts.url!
+    }
+}
+
 // MARK: - Transport
 
 private func apiURL(_ path: String, query: [String: String]) -> URL {
-    var parts = URLComponents(url: API.base.appending(path: path), resolvingAgainstBaseURL: false)!
-    if !query.isEmpty {
-        parts.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
-    }
-    return parts.url!
+    // Sorted so the same query always yields the same URL (a dictionary has no order).
+    RequestURL.make(base: API.base, path: path,
+                    query: query.sorted { $0.key < $1.key }.map { (name: $0.key, value: $0.value) })
 }
 
 /// Single choke point: every response is classified before anything else sees it.

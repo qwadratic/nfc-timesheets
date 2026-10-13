@@ -120,6 +120,9 @@ run version-tap-gate-check "$SRC/VersionTapGate.swift" "$SRC/WorkerInitials.swif
 # TASK-365.22 D1: the server's answer (the OPEN's included) only ever RAISES a local close flag.
 # Text-pinned: apply() is SwiftData-bound; the rig walks bug-offline-manual-stop / -switch drive it.
 run sync-flags-check
+# TASK-365.17: a query string is never percent-encoded into a request path (the operator
+# "who worked at this door" list answered 404 for exactly that reason).
+run request-url-check "$SRC/Branding.swift" "$SRC/TagLink.swift" "$SRC/API.swift" "$SRC/AppLanguage.swift"
 
 # Reads Localizable.xcstrings off disk rather than being cat-ed together with source.
 if swift checks/localisation-check.swift; then :; else failed=1; fi

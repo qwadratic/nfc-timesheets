@@ -95,7 +95,7 @@ private func sendOperator(_ request: URLRequest) async throws -> Data {
 }
 
 private func operatorPost<In: Encodable, Out: Decodable>(_ path: String, _ body: In) async throws -> Out {
-    var request = URLRequest(url: API.base.appending(path: path))
+    var request = URLRequest(url: RequestURL.make(base: API.base, path: path))
     request.httpMethod = "POST"
     request.setValue(API.appKey, forHTTPHeaderField: "X-App-Key")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -103,8 +103,11 @@ private func operatorPost<In: Encodable, Out: Decodable>(_ path: String, _ body:
     return try Wire.decoder.decode(Out.self, from: try await sendOperator(request))
 }
 
-private func operatorGet<Out: Decodable>(_ path: String) async throws -> Out {
-    var request = URLRequest(url: API.base.appending(path: path))
+private func operatorGet<Out: Decodable>(_ path: String,
+                                         query: [(name: String, value: String)] = []) async throws -> Out {
+    // Never `API.base.appending(path:)` with a "?" in it: that encodes the "?" as %3F and the
+    // server answers 404 (TASK-365.17). RequestURL puts the query where a query belongs.
+    var request = URLRequest(url: RequestURL.make(base: API.base, path: path, query: query))
     request.setValue(API.appKey, forHTTPHeaderField: "X-App-Key")
     return try Wire.decoder.decode(Out.self, from: try await sendOperator(request))
 }
@@ -453,7 +456,7 @@ enum OperatorTagAPI {
     /// would put a second clock on a boundary that only the database gets to decide.
     ///   200 {shifts, page, page_size, matching, total_minutes, month} · 404 unknown_zone
     static func zoneShifts(zoneId: String, page: Int) async throws -> WireZoneShiftsPage {
-        try await operatorGet("/operator/zones/\(zoneId)/shifts?page=\(page)")
+        try await operatorGet("/operator/zones/\(zoneId)/shifts", query: [("page", String(page))])
     }
 
     /// GET /operator/locations -> the building picker's list, active buildings only.
