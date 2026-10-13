@@ -3,9 +3,10 @@ id: TASK-365.16
 title: >-
   iOS E3: Language reach: reminders re-armed in the new language,
   dates/numbers/hours follow the choice
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-10-07 12:22'
+updated_date: '2026-10-13 01:25'
 labels:
   - ios
   - parity
@@ -63,13 +64,25 @@ Cost to plan for: ~164 String(localized:) call sites in 15 files plus SwiftUI vi
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Pending reminders are re-armed in the new language on a change (iOS fixes notification text when scheduled)
-- [ ] #2 Hours totals use the locale's decimal separator and a translated unit ("7,5 Std." / "7.5 h"); localisation-check gains an assertion against String(format:) with a letter unit
-- [ ] #3 Dates and times use format styles, never a fixed-locale DateFormatter
-- [ ] #4 The Live Activity has no extension target yet: document that its strings must come from a catalogue the resolver can reach (docs/LIVE-ACTIVITY-SETUP.md)
-- [ ] #5 Driven on the simulator: switch on the signed-out screen; switch with a shift running; switch with a material draft open; relaunch; change it in iOS Settings and reopen; read a re-armed reminder
-- [ ] #6 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
-- [ ] #7 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
-- [ ] #8 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
-- [ ] #9 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
+- [x] #1 Pending reminders are re-armed in the new language on a change (iOS fixes notification text when scheduled)
+- [x] #2 Hours totals use the locale's decimal separator and a translated unit ("7,5 Std." / "7.5 h"); localisation-check gains an assertion against String(format:) with a letter unit
+- [x] #3 Dates and times use format styles, never a fixed-locale DateFormatter
+- [x] #4 The Live Activity has no extension target yet: document that its strings must come from a catalogue the resolver can reach (docs/LIVE-ACTIVITY-SETUP.md)
+- [x] #5 Driven on the simulator: switch on the signed-out screen; switch with a shift running; switch with a material draft open; relaunch; change it in iOS Settings and reopen; read a re-armed reminder
+- [x] #6 NFCTimeSheets/checks/run.sh is green, including every check this task adds or extends
+- [x] #7 Every new user-visible string has BOTH de and en entries in Localizable.xcstrings in the same commit (AGENTS.md i18n)
+- [x] #8 node ops/check-branding.mjs run and every non-ok / TODO line quoted in the final summary
+- [x] #9 No edit to project.pbxproj or NFCTimeSheets.entitlements (decision-49); Debug and Release builds succeed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented in 1a87813 (branch ios-language). REMINDERS: LogView observes AppLanguageModel.effective and runs armIfStillCurrent() on a change - the same session-guarded, store-reading, idempotent arm the foreground return makes; ShiftSignalCenter.scheduleLadder reads AppLanguage.effective at arm time and passes it to every title and body. Not in the tap path, writes no row, pushes nothing (pinned). DATES/HOURS: AppLanguage.hours (catalogue key '%@ h' -> '%@ Std.', one decimal in the language's separator: 7,5 Std. / 7.5 h) in History's two totals instead of String(format: '%.1f h'); AppLanguage.formatted (Date.FormatStyle with the view's locale) replaces every Date.formatted(date:time:) - that call takes no locale and read the phone's. ViennaTime already took the locale (E1) and sets it on its DateFormatter; WorkerDayHeading's DateFormatter takes the environment locale. 'This week' stays Calendar.current (decision-74 rule 8; pinned: no locale or language in weekHours). fmtDur decided separately: UNCHANGED - whole numbers and h/m, and MigrationCore's classifier is defined by its output; documented at the function.
+
+CHECKS: app-language-check section 11 runs hours (7,5 / 7.5 / 0,0 / 12.0) and formatted (24 h German vs 12 h English, dates differ) for real, pins the catalogue unit in both languages, History's week, DateFormatter locales, the LogView re-arm (and that it does nothing else) and the doc; localisation-check fails on String(format:) with a numeric conversion followed by a letter unit anywhere in the sources (reproduced RED by putting the History line back; also .formatted(date:) back in ShiftRow, the re-arm removed, the week boundary taken from the language, hours losing their decimal, the German unit drifting). LIVE ACTIVITY (#4): docs/LIVE-ACTIVITY-SETUP.md step 9 no longer says to type 'Über 8 Stunden — muss bestätigt werden' into the extension; it says AppLanguage.string("Over 8 hours") (a key that already exists in both languages) and the new step 10 names the catalogue-reachable requirement and the target membership of AppLanguage.swift + Localizable.xcstrings. No extension target exists, so nothing of this was driven; the doc says what to verify on hardware.
+
+DRIVEN (criterion #5): L6 testL6SwitchArmsTheRemindersAgainInTheNewLanguage, phone en -> de and phone de -> en, through the driver's log-start / log-mark / log-check / log-stop: a shift is started in the phone's language, the switch is made from More, and the driver requires that AFTER it SpringBoard received the ladder again (8 shift-reminder-Nh requests) and that the ladder's words were resolved in the new language and in no other - 'key: Still clocked in ... localizationNames: [de], result: Noch eingestempelt' (7 nudge rungs + the 8 h one). HOW IT WAS READ: pending local notifications have no out-of-process reader on the Simulator (title/body are <redacted> in SpringBoard's log; the rig README says so), so what was read is CFBundle's own string-resolution debug log for the arm - the reminder's words and the language they were resolved in - not a delivered notification on a lock screen. If the owner wants that, it needs a device. Full rig suite on the final build: walk.sh all 150 PASS / 0 FAIL; reskin default matrix (5 combos x 7 steps) 0 failing; WorkerRigLanguageUITests L1-L6 x phone en/de all pass. Evidence: /private/tmp/claude-501/-Users-gerhardgustav-Desktop-ai-automations-hoiv-cleaning-timesheets/bae0f966-d0f9-4618-a839-103c98835ae8/scratchpad/rig-lang/shots and logs/reminders-{de,en}.log.
+
+Gates: checks/run.sh green (31 checks, incl. the three new/extended); node ops/check-branding.mjs: 14 ok lines, no TODO/non-ok line, 'check-branding: OK' (the TASK-188 TODO line is not printed by this tree's check-branding); Debug and Release xcodebuild BUILD SUCCEEDED; no edit to project.pbxproj or NFCTimeSheets.entitlements. Known limit, said in AppLanguage.swift: text the OS draws itself from the bundle at LAUNCH (permission prompts from InfoPlist.strings, the Core NFC sheet's chrome) keeps the launch language until the next launch, from the same per-app value; nothing the app draws is in that class.
+<!-- SECTION:NOTES:END -->
