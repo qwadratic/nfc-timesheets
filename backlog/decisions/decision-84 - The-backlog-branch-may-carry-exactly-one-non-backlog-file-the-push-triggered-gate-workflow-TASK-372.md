@@ -4,19 +4,8 @@ title: >-
   The backlog branch may carry exactly one non-backlog file: the push-triggered
   gate workflow (TASK-372)
 date: '2026-10-14 08:51'
-status: proposed
+status: accepted
 ---
-## Context
-
-
-
-## Decision
-
-
-
-## Consequences
-
-
 ## Context
 
 AGENTS.md rule 3 said nothing outside `backlog/` is ever committed to the `backlog` branch. A push to that branch cannot run a workflow that lives on main, so the branch was re-checked by a 20 minute cron. A GitHub ruleset with `file_path_restriction` would block a bad push instead, but GitHub answers 422 for it on a user-owned repository (checked 2026-10-14).
