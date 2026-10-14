@@ -1,0 +1,35 @@
+name: Backlog gate (push)
+
+# TASK-372 / decision-84. The ONE file outside backlog/ the backlog branch may carry; the same
+# file also sits on main so `git merge origin/backlog` never changes it. A push runs the workflow
+# files of the pushed commit, so this is what makes a push to the backlog branch check itself.
+# The guard script is fetched from main, never from the pushed commit: a commit on the backlog
+# branch cannot weaken the check it is judged by. Only this file's own diff can.
+#
+# Checks: origin/backlog holds ONLY backlog/** (+ this file), tip and every commit.
+# The scheduled run in backlog-gate.yml is the daily net behind this.
+on:
+  push:
+    branches: [backlog]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Take the guard from main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          git show origin/main:ops/backlog-guard.sh > "$RUNNER_TEMP/backlog-guard.sh"
+
+      - name: The backlog branch holds only backlog/ (and this workflow)
+        run: bash "$RUNNER_TEMP/backlog-guard.sh" branch HEAD
