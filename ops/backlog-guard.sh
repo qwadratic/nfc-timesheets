@@ -12,7 +12,9 @@
 #
 # WHY THESE THREE
 #   branch  the backlog branch is the single writer of tasks/decisions; a code file landing there
-#           would make "merge backlog into main" a code merge.
+#           would make "merge backlog into main" a code merge. The one exception is
+#           ALLOWED_EXTRA (decision-84, TASK-372): the push-triggered gate workflow that runs this
+#           very script, taken from main, on every push to the backlog branch.
 #   mirror  main (or any work branch) may carry a backlog/ directory, but its content must be one
 #           that EXISTED on the backlog branch. An edit made on a work branch is not a tree the
 #           backlog branch ever had, so it is rejected: nothing reaches the regular backlog from
@@ -22,6 +24,8 @@
 set -uo pipefail
 
 BACKLOG_REF_DEFAULT="origin/backlog"
+# The only path outside backlog/ the backlog branch may carry (decision-84).
+ALLOWED_EXTRA=".github/workflows/backlog-gate-push.yml"
 fail=0
 say()  { printf '%s\n' "$*"; }
 bad()  { printf 'BACKLOG-GUARD FAIL: %s\n' "$*" >&2; fail=1; }
@@ -40,14 +44,14 @@ check_branch() {
   ref="$(resolve "$name")" || return
   local offenders
   # the tree at the tip ...
-  offenders="$(git ls-tree -r --name-only -z "$ref" | tr '\0' '\n' | grep -v '^backlog/' || true)"
+  offenders="$(git ls-tree -r --name-only -z "$ref" | tr '\0' '\n' | grep -v '^backlog/' | grep -vxF "$ALLOWED_EXTRA" || true)"
   if [ -n "$offenders" ]; then
     bad "$name holds paths outside backlog/ (tip):"; printf '  %s\n' $offenders >&2
   fi
   # ... and every commit in its history (a path added then removed still counts)
   local c paths
   for c in $(git rev-list "$ref" --); do
-    paths="$(git diff-tree --root --no-commit-id --name-only -r -z "$c" | tr '\0' '\n' | grep -v '^backlog/' | grep -v '^$' || true)"
+    paths="$(git diff-tree --root --no-commit-id --name-only -r -z "$c" | tr '\0' '\n' | grep -v '^backlog/' | grep -vxF "$ALLOWED_EXTRA" | grep -v '^$' || true)"
     if [ -n "$paths" ]; then
       bad "commit $(git rev-parse --short "$c") on $name touches paths outside backlog/:"; printf '  %s\n' $paths >&2
     fi

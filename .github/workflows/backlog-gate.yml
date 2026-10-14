@@ -7,9 +7,9 @@ name: Backlog gate
 #   ids     - every TASK-N / decision-N cited by the pushed or proposed commits exists on the
 #             backlog branch (a commit with no task carries a "Backlog-exempt: <why>" line)
 #
-# A push to the backlog branch cannot run a workflow that lives on main (a push runs the
-# workflow files of the pushed commit, and that branch carries nothing but backlog/), so the
-# branch itself is re-checked on every main push, every PR and every 20 minutes.
+# A push to the backlog branch runs backlog-gate-push.yml (the one workflow file that branch may
+# carry, TASK-372 / decision-84). This workflow lives on main and re-checks the branch on every
+# main push, every PR and once a day as the net behind it.
 #
 # Run the same thing locally:  ops/backlog-guard.sh all HEAD <base>..HEAD
 on:
@@ -18,7 +18,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "*/20 * * * *"
+    - cron: "17 4 * * *"
   workflow_dispatch: {}
 
 permissions:

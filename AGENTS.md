@@ -376,7 +376,8 @@ milestones, config - and nothing else. It is where every task and every decision
    in the backlog worktree - `git worktree add ../cleaning-timesheets-backlog backlog` - with
    the `backlog` CLI run from there (always `</dev/null`). Work branches do NOT edit `backlog/`.
 3. **Only backlog on that branch.** Nothing outside `backlog/` is ever committed to `backlog`
-   (`git diff --name-only origin/backlog~1 origin/backlog` must list only `backlog/...`).
+   (`git diff --name-only origin/backlog~1 origin/backlog` must list only `backlog/...`), with
+   one exception (decision-84): `.github/workflows/backlog-gate-push.yml`, identical on main.
 4. **Main is a mirror.** main receives the backlog by `git merge origin/backlog` (only
    `backlog/` paths change); do it when a record is needed on main or before a release. The
    first sync (2026-10-13) used `--allow-unrelated-histories`; later ones are plain merges.
@@ -385,8 +386,9 @@ milestones, config - and nothing else. It is where every task and every decision
    `backlog/` in anything pushed to or proposed for main is a tree the backlog branch once had
    (an edit made on a work branch fails it); every `TASK-N` / `decision-N` cited in a commit
    message exists on the backlog branch. A commit that truly has no task carries a
-   `Backlog-exempt: <why>` line. The branch is re-checked every 20 minutes because a push to
-   it cannot run a workflow that lives on main.
+   `Backlog-exempt: <why>` line. A push to the backlog branch runs
+   `.github/workflows/backlog-gate-push.yml` (TASK-372), which takes the guard from main; the
+   branch is also re-checked once a day by the schedule in `backlog-gate.yml`.
 
 <CRITICAL_INSTRUCTION>
 
