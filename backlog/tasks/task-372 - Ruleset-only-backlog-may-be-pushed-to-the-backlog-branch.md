@@ -1,0 +1,26 @@
+---
+id: TASK-372
+title: 'Ruleset: only backlog/** may be pushed to the backlog branch'
+status: To Do
+assignee: []
+created_date: '2026-10-14 07:53'
+labels:
+  - ci
+  - process
+dependencies: []
+priority: medium
+ordinal: 310000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Owner request 2026-10-14. Replace the 20-minute cron in backlog-gate.yml (TASK-371) as the detector of a bad push to the backlog branch with a GitHub repository ruleset that rejects, at push time, any commit touching a path outside backlog/**. The cron stays as a daily safety net.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 Ruleset on refs/heads/backlog restricts file paths to everything except backlog/** (file_path_restriction patterns proven on a throwaway branch: push of a non-backlog file rejected, push of backlog/** accepted)
+- [ ] #2 Ruleset active on qwadratic/nfc-timesheets, no bypass actors; the normal backlog worktree push still works
+- [ ] #3 backlog-gate.yml schedule reduced from every 20 minutes to once a day; AGENTS.md rule 5 updated
+<!-- AC:END -->
