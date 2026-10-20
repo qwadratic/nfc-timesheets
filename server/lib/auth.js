@@ -96,6 +96,12 @@ export async function decoy() {
 // page cannot ride it. It is NOT in localStorage on purpose.
 export const SESSION_COOKIE = "ts_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// decision-85. While a platform administrator is inside a company, their OWN session token
+// waits in this second cookie so "back to the platform" needs no second sign-in. The
+// company session next to it is short-lived on purpose: entering is a support visit, not a
+// way to hold a company's account open for a week.
+export const PLATFORM_SESSION_COOKIE = "ts_platform";
+const IMPERSONATION_TTL_MS = 60 * 60 * 1000;
 const TOKEN_BYTES = 32;
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 
@@ -133,13 +139,14 @@ const OPERATOR_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 // revoked link.
 export const hashToken = (token) => createHash("sha256").update(token, "utf8").digest("hex");
 
-export async function createSession(adminId) {
+export async function createSession(adminId, impersonatorId = null) {
   const token = randomBytes(TOKEN_BYTES).toString("hex");
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await query("INSERT INTO sessions (token, admin_id, expires_at) VALUES ($1, $2, $3)", [
+  const expiresAt = new Date(Date.now() + (impersonatorId === null ? SESSION_TTL_MS : IMPERSONATION_TTL_MS));
+  await query("INSERT INTO sessions (token, admin_id, expires_at, impersonator_admin_id) VALUES ($1, $2, $3, $4)", [
     hashToken(token),
     adminId,
     expiresAt,
+    impersonatorId,
   ]);
   // Opportunistic sweep. Login is rare and this is an index-only range delete, so it
   // is cheaper than owning another systemd timer for it.
@@ -246,16 +253,26 @@ async function resolveAdminSession(headers, allowedRoles) {
   if (!token || !TOKEN_RE.test(token)) fail(401, "unauthorized");
 
   const row = await one(
-    `SELECT s.admin_id, s.expires_at, a.email, a.role, a.tenant_id
+    `SELECT s.admin_id, s.expires_at, a.email, a.role, a.tenant_id,
+            s.impersonator_admin_id, i.email AS impersonator_email
        FROM sessions s
        JOIN admins a ON a.id = s.admin_id
        JOIN tenants t ON t.id = a.tenant_id AND t.active
-      WHERE s.token = $1 AND s.expires_at > now()`,
+       LEFT JOIN admins i ON i.id = s.impersonator_admin_id
+      WHERE s.token = $1 AND s.expires_at > now()
+        -- decision-85: an entered company session lives only as long as the account that
+        -- opened it is still a platform administrator.
+        AND (s.impersonator_admin_id IS NULL OR i.role = 'superadmin')`,
     [hashToken(token)],
   );
   if (!row) fail(401, "unauthorized");
   if (!allowedRoles.includes(row.role)) fail(401, "unauthorized");
-  return { adminId: row.admin_id, email: row.email, role: row.role, tenantId: row.tenant_id, token };
+  return {
+    adminId: row.admin_id, email: row.email, role: row.role, tenantId: row.tenant_id, token,
+    expiresAt: row.expires_at,
+    impersonator: row.impersonator_admin_id === null ? null
+      : { adminId: row.impersonator_admin_id, email: row.impersonator_email },
+  };
 }
 
 /**

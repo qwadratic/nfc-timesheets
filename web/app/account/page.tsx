@@ -68,6 +68,8 @@ export default function AccountPage() {
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) {
         setState({ kind: 'error', text: t('wrongCurrent') })
+      } else if (cause instanceof ApiError && cause.code === 'impersonation_forbidden') {
+        setState({ kind: 'error', text: t('impersonationForbidden') })
       } else if (cause instanceof ApiError && cause.status === 422) {
         setState({ kind: 'error', text: t('rejected') })
       } else {

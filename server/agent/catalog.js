@@ -103,6 +103,8 @@ export const excludedAgentRoutes = Object.freeze({
   "GET /platform/workspaces": "Cross-company platform administration.",
   "POST /platform/workspaces": "Cross-company platform administration.",
   "POST /platform/workspaces/:id/invitation": "Platform credential bootstrap.",
+  "POST /platform/workspaces/:id/enter": "Platform impersonation is never delegated (decision-85).",
+  "POST /admin/impersonation/exit": "Platform impersonation is never delegated (decision-85).",
   "POST /workspace-invitations/accept": "Admin account credential bootstrap.",
   "GET /me/schedule": "Worker identity route; use company list_assignments.",
 });

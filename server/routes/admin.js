@@ -16,6 +16,8 @@ import {
   destroyWorkerSessions,
   hashPassword,
   hashToken,
+  PLATFORM_SESSION_COOKIE,
+  readCookie,
   recordLoginFailure,
   sessionCookie,
   SMS_OTP_REQUESTS_KEY,
@@ -23,7 +25,7 @@ import {
   SMS_OTP_REQUESTS_MIN,
   verifyPassword,
 } from "../lib/auth.js";
-import { all, one, query, queryWithSavepoint, transaction } from "../lib/db.js";
+import { all, one, query, queryWithSavepoint, transaction, withSystem } from "../lib/db.js";
 import { CODE_TTL_MS, newEnrolmentCode } from "../lib/enrolment.js";
 import { geocode } from "../lib/geocode.js";
 import { fail } from "../lib/http.js";
@@ -257,15 +259,32 @@ async function login({ body, ip }) {
   };
 }
 
-/** POST /admin/logout -> deletes the session row. Logout must actually revoke. */
-async function logout({ session }) {
+/**
+ * POST /admin/logout -> deletes the session row. Logout must actually revoke.
+ * Signing out from inside an entered company (decision-85) signs the platform administrator
+ * out completely: the waiting platform session is revoked too, never left behind in a cookie.
+ */
+async function logout({ headers, session }) {
   await destroySession(session.token);
-  return { status: 200, body: { ok: true }, headers: { "set-cookie": clearedSessionCookie() } };
+  const platformToken = session.impersonator ? readCookie(headers, PLATFORM_SESSION_COOKIE) : null;
+  if (platformToken) {
+    await withSystem(() => query("DELETE FROM sessions WHERE token = $1 AND admin_id = $2",
+      [hashToken(platformToken), session.impersonator.adminId]));
+  }
+  return { status: 200, body: { ok: true }, headers: { "set-cookie": session.impersonator
+    ? [clearedSessionCookie(), clearedSessionCookie(PLATFORM_SESSION_COOKIE)]
+    : clearedSessionCookie() } };
 }
 
 /** GET /admin/session -> who am I. The admin UI uses it to decide login vs. dashboard. */
 async function whoami({ session }) {
-  return { status: 200, body: { admin: { id: session.adminId, email: session.email, role: session.role, tenant_id: session.tenantId } } };
+  const impersonator = session.impersonator && {
+    email: session.impersonator.email,
+    company: (await one("SELECT name FROM tenants WHERE id = $1", [session.tenantId]))?.name ?? "",
+    expires_at: new Date(session.expiresAt).toISOString(),
+  };
+  return { status: 200, body: { admin: { id: session.adminId, email: session.email, role: session.role,
+    tenant_id: session.tenantId, impersonator: impersonator || null } } };
 }
 
 // Short enough that a small business will actually use it, long enough to be worth the
@@ -286,6 +305,8 @@ const PASSWORD_MIN = 5;
  * leaves the other party logged in has achieved nothing.
  */
 async function changePassword({ body, session, ip }) {
+  // decision-85: entering a company never lets the platform take over its credentials.
+  if (session.impersonator) fail(403, "impersonation_forbidden");
   checkLoginRate(ip); // same bucket as login: this endpoint verifies a password too
 
   const current = typeof body.current_password === "string" ? body.current_password : "";

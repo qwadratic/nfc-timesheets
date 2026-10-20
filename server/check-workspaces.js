@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { prepareWorkspaceTestDb } from "./db/workspace-test-db.js";
+import { checkImpersonation } from "./check-impersonation.js";
 import { checkProductFeatures } from "./check-product-features.js";
 
 const baseUrl = process.env.DATABASE_URL;
@@ -160,6 +161,8 @@ try {
   assert.equal(parallel.length, 30);
   const orphan = await pool.query("SELECT id FROM workers");
   assert.equal(orphan.rows.length, 0, "pool reuse must leave no scope behind");
+  resetLoginRate();
+  await checkImpersonation({ base, owner, a, b, platform, password, hashPassword, hashToken });
   console.log("check-workspaces: PASS (migration, invites, two-company API, tag rejection, RLS, cross-company FK, concurrent pooled requests)");
   if (keep) {
     console.log(`WORKSPACE_PREVIEW ${base} | platform@example.test / a@example.test / b@example.test | ${password}`);
