@@ -1371,6 +1371,27 @@ a {
   margin-bottom: var(--s4);
 }
 
+.form-details {
+  margin-block: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.form-details > summary {
+  padding-block: 14px;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.form-details > summary:hover {
+  color: var(--accent);
+}
+
+.form-details-body {
+  padding-block: 4px 12px;
+}
+
 .form-section {
   min-width: 0;
   padding: var(--s4) 0 0;
