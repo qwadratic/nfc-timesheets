@@ -322,6 +322,14 @@ async function handle(req, res, ctx) {
       `${route.method} ${route.path}`, route.auth === "flags" ? "feature_flags" : "admins",
       route.auth === "flags" ? params.name : String(session.adminId)]));
   }
+  // decision-85. Inside an entered company every change is the platform administrator's,
+  // recorded in THAT company's ledger against the company admin they are acting as.
+  if (session?.impersonator && route.method !== "GET") {
+    await withSystem(() => query(`INSERT INTO action_log
+      (tenant_id,actor_type,actor_id,origin,action,target_table,target_id)
+      VALUES ($1,'admin',$2,'superadmin',$3,'admins',$4)`, [session.tenantId,
+      session.impersonator.adminId, `${route.method} ${route.path}`, String(session.adminId)]));
+  }
   if (result.binary) {
     res.writeHead(result.status, { "content-type": result.contentType, "content-length": result.binary.length,
       "cache-control": "no-store", "x-content-type-options": "nosniff" });

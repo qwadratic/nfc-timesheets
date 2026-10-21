@@ -207,6 +207,11 @@ Decision checklist (keep updated as decisions are added):
   decision-61 stands; its "no in-app switcher anywhere" half is superseded on every platform
   (decision-74, mirrors decision-71)
 
+- A superadmin ENTERS a company only explicitly: a 1-hour session OF that company's first
+  admin carrying `sessions.impersonator_admin_id`, a persistent banner, no password change
+  inside, every non-GET audited in the company's `action_log` with origin `superadmin`
+  (decision-85, `docs/superadmin-impersonation.md`)
+
 ~~decision-37~~ (zones, no area) is SUPERSEDED by decision-43 and nothing from it shipped.
 
 Decisions can only be changed by creating a new decision record that supersedes the old one.

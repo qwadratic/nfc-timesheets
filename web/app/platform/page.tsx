@@ -8,6 +8,7 @@ import { TrialRequestsInbox } from '@/components/TrialRequestsInbox'
 import { ApiError } from '@/lib/api'
 import { loginPathWithReturn } from '@/lib/nav'
 import {
+  enterWorkspace,
   fetchManagedWorkspaces,
   invitationUrl,
   type ManagedWorkspace,
@@ -89,6 +90,23 @@ export default function PlatformPage() {
     } catch {
       setError(t('renewFailed'))
     } finally {
+      setPending(false)
+    }
+  }
+  async function enter(id: number) {
+    setPending(true)
+    setError('')
+    try {
+      await enterWorkspace(id)
+      window.location.assign('/workspace/')
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError && cause.code === 'no_company_admin'
+          ? t('enterNoAdmin')
+          : cause instanceof ApiError
+            ? errors(cause.messageKey)
+            : errors('server'),
+      )
       setPending(false)
     }
   }
@@ -178,7 +196,25 @@ export default function PlatformPage() {
                             })
                           : t('existingAccount')}
                     </td>
-                    <td>
+                    <td className="workspace-row-actions">
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => {
+                          void enter(company.id)
+                        }}
+                        disabled={pending || company.admin_count === 0}
+                        aria-describedby={
+                          company.admin_count === 0 ? `enter-hint-${company.id}` : undefined
+                        }
+                      >
+                        {t('enterCompany')}
+                      </button>
+                      {company.admin_count === 0 && (
+                        <small id={`enter-hint-${company.id}`} className="workspace-enter-hint">
+                          {t('enterNotActivated')}
+                        </small>
+                      )}
                       {company.invitation_expires_at && !company.activated_at && (
                         <button
                           className="btn btn-ghost"

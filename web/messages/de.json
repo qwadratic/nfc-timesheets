@@ -1430,7 +1430,8 @@
     "rejected": "Das neue Passwort wurde nicht angenommen.",
     "formHeading": "Zugangsdaten",
     "noResetHeading": "Passwort vergessen?",
-    "noReset": "Es gibt hier absichtlich kein „Passwort vergessen“: Die Anmeldung läuft über einen Benutzernamen, nicht über eine E-Mail-Adresse, und dieses System versendet keine E-Mails. Geht das Passwort verloren, setzt es der Betreiber direkt am Server zurück."
+    "noReset": "Es gibt hier absichtlich kein „Passwort vergessen“: Die Anmeldung läuft über einen Benutzernamen, nicht über eine E-Mail-Adresse, und dieses System versendet keine E-Mails. Geht das Passwort verloren, setzt es der Betreiber direkt am Server zurück.",
+    "impersonationForbidden": "Das Passwort kann nicht geändert werden, solange Sie als Plattform-Administration in einer Firma angemeldet sind."
   },
   "theme": {
     "label": "Darstellung",
@@ -1597,6 +1598,9 @@
     "arrived": "Eingetroffen",
     "priceMissing": "Preis fehlt",
     "ownerEmailTaken": "Diese E-Mail ist bereits einem Zugang oder einer Einladung zugeordnet. Bitte eine andere Adresse verwenden.",
+    "enterCompany": "Firma betreten",
+    "enterNotActivated": "Die Inhaberin bzw. der Inhaber hat dieses Konto noch nicht aktiviert.",
+    "enterNoAdmin": "Diese Firma hat noch keine Administration und kann daher nicht betreten werden.",
     "addedKeepGoing": "{name} hinzugefügt. Fügen Sie einen weiteren Eintrag hinzu oder gehen Sie zum nächsten Schritt.",
     "addBuilding": "Objekt hinzufügen",
     "addWorker": "Person hinzufügen",
@@ -1910,5 +1914,11 @@
     "accuracy": "Genauigkeit",
     "meters": "{value} m",
     "refreshEvidence": "Nachweise aktualisieren"
+  },
+  "impersonation": {
+    "banner": "Sie befinden sich in {company} als {email}. Änderungen werden unter Ihrem Plattform-Konto ({platform}) im Prüfprotokoll festgehalten.",
+    "expires": "Die Sitzung endet um {time} Uhr.",
+    "back": "Zurück zur Plattform",
+    "leaving": "Wird beendet …"
   }
 }

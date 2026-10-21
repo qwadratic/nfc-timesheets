@@ -6,6 +6,7 @@ export type AdminAccount = {
   email: string
   role: 'admin' | 'superadmin' | 'flags'
   tenant_id: number
+  impersonator?: { email: string; company: string; expires_at: string } | null
 }
 export type Workspace = {
   material_orders: {
@@ -46,6 +47,7 @@ export type ManagedWorkspace = {
   owner_email: string | null
   invitation_expires_at: string | null
   activated_at: string | null
+  admin_count: number
 }
 export const fetchAccount = (signal?: AbortSignal) =>
   apiFetch<{ admin: AdminAccount }>('/admin/session', { signal })
@@ -69,6 +71,12 @@ export const renewInvitation = (id: number) =>
   apiFetch<{ invitation_token: string }>(`/platform/workspaces/${id}/invitation`, {
     method: 'POST',
   })
+export const enterWorkspace = (id: number) =>
+  apiFetch<{ ok: boolean; expires_at: string }>(`/platform/workspaces/${id}/enter`, {
+    method: 'POST',
+  })
+export const exitImpersonation = () =>
+  apiFetch<{ restored: boolean }>('/admin/impersonation/exit', { method: 'POST' })
 export const saveCompany = (name: string, locale: string) =>
   apiFetch('/admin/workspace', { method: 'POST', body: { name, locale } })
 export const acceptWorkspaceInvitation = (token: string, password: string) =>

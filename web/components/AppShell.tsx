@@ -2,20 +2,23 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useTranslations } from 'next-intl'
+import { useFormatter, useTranslations } from 'next-intl'
 import { type ReactNode, useEffect, useState } from 'react'
 import { HeaderTools } from '@/components/HeaderTools'
 import { SidebarNav } from '@/components/SidebarNav'
 import { ADMIN_PATH, isLandingPath, LOGIN_PATH } from '@/lib/nav'
 import { isClientPortalPath } from '@/lib/portal'
-import { type AdminAccount, fetchAccount } from '@/lib/workspaces'
+import { type AdminAccount, exitImpersonation, fetchAccount } from '@/lib/workspaces'
 
 /** Landmarks: banner, navigation, main, contentinfo. Skip link targets #main-content. */
 export function AppShell({ children }: { children: ReactNode }) {
   const t = useTranslations()
+  const imp = useTranslations('impersonation')
+  const format = useFormatter()
   const pathname = usePathname()
   const router = useRouter()
   const [account, setAccount] = useState<AdminAccount | null>(null)
+  const [leaving, setLeaving] = useState(false)
   useEffect(() => {
     if (
       isClientPortalPath(pathname) ||
@@ -37,6 +40,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       })
     return () => controller.abort()
   }, [pathname, router])
+
+  async function leaveCompany() {
+    setLeaving(true)
+    try {
+      const { restored } = await exitImpersonation()
+      window.location.assign(restored ? '/platform/' : LOGIN_PATH)
+    } catch {
+      window.location.assign(LOGIN_PATH)
+    }
+  }
 
   // The client portal gets NO admin chrome at all — no brand link home, no sidebar, no sign
   // out, no language switcher, and above all no link that leads into the admin app. The
@@ -90,6 +103,33 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* tabIndex -1 so the skip link actually moves focus, not just the scroll position. */}
       <main id="main-content" className="content" tabIndex={-1}>
+        {account?.impersonator && (
+          <div className="impersonation-banner" role="status" aria-live="polite">
+            <p>
+              {imp('banner', {
+                company: account.impersonator.company,
+                email: account.email,
+                platform: account.impersonator.email,
+              })}{' '}
+              {imp('expires', {
+                time: format.dateTime(new Date(account.impersonator.expires_at), {
+                  timeStyle: 'short',
+                  timeZone: 'Europe/Vienna',
+                }),
+              })}
+            </p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={leaving}
+              onClick={() => {
+                void leaveCompany()
+              }}
+            >
+              {leaving ? imp('leaving') : imp('back')}
+            </button>
+          </div>
+        )}
         {children}
       </main>
 

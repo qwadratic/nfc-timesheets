@@ -1430,7 +1430,8 @@
     "rejected": "The new password was not accepted.",
     "formHeading": "Credentials",
     "noResetHeading": "Forgotten your password?",
-    "noReset": "There is deliberately no “forgot password” here: sign-in uses a username, not an email address, and this system sends no email at all. If the password is lost, the operator resets it on the server."
+    "noReset": "There is deliberately no “forgot password” here: sign-in uses a username, not an email address, and this system sends no email at all. If the password is lost, the operator resets it on the server.",
+    "impersonationForbidden": "The password cannot be changed while you are inside a company as a platform administrator."
   },
   "theme": {
     "label": "Appearance",
@@ -1597,6 +1598,9 @@
     "arrived": "Arrived",
     "priceMissing": "Price missing",
     "ownerEmailTaken": "This email already belongs to an account or invitation. Use a different address.",
+    "enterCompany": "Enter company",
+    "enterNotActivated": "The owner has not activated this account yet.",
+    "enterNoAdmin": "This company has no administrator yet, so it cannot be entered.",
     "addedKeepGoing": "{name} added. Add another or continue to the next step.",
     "addBuilding": "Add building",
     "addWorker": "Add employee",
@@ -1910,5 +1914,11 @@
     "accuracy": "Accuracy",
     "meters": "{value} m",
     "refreshEvidence": "Refresh evidence"
+  },
+  "impersonation": {
+    "banner": "You are inside {company} as {email}. Changes are recorded in the audit log under your platform account ({platform}).",
+    "expires": "Session ends at {time}.",
+    "back": "Back to platform",
+    "leaving": "Leaving…"
   }
 }

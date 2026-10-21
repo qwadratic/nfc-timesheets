@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { checkLoginRate, clearLoginFailures, createSession, hashPassword, hashToken, recordLoginFailure, sessionCookie } from "../lib/auth.js";
-import { all, one } from "../lib/db.js";
+import { PLATFORM_SESSION_COOKIE, checkLoginRate, clearLoginFailures, clearedSessionCookie, createSession, destroySession, hashPassword, hashToken, readCookie, recordLoginFailure, sessionCookie } from "../lib/auth.js";
+import { all, one, withSystem } from "../lib/db.js";
 import { fail } from "../lib/http.js";
 import * as v from "../lib/validate.js";
 
 async function listWorkspaces() {
   const workspaces = await all(`SELECT t.id, t.name, t.locale, t.active, t.created_at,
-    i.email AS owner_email, i.expires_at AS invitation_expires_at, i.consumed_at AS activated_at
+    i.email AS owner_email, i.expires_at AS invitation_expires_at, i.consumed_at AS activated_at,
+    (SELECT count(*)::int FROM admins a WHERE a.tenant_id = t.id AND a.role = 'admin') AS admin_count
     FROM tenants t LEFT JOIN workspace_invitations i ON i.tenant_id = t.id
     WHERE t.id > 0 ORDER BY t.created_at DESC, t.id DESC`);
   return { status: 200, body: { workspaces } };
@@ -62,6 +63,48 @@ async function reinvite({ params, session }) {
   ) SELECT * FROM renewed`, [tenantId, hashToken(token), session.adminId]);
   if (!row) fail(409, "invitation_unavailable");
   return { status: 200, body: { invitation_token: token, expires_at: row.expires_at } };
+}
+
+/**
+ * POST /platform/workspaces/:id/enter -> the platform administrator continues AS that
+ * company's first admin (decision-85). The new session is the company admin's own, so
+ * every company rule, RLS scope and composite admin reference applies unchanged; it also
+ * names its opener, which is what the banner, the audit trail and the exit route read.
+ * The caller's platform token moves into a second cookie so leaving needs no sign-in.
+ */
+async function enter({ params, session }) {
+  const tenantId = v.id(params.id, "id");
+  const target = await one(`SELECT a.id FROM admins a JOIN tenants t ON t.id = a.tenant_id AND t.active
+    WHERE a.tenant_id = $1 AND $1 > 0 AND a.role = 'admin' ORDER BY a.id LIMIT 1`, [tenantId]);
+  if (!target) fail(409, "no_company_admin");
+  const { token, expiresAt } = await createSession(target.id, session.adminId);
+  await one(`INSERT INTO action_log (tenant_id,actor_type,actor_id,origin,action,target_table,target_id)
+    VALUES ($1,'admin',$2,'superadmin','impersonation.started','admins',$3) RETURNING id`,
+  [tenantId, session.adminId, String(target.id)]);
+  return { status: 200, body: { ok: true, expires_at: expiresAt.toISOString() }, headers: { "set-cookie": [
+    sessionCookie(token, expiresAt),
+    sessionCookie(session.token, new Date(session.expiresAt), PLATFORM_SESSION_COOKIE),
+  ] } };
+}
+
+/**
+ * POST /admin/impersonation/exit -> end an entered company session and, when the platform
+ * session it was opened from is still valid, put that one back. Anything else (an expired
+ * or foreign platform cookie) just ends at the sign-in screen.
+ */
+async function leave({ headers, session }) {
+  if (!session.impersonator) fail(409, "not_impersonating");
+  await withSystem(() => destroySession(session.token));
+  const platformToken = readCookie(headers, PLATFORM_SESSION_COOKIE);
+  const platform = platformToken && /^[0-9a-f]{64}$/.test(platformToken)
+    ? await withSystem(() => one(`SELECT s.expires_at FROM sessions s JOIN admins a ON a.id = s.admin_id
+        WHERE s.token = $1 AND s.expires_at > now() AND s.admin_id = $2 AND a.role = 'superadmin'
+          AND s.impersonator_admin_id IS NULL`, [hashToken(platformToken), session.impersonator.adminId]))
+    : null;
+  return { status: 200, body: { restored: Boolean(platform) }, headers: { "set-cookie": [
+    platform ? sessionCookie(platformToken, new Date(platform.expires_at)) : clearedSessionCookie(),
+    clearedSessionCookie(PLATFORM_SESSION_COOKIE),
+  ] } };
 }
 
 async function acceptInvitation({ body, ip }) {
@@ -152,6 +195,8 @@ export const workspaceRoutes = [
   { method: "GET", path: "/platform/workspaces", auth: "platform", handler: listWorkspaces },
   { method: "POST", path: "/platform/workspaces", auth: "platform", handler: provision },
   { method: "POST", path: "/platform/workspaces/:id/invitation", auth: "platform", handler: reinvite },
+  { method: "POST", path: "/platform/workspaces/:id/enter", auth: "platform", handler: enter },
+  { method: "POST", path: "/admin/impersonation/exit", auth: "account", handler: leave },
   { method: "POST", path: "/workspace-invitations/accept", auth: null, bootstrap: true, handler: acceptInvitation },
   { method: "GET", path: "/admin/workspace", auth: "admin", handler: workspace },
   { method: "POST", path: "/admin/workspace", auth: "admin", handler: saveCompany },
