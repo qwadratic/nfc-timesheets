@@ -5,7 +5,7 @@ title: >-
   short-lived audited session per docs-superadmin-impersonation.md - amends
   decisions 66 and 72
 date: '2026-10-20 18:20'
-status: proposed
+status: accepted
 ---
 ## Context
 
@@ -13,7 +13,7 @@ decision-66 reserved tenant 0 for platform administrators and named "click-to-vi
 
 ## Decision
 
-Proposed: a superadmin may ENTER a company explicitly from `/platform/` (TASK-379, `docs/superadmin-impersonation.md` on the work branch).
+Accepted 2026-10-21: a superadmin may ENTER a company explicitly from `/platform/` (TASK-379, `docs/superadmin-impersonation.md` on the work branch).
 
 - `POST /platform/workspaces/:id/enter` creates a session OF that company's first `admin` (lowest id) with `sessions.impersonator_admin_id` = the superadmin. RLS scope, composite admin references and every company rule apply unchanged. TTL 1 hour. The owner's own sessions are untouched.
 - The platform session token waits in a second `ts_platform` cookie (same HttpOnly, Secure, SameSite=Strict flags). `POST /admin/impersonation/exit` revokes the company session and restores the platform session only if that token is a live, non-impersonating session of the same superadmin; otherwise both cookies are cleared. Logout from inside revokes both.
@@ -28,4 +28,3 @@ Proposed: a superadmin may ENTER a company explicitly from `/platform/` (TASK-37
 - Migration 029 adds `sessions.impersonator_admin_id` (nullable FK to `admins`, ON DELETE CASCADE).
 - Support can act in a company without its password, visibly and on the record; anything done there is attributable to the platform account.
 - Agent tokens still have no HTTP minting route, so none can be created from inside an entered company.
-- Status stays proposed until the owner accepts it.
