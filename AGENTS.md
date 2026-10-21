@@ -210,7 +210,7 @@ Decision checklist (keep updated as decisions are added):
 - A superadmin ENTERS a company only explicitly: a 1-hour session OF that company's first
   admin carrying `sessions.impersonator_admin_id`, a persistent banner, no password change
   inside, every non-GET audited in the company's `action_log` with origin `superadmin`
-  (decision-85, `docs/superadmin-impersonation.md`, status proposed)
+  (decision-85, `docs/superadmin-impersonation.md`)
 
 ~~decision-37~~ (zones, no area) is SUPERSEDED by decision-43 and nothing from it shipped.
 
