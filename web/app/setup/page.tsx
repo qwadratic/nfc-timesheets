@@ -8,6 +8,7 @@ import { useLocaleSetting } from '@/components/IntlProvider'
 import { ShiftPolicySettings } from '@/components/ShiftPolicySettings'
 import { useWorkspace } from '@/components/useWorkspace'
 import { ApiError, saveLocation, saveWorker } from '@/lib/api'
+import { parseEuroToCents } from '@/lib/money'
 import { completedSetup, saveCompany } from '@/lib/workspaces'
 
 export default function SetupPage() {
@@ -17,26 +18,26 @@ export default function SetupPage() {
   const { data, error, loading, reload } = useWorkspace()
   const [step, setStep] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
-  const [feedback, setFeedback] = useState(false)
+  const [feedback, setFeedback] = useState<{ name: string } | 'company' | null>(null)
   const [saveError, setSaveError] = useState('')
   const [address, setAddress] = useState('')
-  const requestId = useRef('')
+  const [names, setNames] = useState(['', '', ''])
+  const [companyName, setCompanyName] = useState<string | null>(null)
+  const [localeDraft, setLocaleDraft] = useState<'de' | 'en' | null>(null)
+  const [rateDraft, setRateDraft] = useState('')
+  const requestIds = useRef(['', '', ''])
+  const nameInput = useRef<HTMLInputElement>(null)
   const done = data ? completedSetup(data) : [false, false, false, false]
-  const current =
-    step ??
-    Math.max(
-      0,
-      done.findIndex((value) => !value),
-    )
+  const current = step ?? (done.every(Boolean) ? 3 : done.findIndex((value) => !value))
   useEffect(() => {
     if (data && step === null)
       setStep(
-        Math.max(
-          0,
-          completedSetup(data).findIndex((value) => !value),
-        ),
+        completedSetup(data).every(Boolean) ? 3 : completedSetup(data).findIndex((value) => !value),
       )
   }, [data, step])
+  useEffect(() => {
+    if (feedback && !loading) nameInput.current?.focus()
+  }, [feedback, loading])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -44,8 +45,9 @@ export default function SetupPage() {
     const name = String(form.get('name') ?? '')
     setPending(true)
     setSaveError('')
-    setFeedback(false)
-    if (!requestId.current) requestId.current = crypto.randomUUID()
+    setFeedback(null)
+    if (!requestIds.current[current]) requestIds.current[current] = crypto.randomUUID()
+    const requestId = requestIds.current[current] ?? ''
     try {
       if (current === 0) {
         const locale = form.get('locale') === 'en' ? 'en' : 'de'
@@ -53,30 +55,33 @@ export default function SetupPage() {
         setLocale(locale)
       } else if (current === 1) {
         await saveLocation({
-          request_id: requestId.current,
-          slug: `site-${requestId.current}`,
+          request_id: requestId,
+          slug: `site-${requestId}`,
           name,
           address,
           active: true,
         })
       } else if (current === 2) {
-        const rate = Number(String(form.get('rate') ?? '').replace(',', '.'))
-        if (!Number.isFinite(rate) || rate <= 0 || rate > 10000) {
+        const rate = parseEuroToCents(String(form.get('rate') ?? ''))
+        if (rate === null || rate <= 0 || rate > 1000000) {
           setSaveError(t('invalidRate'))
           return
         }
         await saveWorker({
-          request_id: requestId.current,
+          request_id: requestId,
           name,
-          hourly_rate_cents: Math.round(rate * 100),
+          hourly_rate_cents: rate,
           email: '',
           phone: '',
           active: true,
         })
       }
-      requestId.current = ''
-      setFeedback(true)
-      setStep(Math.min(current + 1, 3))
+      requestIds.current[current] = ''
+      setFeedback(current === 0 ? 'company' : { name })
+      setNames((values) => values.map((value, index) => (index === current ? '' : value)))
+      if (current === 1) setAddress('')
+      if (current === 2) setRateDraft('')
+      if (current === 0) setStep(1)
       reload()
     } catch (cause) {
       setSaveError(cause instanceof ApiError ? errors(cause.messageKey) : errors('server'))
@@ -87,14 +92,15 @@ export default function SetupPage() {
   return (
     <div className="workspace-page setup-page">
       <header>
-        <p className="workspace-eyebrow">{t('setupEyebrow')}</p>
         <h1>{t('setupTitle')}</h1>
         <p className="lede">{t('setupIntro')}</p>
       </header>
       <p role="alert" className="form-error">
         {saveError || (error ? errors(error) : '')}
       </p>
-      <p role="status">{feedback ? t('saved') : ''}</p>
+      <p role="status">
+        {feedback === 'company' ? t('saved') : feedback ? t('addedKeepGoing', feedback) : ''}
+      </p>
       {loading && <p role="status">{t('loading')}</p>}
       {data && !loading && !error && (
         <>
@@ -107,9 +113,8 @@ export default function SetupPage() {
                     disabled={pending}
                     onClick={() => {
                       setStep(index)
-                      setFeedback(false)
+                      setFeedback(null)
                       setSaveError('')
-                      requestId.current = ''
                     }}
                     aria-current={current === index ? 'step' : undefined}
                     className={done[index] ? 'is-done' : undefined}
@@ -135,7 +140,13 @@ export default function SetupPage() {
                     </span>
                     <span>
                       {t(key)}
-                      <small>{done[index] ? t('completed') : t('toDo')}</small>
+                      <small>
+                        {index === 1
+                          ? t('existingLocations', { count: data.setup.locations })
+                          : index === 2
+                            ? t('existingWorkers', { count: data.setup.workers })
+                            : t(done[index] ? 'completed' : 'toDo')}
+                      </small>
                     </span>
                   </button>
                 </li>
@@ -171,17 +182,36 @@ export default function SetupPage() {
                   )}
                 >
                   <input
+                    ref={nameInput}
                     name="name"
                     required
                     maxLength={current === 2 ? 120 : 160}
-                    defaultValue={current === 0 ? data.company.name : ''}
+                    value={
+                      current === 0 ? (companyName ?? data.company.name) : (names[current] ?? '')
+                    }
+                    onChange={(event) =>
+                      current === 0
+                        ? setCompanyName(event.target.value)
+                        : setNames((values) =>
+                            values.map((value, index) =>
+                              index === current ? event.target.value : value,
+                            ),
+                          )
+                    }
                     disabled={pending}
                     autoComplete={current === 0 ? 'organization' : 'off'}
                   />
                 </Field>
                 {current === 0 && (
                   <Field id="setup-locale" label={t('companyLanguage')}>
-                    <select name="locale" defaultValue={data.company.locale} disabled={pending}>
+                    <select
+                      name="locale"
+                      value={localeDraft ?? data.company.locale}
+                      onChange={(event) =>
+                        setLocaleDraft(event.target.value === 'en' ? 'en' : 'de')
+                      }
+                      disabled={pending}
+                    >
                       <option value="de">{t('german')}</option>
                       <option value="en">{t('english')}</option>
                     </select>
@@ -203,6 +233,8 @@ export default function SetupPage() {
                   <Field id="setup-rate" label={t('hourlyRate')} help={t('rateSetupHint')}>
                     <input
                       name="rate"
+                      value={rateDraft}
+                      onChange={(event) => setRateDraft(event.target.value)}
                       inputMode="decimal"
                       required
                       placeholder={t('ratePlaceholder')}
@@ -212,16 +244,34 @@ export default function SetupPage() {
                 )}
                 <div className="workspace-actions">
                   <button className="btn btn-primary" type="submit" disabled={pending}>
-                    {pending ? t('saving') : t('saveContinue')}
+                    {pending
+                      ? t('saving')
+                      : t(
+                          current === 0
+                            ? 'saveContinue'
+                            : current === 1
+                              ? 'addBuilding'
+                              : 'addWorker',
+                        )}
                   </button>
                   {done[current] && (
                     <button
                       className="btn btn-ghost"
                       type="button"
                       disabled={pending}
-                      onClick={() => setStep(Math.min(current + 1, 3))}
+                      onClick={() => {
+                        setStep(Math.min(current + 1, 3))
+                        setSaveError('')
+                        setFeedback(null)
+                      }}
                     >
-                      {t('continue')}
+                      {t(
+                        current === 1
+                          ? 'continueTeam'
+                          : current === 2
+                            ? 'continueAccess'
+                            : 'continue',
+                      )}
                     </button>
                   )}
                 </div>

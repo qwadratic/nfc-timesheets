@@ -10,6 +10,7 @@ import { Drawer } from '@/components/Drawer'
 import { EmptyState } from '@/components/EmptyState'
 import { Field } from '@/components/Field'
 import { FilterChips } from '@/components/FilterChips'
+import { FormDetails } from '@/components/FormDetails'
 import { ListPanel } from '@/components/ListPanel'
 import { LoadStatus } from '@/components/LoadStatus'
 import { PageHeader } from '@/components/PageHeader'
@@ -127,6 +128,8 @@ type Draft = {
   monthly: string
   /** Whole hours as typed. Converted to integer minutes at submit. */
   targetHours: string
+  originalTargetMinutes: number | null
+  targetEdited: boolean
 }
 
 // NO "first zone" STEP ANY MORE (decision-54 §2). A zone is born in the OPERATOR's hand,
@@ -148,6 +151,8 @@ const EMPTY_DRAFT: Draft = {
   newContactPhone: '',
   monthly: '',
   targetHours: '',
+  originalTargetMinutes: null,
+  targetEdited: false,
 }
 
 function draftOf(location: Location): Draft {
@@ -173,6 +178,7 @@ function draftOf(location: Location): Draft {
       location.target_minutes_per_month !== null && location.target_minutes_per_month % 60 === 0
         ? String(location.target_minutes_per_month / 60)
         : '',
+    originalTargetMinutes: location.target_minutes_per_month,
   }
 }
 
@@ -206,25 +212,6 @@ type FieldErrors = {
   newContactPhone?: ErrorMessage
   monthly?: ErrorMessage
   targetHours?: ErrorMessage
-}
-
-/**
- * Which drawer step a field lives on. A validation failure has to be VISIBLE, so a submit
- * that fails on a step-1 field sends the drawer back to step 1 rather than reporting an
- * error about a control nobody can see.
- */
-const STEP_ONE_FIELDS = [
-  'name',
-  'slug',
-  'newClientName',
-  'contact',
-  'newContactName',
-  'newContactEmail',
-  'newContactPhone',
-] as const
-
-function hasStepOneError(errors: FieldErrors): boolean {
-  return STEP_ONE_FIELDS.some((key) => errors[key] !== undefined)
 }
 
 /**
@@ -346,14 +333,6 @@ export default function LocationsPage() {
   const [loadError, setLoadError] = useState<ErrorKey | null>(null)
   /** null = the drawer is closed. There is no half-open form on this screen any more. */
   const [draft, setDraft] = useState<Draft | null>(null)
-  /**
-   * 1 = the building and its client. 2 = the contract and the agreed time. There is no
-   * third step: the optional first zone that used to live here is gone with admin zone
-   * creation itself (decision-54 §2).
-   */
-  const [step, setStep] = useState<1 | 2>(1)
-  /** Step 2, so focus can be moved into it when the step changes. */
-  const stepTwoRef = useRef<HTMLDivElement | null>(null)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<ErrorMessage | null>(null)
   /** A 5xx or an offline browser during a SAVE. Shown in the drawer, which stays open. */
@@ -401,24 +380,6 @@ export default function LocationsPage() {
     void load(controller.signal)
     return () => controller.abort()
   }, [load])
-
-  /**
-   * Focus follows the step. The button that advanced the drawer is REPLACED when step 2
-   * renders (different key, see the footer), so without this the browser drops focus on
-   * <body> and a keyboard user is standing outside a dialog that is still open.
-   *
-   * The step-2 CONTAINER takes focus, not its first field: a text input is a submit
-   * surface (implicit submission), so a second Enter half a second after the first would
-   * have created the object straight through step 2 without it ever being read — the same
-   * outcome C1 produced, reached a different way. Measured by demo/audit-keyboard.mjs
-   * ("a SECOND Enter after Weiter does not silently save the object").
-   *
-   * Depends on `step` alone on purpose: adding `draft` would re-steal focus on every
-   * keystroke, because every keystroke replaces the draft.
-   */
-  useEffect(() => {
-    if (step === 2) stepTwoRef.current?.focus()
-  }, [step])
 
   /* --- zones (decision-43) --------------------------------------------------------------
    *
@@ -531,8 +492,7 @@ export default function LocationsPage() {
       : contacts.filter((contact) => String(contact.client_id) === draft.clientChoice)
 
   function openCreate() {
-    setDraft(EMPTY_DRAFT)
-    setStep(1)
+    setDraft({ ...EMPTY_DRAFT, slug: `site-${crypto.randomUUID()}` })
     setFieldErrors({})
     setFormError(null)
     setSaveError(null)
@@ -541,7 +501,6 @@ export default function LocationsPage() {
 
   function openEdit(location: Location) {
     setDraft(draftOf(location))
-    setStep(1)
     setFieldErrors({})
     setFormError(null)
     setSaveError(null)
@@ -572,7 +531,6 @@ export default function LocationsPage() {
     const wanted = snapshot.locations.find((location) => location.id === filters.open)
     if (wanted !== undefined) {
       setDraft(draftOf(wanted))
-      setStep(1)
       setFieldErrors({})
       setFormError(null)
       setSaveError(null)
@@ -597,9 +555,6 @@ export default function LocationsPage() {
     if (cause instanceof ApiError && cause.status === 409) {
       setFieldErrors({ slug: 'errorSlugTaken' })
       setFormError('errorSlugTaken')
-      // The slug lives on step 1. An error about a field the drawer is not showing is an
-      // error nobody can act on.
-      setStep(1)
       return
     }
     setFormError(
@@ -649,18 +604,6 @@ export default function LocationsPage() {
     return errors
   }
 
-  /** Step 1 → step 2. Only step-1 errors block it; the contract fields are not filled yet. */
-  function goToContract() {
-    if (draft === null) return
-    const errors = validate(draft)
-    const stepOne = Object.fromEntries(
-      STEP_ONE_FIELDS.filter((key) => errors[key] !== undefined).map((key) => [key, errors[key]]),
-    ) as FieldErrors
-    setFieldErrors(stepOne)
-    setFormError(null)
-    if (!hasStepOneError(stepOne)) setStep(2)
-  }
-
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy || draft === null) return
@@ -670,7 +613,6 @@ export default function LocationsPage() {
     setFormError(null)
     setSaveError(null)
     if (Object.keys(errors).length > 0) {
-      if (hasStepOneError(errors)) setStep(1)
       return
     }
 
@@ -735,7 +677,11 @@ export default function LocationsPage() {
         client_id: clientRef,
         contact_id: contactRef,
         monthly_contract_cents: monthlyCents,
-        target_minutes_per_month: targetHours === '' ? null : Number.parseInt(targetHours, 10) * 60,
+        target_minutes_per_month: !draft.targetEdited
+          ? draft.originalTargetMinutes
+          : targetHours === ''
+            ? null
+            : Number.parseInt(targetHours, 10) * 60,
       })
 
       // The result is announced by the PAGE: the drawer closes on success and would take
@@ -1112,6 +1058,7 @@ export default function LocationsPage() {
     draft?.id === undefined ? undefined : locations.find((row) => row.id === draft.id)
   /** Named rather than rounded into the hours field. See draftOf(). */
   const storedTargetNote =
+    !draft?.targetEdited &&
     editedLocation?.target_minutes_per_month != null &&
     editedLocation.target_minutes_per_month % 60 !== 0
       ? t('targetStored', { value: formatDuration(editedLocation.target_minutes_per_month) })
@@ -1825,56 +1772,25 @@ export default function LocationsPage() {
         )}
       </ListPanel>
 
-      {/* ONE drawer, TWO steps — not two drawers and not a mode flag. Step 1 is everything
-          needed before a tag can be tapped; step 2 is the paperwork, which can wait. */}
+      {/* Basic details first; optional paperwork stays available without another step. */}
       <Drawer
         open={draft !== null}
         onClose={closeDrawer}
         title={draft?.id === undefined ? t('createHeading') : t('editHeading')}
-        step={step === 1 ? t('stepOne') : t('stepTwo')}
         busy={busy}
         footer={
-          step === 1 ? (
-            <>
-              <button key="cancel" type="button" className="btn btn-ghost" onClick={closeDrawer}>
-                {t('cancel')}
-              </button>
-              {/*
-                THE `key` IS THE BUG FIX, not decoration. Without distinct keys React
-                reconciles these two ternary branches as the same <button> and reuses the DOM
-                node, patching type="button" into type="submit". The browser resolves a
-                click's activation behaviour AFTER the React handler has flushed, so one press
-                of "Weiter zum Vertrag" advanced the step AND submitted the form: every new
-                Objekt was saved from step 1 with no contract, by mouse, Enter and Space alike
-                (REDESIGN-A11Y.md C1). Two keys = two nodes = the second one is never the node
-                that was clicked. A synthetic el.click() does NOT reproduce this, which is why
-                the check that covered it stayed green; demo/audit-overlays2.mjs now uses
-                Input.dispatchMouseEvent.
-              */}
-              <button key="next" type="button" className="btn btn-primary" onClick={goToContract}>
-                {t('stepNext')}
-              </button>
-            </>
-          ) : (
-            <>
-              <button key="back" type="button" className="btn btn-ghost" onClick={() => setStep(1)}>
-                {t('stepBack')}
-              </button>
-              <button
-                key="save"
-                type="submit"
-                form={formId}
-                className="btn btn-primary"
-                disabled={busy}
-              >
-                {busy
-                  ? t('submitting')
-                  : draft?.id === undefined
-                    ? t('submitCreate')
-                    : t('submitSave')}
-              </button>
-            </>
-          )
+          <>
+            <button type="button" className="btn btn-ghost" onClick={closeDrawer}>
+              {t('cancel')}
+            </button>
+            <button type="submit" form={formId} className="btn btn-primary" disabled={busy}>
+              {busy
+                ? t('submitting')
+                : draft?.id === undefined
+                  ? t('submitCreate')
+                  : t('submitSave')}
+            </button>
+          </>
         }
       >
         {draft === null ? null : (
@@ -1884,69 +1800,55 @@ export default function LocationsPage() {
               {drawerError}
             </p>
 
-            {/* Both steps stay MOUNTED and the inactive one is `hidden`, so a value typed on
-                step 1 is still there after a trip to step 2 and back, and the browser keeps
-                its own undo history for each control. `hidden` removes them from the tab
-                order and from the accessibility tree, so the focus trap sees one step. */}
-            <div hidden={step !== 1}>
-              <Field
-                id={nameId}
-                label={t('fieldName')}
+            <Field
+              id={nameId}
+              label={t('fieldName')}
+              required
+              error={fieldErrors.name === undefined ? undefined : t(fieldErrors.name)}
+            >
+              <input
+                type="text"
                 required
-                error={fieldErrors.name === undefined ? undefined : t(fieldErrors.name)}
-              >
-                <input
-                  type="text"
-                  required
-                  value={draft.name}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                  maxLength={160}
-                  autoComplete="off"
-                  disabled={busy}
-                />
-              </Field>
-
-              <Field
-                id={slugId}
-                label={t('fieldSlug')}
-                required
-                help={t('slugHint')}
-                error={fieldErrors.slug === undefined ? undefined : t(fieldErrors.slug)}
-              >
-                <input
-                  type="text"
-                  required
-                  value={draft.slug}
-                  onChange={(event) => setDraft({ ...draft, slug: event.target.value })}
-                  maxLength={64}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                />
-              </Field>
-
-              <Field id={addressId} label={t('fieldAddress')} optional help={t('addressHint')}>
-                <input
-                  type="text"
-                  value={draft.address}
-                  onChange={(event) =>
-                    setDraft({ ...draft, address: event.target.value, lat: null, lng: null })
-                  }
-                  maxLength={300}
-                  autoComplete="off"
-                  disabled={busy}
-                />
-              </Field>
-              <AddressSearch
-                value={draft.address}
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                maxLength={160}
+                autoComplete="off"
                 disabled={busy}
-                onSelect={(address) =>
-                  setDraft((current) =>
-                    current === null ? null : { ...current, address, lat: null, lng: null },
-                  )
-                }
               />
+            </Field>
 
+            <Field id={addressId} label={t('fieldAddress')} optional help={t('addressHint')}>
+              <input
+                type="text"
+                value={draft.address}
+                onChange={(event) =>
+                  setDraft({ ...draft, address: event.target.value, lat: null, lng: null })
+                }
+                maxLength={300}
+                autoComplete="off"
+                disabled={busy}
+              />
+            </Field>
+            <AddressSearch
+              value={draft.address}
+              disabled={busy}
+              onSelect={(address) =>
+                setDraft((current) =>
+                  current === null ? null : { ...current, address, lat: null, lng: null },
+                )
+              }
+            />
+
+            <FormDetails
+              title={t('customerDetails')}
+              errors={{
+                name: fieldErrors.newClientName,
+                contact: fieldErrors.contact,
+                contactName: fieldErrors.newContactName,
+                email: fieldErrors.newContactEmail,
+                phone: fieldErrors.newContactPhone,
+              }}
+            >
               {/* The client select carries "+ Neuer Kunde …" and expands one more field IN
                   PLACE. Not a second drawer on top of this one: a focus trap inside a focus
                   trap is a bug farm, and /clients/ must never be a prerequisite for filing
@@ -2082,12 +1984,11 @@ export default function LocationsPage() {
                   </Field>
                 </>
               ) : null}
-            </div>
-
-            {/* tabIndex={-1} keeps this out of the tab order and only makes it a
-                programmatic focus TARGET — the step change has to land somewhere, and every
-                alternative here is a control that submits the form. */}
-            <div hidden={step !== 2} ref={stepTwoRef} tabIndex={-1}>
+            </FormDetails>
+            <FormDetails
+              title={t('contractDetails')}
+              errors={{ monthly: fieldErrors.monthly, target: fieldErrors.targetHours }}
+            >
               <p className="note">{t('stepTwoNote')}</p>
 
               <Field
@@ -2119,30 +2020,64 @@ export default function LocationsPage() {
                   type="text"
                   inputMode="numeric"
                   value={draft.targetHours}
-                  onChange={(event) => setDraft({ ...draft, targetHours: event.target.value })}
+                  onChange={(event) =>
+                    setDraft({ ...draft, targetHours: event.target.value, targetEdited: true })
+                  }
                   disabled={busy}
                 />
               </Field>
-
-              <div className="field field-check">
+              {draft.originalTargetMinutes !== null && !draft.targetEdited && (
+                <button
+                  type="button"
+                  className="btn btn-quiet"
+                  disabled={busy}
+                  onClick={() => {
+                    setDraft({ ...draft, targetHours: '', targetEdited: true })
+                    document.getElementById(targetId)?.focus()
+                  }}
+                >
+                  {t('clearTarget')}
+                </button>
+              )}
+            </FormDetails>
+            <FormDetails title={t('technicalDetails')} errors={{ slug: fieldErrors.slug }}>
+              <Field
+                id={slugId}
+                label={t('fieldSlug')}
+                required
+                help={t('slugHint')}
+                error={fieldErrors.slug === undefined ? undefined : t(fieldErrors.slug)}
+              >
                 <input
-                  id={activeId}
-                  type="checkbox"
-                  aria-describedby={`${activeId}-hint`}
-                  checked={draft.active}
-                  onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                  type="text"
+                  required
+                  value={draft.slug}
+                  onChange={(event) => setDraft({ ...draft, slug: event.target.value })}
+                  maxLength={64}
+                  autoComplete="off"
+                  spellCheck={false}
                   disabled={busy}
                 />
-                <label htmlFor={activeId}>{t('fieldActive')}</label>
-              </div>
-              <p className="field-hint" id={`${activeId}-hint`}>
-                {t('activeHint')}
-              </p>
-            </div>
-
-            {/* NO STEP 3. The optional first zone left with admin zone creation itself
-                (decision-54 §2) — a building is finished at step 2, and its first zone is
-                written by an operator at the door. */}
+              </Field>
+            </FormDetails>
+            {draft.id !== undefined && (
+              <>
+                <div className="field field-check">
+                  <input
+                    id={activeId}
+                    type="checkbox"
+                    aria-describedby={`${activeId}-hint`}
+                    checked={draft.active}
+                    onChange={(event) => setDraft({ ...draft, active: event.target.checked })}
+                    disabled={busy}
+                  />
+                  <label htmlFor={activeId}>{t('fieldActive')}</label>
+                </div>
+                <p className="field-hint" id={`${activeId}-hint`}>
+                  {t('activeHint')}
+                </p>
+              </>
+            )}
           </form>
         )}
       </Drawer>

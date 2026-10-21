@@ -9,6 +9,7 @@ import { Drawer } from '@/components/Drawer'
 import { EmptyState } from '@/components/EmptyState'
 import { Field } from '@/components/Field'
 import { FilterChips } from '@/components/FilterChips'
+import { FormDetails } from '@/components/FormDetails'
 import { ListPanel } from '@/components/ListPanel'
 import { PageHeader } from '@/components/PageHeader'
 import { WorkerPanel } from '@/components/WorkerPanel'
@@ -1273,25 +1274,48 @@ export default function WorkersPage() {
               {drawerError}
             </p>
 
-            <fieldset className="form-section">
-              <legend>{t('groupContact')}</legend>
-              <Field
-                id={nameId}
-                label={t('fieldName')}
+            <Field
+              id={nameId}
+              label={t('fieldName')}
+              required
+              error={fieldErrors.name === undefined ? undefined : t(fieldErrors.name)}
+            >
+              <input
+                type="text"
                 required
-                error={fieldErrors.name === undefined ? undefined : t(fieldErrors.name)}
-              >
-                <input
-                  type="text"
-                  required
-                  value={draft.name}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                  maxLength={120}
-                  autoComplete="off"
-                  disabled={busy}
-                />
-              </Field>
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                maxLength={120}
+                autoComplete="off"
+                disabled={busy}
+              />
+            </Field>
 
+            {/* REQUIRED on the label, `required` on the control (which is what announces
+                it), and refused on submit. Three places, one rule: a person cannot be
+                filed without the number their pay is computed from. */}
+            <Field
+              id={rateId}
+              label={t('fieldRate')}
+              required
+              help={`${t('rateHint')} ${t('rateRequiredHint')}`}
+              error={fieldErrors.rate === undefined ? undefined : t(fieldErrors.rate)}
+            >
+              <input
+                type="text"
+                inputMode="decimal"
+                required
+                value={draft.rate}
+                onChange={(event) => setDraft({ ...draft, rate: event.target.value })}
+                disabled={busy}
+              />
+            </Field>
+
+            {draft.id === undefined && <p className="note">{t('simpleCreateHint')}</p>}
+            <FormDetails
+              title={t('groupContact')}
+              errors={{ email: fieldErrors.email, phone: fieldErrors.phone }}
+            >
               <Field
                 id={emailId}
                 label={t('fieldEmail')}
@@ -1328,10 +1352,12 @@ export default function WorkersPage() {
                   disabled={busy}
                 />
               </Field>
-            </fieldset>
+            </FormDetails>
             {smsLogin || emailLogin ? (
-              <fieldset className="form-section">
-                <legend>{t('groupLogin')}</legend>
+              <FormDetails
+                title={t('groupLogin')}
+                errors={{ phone: fieldErrors.loginPhone, email: fieldErrors.loginEmail }}
+              >
                 {/* THE LOGIN NUMBER (decision-45), directly under the phone field it contrasts
                 with, and edited by its OWN write (PUT/DELETE .../phone) — never folded into
                 this form's single POST, so a claim conflict here never blocks the master
@@ -1381,30 +1407,9 @@ export default function WorkersPage() {
                     />
                   </Field>
                 ) : null}
-              </fieldset>
+              </FormDetails>
             ) : null}
-            <fieldset className="form-section">
-              <legend>{t('groupEmployment')}</legend>
-              {/* REQUIRED on the label, `required` on the control (which is what announces
-                it), and refused on submit. Three places, one rule: a person cannot be
-                filed without the number their pay is computed from. */}
-              <Field
-                id={rateId}
-                label={t('fieldRate')}
-                required
-                help={`${t('rateHint')} ${t('rateRequiredHint')}`}
-                error={fieldErrors.rate === undefined ? undefined : t(fieldErrors.rate)}
-              >
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  required
-                  value={draft.rate}
-                  onChange={(event) => setDraft({ ...draft, rate: event.target.value })}
-                  disabled={busy}
-                />
-              </Field>
-
+            {draft.id !== undefined && (
               <div className="field field-check">
                 <input
                   id={activeId}
@@ -1415,7 +1420,7 @@ export default function WorkersPage() {
                 />
                 <label htmlFor={activeId}>{t('fieldActive')}</label>
               </div>
-            </fieldset>
+            )}
           </form>
         )}
       </Drawer>
