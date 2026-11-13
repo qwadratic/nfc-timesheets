@@ -107,6 +107,8 @@ export const excludedAgentRoutes = Object.freeze({
   "POST /admin/impersonation/exit": "Platform impersonation is never delegated (decision-85).",
   "POST /workspace-invitations/accept": "Admin account credential bootstrap.",
   "GET /me/schedule": "Worker identity route; use company list_assignments.",
+  "GET /admin/shift-notifications": "Per-admin web UI read state (TASK-380); use get_company_data for shifts.",
+  "POST /admin/shift-notifications/seen": "Per-admin web UI read state (TASK-380); not a business change.",
 });
 
 // Deliberately restricted schema vocabulary. New keywords require validator support.

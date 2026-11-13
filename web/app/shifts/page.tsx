@@ -14,7 +14,7 @@ import { ListPanel } from '@/components/ListPanel'
 import { LoadStatus } from '@/components/LoadStatus'
 import { PageHeader } from '@/components/PageHeader'
 import { PeriodPicker } from '@/components/PeriodPicker'
-import { ShiftEvidenceDetails } from '@/components/ShiftEvidenceDetails'
+import { type ShiftEvidenceContext, ShiftEvidenceView } from '@/components/ShiftEvidenceView'
 import { type BadgeState, StateBadge } from '@/components/StateBadge'
 import {
   ApiError,
@@ -249,6 +249,43 @@ const BADGE: Record<ShiftState, BadgeState> = {
   complete: 'muted',
 }
 
+/**
+ * „Foto & GPS". Deliberately louder than „Korrigieren" beside it — accent outline and a
+ * camera glyph — because the owner's complaint was that the evidence was three clicks deep
+ * behind a collapsed disclosure nobody found. The glyph is decoration; the words carry it.
+ */
+function EvidenceButton({
+  label,
+  hiddenSuffix,
+  onClick,
+}: {
+  label: string
+  hiddenSuffix?: string
+  onClick: () => void
+}) {
+  return (
+    <button type="button" className="btn shift-evidence-button" onClick={onClick}>
+      <svg
+        aria-hidden="true"
+        focusable="false"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+        <circle cx="12" cy="13.5" r="3.5" />
+      </svg>
+      {label}
+      {hiddenSuffix ? <span className="visually-hidden"> {hiddenSuffix}</span> : null}
+    </button>
+  )
+}
+
 function draftOf(shift: Shift): Draft {
   return {
     id: shift.id,
@@ -264,6 +301,7 @@ export default function ShiftsPage() {
   const t = useTranslations('shifts')
   const tFilter = useTranslations('filters')
   const tError = useTranslations('error')
+  const tEvidence = useTranslations('shiftEvidence')
   const format = useFormatter()
   const router = useRouter()
 
@@ -794,6 +832,46 @@ export default function ShiftsPage() {
     filters.shift !== null &&
     !snapshot.shifts.some((shift) => shift.id === filters.shift)
 
+  /**
+   * `?evidence=<client_uuid>` — the „Foto & GPS" view (TASK-380). The URL is the state, like
+   * every other panel here: opening PUSHES so the back button closes it, closing REPLACES
+   * (lib/filters.ts, HistoryMode). Not a filter — nothing is refetched, and the shift does
+   * not have to be on this page or in this period: the view fetches it by uuid. That is the
+   * contract a notification elsewhere links to.
+   */
+  const evidenceUuid = filters.evidence
+  const openEvidence = (uuid: string) => setFilters({ evidence: uuid }, 'push')
+  const closeEvidence = useCallback(() => setFilters({ evidence: null }, 'replace'), [setFilters])
+  /** Deep link to a shift outside the loaded page: put the log on exactly that row. */
+  const showEvidenceShiftInLog = (shiftId: number) =>
+    setFilters(
+      {
+        evidence: null,
+        shift: shiftId,
+        period: 'all',
+        page: null,
+        location: null,
+        worker: null,
+        state: null,
+      },
+      'replace',
+    )
+  const evidenceRow =
+    evidenceUuid === null
+      ? undefined
+      : (snapshot?.shifts.find((shift) => shift.client_uuid === evidenceUuid) ??
+        (draft?.original.client_uuid === evidenceUuid ? draft.original : undefined))
+  const evidenceContext: ShiftEvidenceContext | null =
+    evidenceRow === undefined
+      ? null
+      : {
+          worker: evidenceRow.worker_name,
+          location: evidenceRow.location_name,
+          start: evidenceRow.start_time,
+          end: evidenceRow.end_time,
+        }
+  const draftEvidenceUuid = draft?.original.client_uuid ?? null
+
   const stateLabelOf: Record<'open' | 'unresolved' | 'manual', string> = {
     open: tFilter('stateOpen'),
     unresolved: tFilter('stateUnresolved'),
@@ -1100,6 +1178,7 @@ export default function ShiftsPage() {
                 <tbody>
                   {visible.map((shift) => {
                     const state = shiftState(shift)
+                    const evidenceKey = shift.client_uuid
                     return (
                       <tr key={shift.id} className={ROW_CLASS[state]}>
                         {/* The two names are the cross-links, so the row gains no column:
@@ -1177,6 +1256,19 @@ export default function ShiftsPage() {
                           )}
                         </td>
                         <td className="cell-actions">
+                          {/* „Foto & GPS" on every phone-originated row. No per-row probe of
+                              whether evidence exists — that is one request per row; the view
+                              says plainly when a shift has no photo or no GPS. */}
+                          {evidenceKey === null ? null : (
+                            <EvidenceButton
+                              label={tEvidence('rowButton')}
+                              hiddenSuffix={t('forShift', {
+                                worker: shift.worker_name,
+                                date: showDateTime(shift.start_time),
+                              })}
+                              onClick={() => openEvidence(evidenceKey)}
+                            />
+                          )}
                           <button
                             type="button"
                             className="btn btn-ghost"
@@ -1351,13 +1443,26 @@ export default function ShiftsPage() {
             </Field>
           </form>
         )}
-        {draft?.original.client_uuid && (
-          <ShiftEvidenceDetails
-            key={draft.original.client_uuid}
-            uuid={draft.original.client_uuid}
+        {draftEvidenceUuid === null ? null : (
+          <EvidenceButton
+            label={tEvidence('openFromDrawer')}
+            onClick={() => openEvidence(draftEvidenceUuid)}
           />
         )}
       </Drawer>
+
+      {/* „Foto & GPS" — opened by a row's button, by the correction drawer, or by
+          `?evidence=<client_uuid>` from anywhere else in the admin. Keyed by the uuid, so a
+          different shift is a fresh fetch and never a flash of the previous one's photo. */}
+      {evidenceUuid === null ? null : (
+        <ShiftEvidenceView
+          key={evidenceUuid}
+          uuid={evidenceUuid}
+          context={evidenceContext}
+          onClose={closeEvidence}
+          onShowInLog={showEvidenceShiftInLog}
+        />
+      )}
 
       {/* DRAWER 2 — file a shift that was never tapped. End time REQUIRED, because
           POST /admin/shifts refuses to open a shift by hand. A SEPARATE drawer from the

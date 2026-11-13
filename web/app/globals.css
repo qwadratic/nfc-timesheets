@@ -320,6 +320,118 @@ a {
   flex-wrap: wrap;
 }
 
+/* --- Shift-ended bell (TASK-380, components/ShiftNotifications.tsx) ---------------------- *
+ * A sibling of the settings group inside `.header-tools`, never behind the phone's
+ * disclosure. The panel hangs off the bell and does not push the page. */
+.shift-notifications {
+  position: relative;
+  margin-right: var(--s4);
+}
+.shift-notifications .shift-notifications-toggle {
+  position: relative;
+  min-width: 44px;
+  padding: 9px 12px;
+}
+.shift-notifications-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.shift-notifications-panel {
+  position: absolute;
+  top: calc(100% + var(--s1));
+  right: 0;
+  z-index: 40;
+  width: min(26rem, calc(100vw - 2 * var(--s3)));
+  max-height: min(70vh, 36rem);
+  overflow-y: auto;
+  padding: var(--s3);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-card);
+}
+.shift-notifications-panel[hidden] {
+  display: none;
+}
+.shift-notifications-title {
+  margin: 0 0 var(--s2);
+  font-size: 0.9375rem;
+}
+.shift-notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.shift-notifications-list > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s1);
+  padding: var(--s2) var(--s3);
+  border-left: 3px solid transparent;
+  border-radius: var(--r-ctrl);
+  background: var(--bg-sunken);
+}
+.shift-notifications-list > li.is-unread {
+  border-left-color: var(--accent);
+}
+.shift-notifications-headline,
+.shift-notifications-meta {
+  margin: 0;
+}
+.shift-notifications-meta {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.shift-notifications-new {
+  margin-right: var(--s2);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shift-notifications-toast-region {
+  position: fixed;
+  right: var(--s4);
+  bottom: var(--s4);
+  z-index: 50;
+  max-width: min(26rem, calc(100vw - 2 * var(--s4)));
+}
+.shift-notifications-toast {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-card);
+  box-shadow: 0 6px 24px #00000033;
+}
+.shift-notifications-toast p {
+  margin: 0;
+}
+.shift-notifications-toast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
 .preference-switcher {
   display: inline-flex;
   flex: none;
@@ -3020,5 +3132,194 @@ a {
   .map-info {
     width: min(20rem, 88vw);
     max-height: 240px;
+  }
+}
+
+/* --- Shift evidence: „Foto & GPS" (TASK-380) --------------------------------------------
+ *
+ * The row button, and the wide dialog it opens: the camera photo large and inline beside
+ * the GPS trail on a map. The dialog reuses `.modal` (frame, focus, footer) and only widens
+ * it — a photo next to a map does not fit the 460px confirmation size.
+ */
+.shift-evidence-button {
+  background: var(--accent-weak);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.shift-evidence-button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.shift-evidence-button svg {
+  flex: none;
+}
+
+.modal.shift-evidence-modal {
+  width: min(1180px, 96vw);
+  max-height: 94vh;
+}
+
+.shift-evidence-header {
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.modal .shift-evidence-header h2 {
+  margin: 0;
+}
+
+.shift-evidence-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.shift-evidence-grid h3 {
+  margin: 0 0 var(--s2);
+  font-size: 1rem;
+}
+
+.shift-evidence-photo figure {
+  margin: 0;
+}
+
+.shift-evidence-photo-link {
+  display: block;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-sunken);
+  cursor: zoom-in;
+}
+
+.shift-evidence-photo-link img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(62vh, 640px);
+  object-fit: contain;
+}
+
+.shift-evidence-photo figcaption,
+.shift-evidence-note {
+  margin: var(--s2) 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.shift-evidence-missing {
+  border-color: var(--state-unres);
+}
+
+/* Capped like `.map-canvas` (decision-39 §3): never the whole viewport. No `display` here,
+   so the `hidden` attribute still removes the box on a failure. */
+.shift-evidence-map {
+  height: min(62vh, 560px);
+  min-height: 320px;
+  border-radius: var(--r-card);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.shift-evidence-map-status:empty {
+  display: none;
+}
+
+.shift-evidence-map-status {
+  margin: var(--s2) 0;
+}
+
+.shift-evidence-legend {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.shift-evidence-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Same three colours as TRAIL_COLOURS in components/ShiftEvidenceMap.tsx. */
+.shift-evidence-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.shift-evidence-dot-start {
+  background: #2fb36d;
+}
+
+.shift-evidence-dot-end {
+  background: #e5484d;
+}
+
+.shift-evidence-dot-point {
+  width: 10px;
+  height: 10px;
+  background: #4c8dff;
+}
+
+.shift-evidence-line {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: #4c8dff;
+}
+
+.shift-evidence-samples {
+  margin-top: var(--s3);
+}
+
+.shift-evidence-samples > summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.shift-evidence-samples .table-scroll {
+  max-height: 16rem;
+  overflow: auto;
+  margin-top: var(--s2);
+}
+
+/* Google's info window is always white, whatever the admin theme: dark text, fixed. */
+.shift-evidence-infowindow {
+  color: #16181c;
+  font: 0.8125rem / 1.4 var(--font);
+}
+
+@media (max-width: 900px) {
+  .shift-evidence-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shift-evidence-map {
+    height: min(48vh, 420px);
+    min-height: 260px;
   }
 }

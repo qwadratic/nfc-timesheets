@@ -146,6 +146,9 @@ try {
     assert.equal(overview.data.material_orders.length, 2);
   }
   const { query, withWorkspace, pool } = await import("./lib/db.js");
+  // Before the evidence check: that one leaves a photo-required policy behind in --serve mode.
+  const { checkShiftNotifications } = await import("./check-shift-notifications.js");
+  await checkShiftNotifications({ call, owner, a, b, hashToken });
   const { checkShiftEvidence } = await import("./check-shift-evidence.js");
   await checkShiftEvidence({ call, owner, a, b, base, keepEvidence: keep });
   await assert.rejects(query("SELECT * FROM workers"), /without a verified/);

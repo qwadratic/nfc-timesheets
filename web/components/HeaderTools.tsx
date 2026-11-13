@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useId, useState } from 'react'
 import { LocaleSwitcher } from '@/components/LocaleSwitcher'
 import { LogoutButton } from '@/components/LogoutButton'
+import { ShiftNotifications } from '@/components/ShiftNotifications'
 import { ThemeSwitcher } from '@/components/ThemeSwitcher'
 
 /**
@@ -39,7 +40,7 @@ import { ThemeSwitcher } from '@/components/ThemeSwitcher'
  * lib/useOverlay.ts already has, lifted out of it — not worth the shared abstraction for one
  * caller, and a settings panel left open costs nothing.
  */
-export function HeaderTools() {
+export function HeaderTools({ notifications = false }: { notifications?: boolean }) {
   const t = useTranslations()
   const [open, setOpen] = useState(false)
   const panelId = useId()
@@ -56,6 +57,9 @@ export function HeaderTools() {
 
   return (
     <div className="header-tools">
+      {/* TASK-380: the shift-ended bell. Company admins only (the caller decides), and
+          OUTSIDE the phone disclosure: a badge behind a settings button is a badge nobody sees. */}
+      {notifications ? <ShiftNotifications /> : null}
       <button
         type="button"
         className="btn btn-ghost header-tools-toggle"

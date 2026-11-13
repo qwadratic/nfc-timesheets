@@ -570,6 +570,7 @@ check('lib/filters.ts: a hand-typed or stale URL degrades, never throws', () => 
     '?open=nope',
     '?zones=nope',
     '?zones=729b9c2a-98e2-4fb6-91d1-889fc8b561c',
+    '?evidence=nope',
     '?unknownparam=1&another=2',
     '?location=a&location=b',
   ]
@@ -605,6 +606,8 @@ check('lib/filters.ts: every well-formed value survives a round trip', () => {
     sort: 'duration',
     dir: 'asc',
     q: 'Anna + Müller & Team',
+    // Opens one shift's photo + GPS view on /shifts/ by its client_uuid (TASK-380).
+    evidence: uuid,
   }
   assert.deepEqual(parseFilters(filterQuery(full)), full)
   assert.equal(parseFilters('?q=%20%20').q, null)
@@ -1143,10 +1146,18 @@ check('exactly ONE screen constructs a Google map (decision-39 §2)', () => {
   // Two maps in one admin are two things that can disagree - two extents, two selections,
   // two sets of pin states - and two billed map loads for one question. `/analytics/` had
   // the other one; this is what says so out loud if a second ever comes back.
+  //
+  // ONE NAMED EXCEPTION (TASK-380): components/ShiftEvidenceMap.tsx draws ONE shift's GPS
+  // trail — the samples the worker's phone sent, as a line — inside the shift log's evidence
+  // view. It draws no building and no pin state, so it has nothing to disagree with the
+  // building map about; it is the owner's explicit ask, and the alternative was a lat/long
+  // table. It obeys the same rules below (no mapId, once per mount). It is still a SECOND
+  // `new Map` in the admin, which decision-39 §2's wording does not foresee: an amending
+  // decision record is owed, and that is the owner's call, not this check's.
   const constructors = sources.filter(({ text }) => /new\s+\w+\.Map\(/.test(text))
   assert.deepEqual(
-    constructors.map(({ path }) => path),
-    ['components/HomeMap.tsx'],
+    constructors.map(({ path }) => path).sort(),
+    ['components/HomeMap.tsx', 'components/ShiftEvidenceMap.tsx'],
     `constructs a map: ${constructors.map(({ path }) => path)}`,
   )
 
@@ -1160,12 +1171,13 @@ check('exactly ONE screen constructs a Google map (decision-39 §2)', () => {
 
   // ...and it constructs the map ONCE per mount. Billing is per `new Map`, so the guard
   // that stops a refetch rebuilding it is load-bearing and not a style point.
-  const homeMap = sources.find(({ path }) => path === 'components/HomeMap.tsx')
-  assert.match(
-    homeMap.text,
-    /if \(mapRef\.current !== null\) return/,
-    'HomeMap must refuse to construct a second map into the same mount',
-  )
+  for (const { path, text } of constructors) {
+    assert.match(
+      text,
+      /if \(mapRef\.current !== null\) return/,
+      `${path} must refuse to construct a second map into the same mount`,
+    )
+  }
 })
 
 check('the SERVER geocoding key can never reach a browser (decision-39 AC#9)', () => {

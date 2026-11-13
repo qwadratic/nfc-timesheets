@@ -212,6 +212,10 @@ Decision checklist (keep updated as decisions are added):
   inside, every non-GET audited in the company's `action_log` with origin `superadmin`
   (decision-85, `docs/superadmin-impersonation.md`)
 
+- The shift GPS trail (`web/components/ShiftEvidenceMap.tsx`) is the ONE permitted second
+  Google map; it never draws buildings. A third map needs its own decision (decision-86,
+  amends decision-39 §2)
+
 ~~decision-37~~ (zones, no area) is SUPERSEDED by decision-43 and nothing from it shipped.
 
 Decisions can only be changed by creating a new decision record that supersedes the old one.
