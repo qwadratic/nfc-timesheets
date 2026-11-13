@@ -358,7 +358,8 @@ async function closeShift({ body, session }) {
             manual_close = manual_close OR $6,
             manual_note = COALESCE($7, manual_note),
             proof_id = COALESCE($8::uuid, proof_id),
-            corrected_at = CASE WHEN $6 THEN now() ELSE corrected_at END
+            corrected_at = CASE WHEN $6 THEN now() ELSE corrected_at END,
+            worker_ended_at = now() -- TASK-380: the admin's "Schicht beendet" cursor
       WHERE client_uuid = $1 AND worker_id = $4 AND end_time IS NULL RETURNING ${SHIFT_COLS}`,
     // COALESCE, so a retry that omits the note does not erase the one that landed. A close
     // note DOES overwrite an open note — ponytail, CEILING: one column (migration 019) and
@@ -506,7 +507,8 @@ async function resolveShift({ params, body, session }) {
   const proofId = await requireShiftProof(shift, body.proof_id);
   const updated = await one(
     `UPDATE shifts
-        SET end_time = $2, corrected_at = now(), proof_id = COALESCE($4::uuid, proof_id)
+        SET end_time = $2, corrected_at = now(), proof_id = COALESCE($4::uuid, proof_id),
+            worker_ended_at = now() -- TASK-380: the worker's real end is news to the admin
       WHERE id = $1 AND worker_id = $3 AND auto_closed AND corrected_at IS NULL
       RETURNING ${SHIFT_COLS}`,
     [shiftId, end, session.workerId, proofId],

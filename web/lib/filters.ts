@@ -38,6 +38,10 @@ import { isCalendarRange, isPeriod, type Period } from '@/lib/period'
  *   page=<n>          which page of the shift log, 1-based. VIEW STATE, only /shifts/ reads it
  *   sort=<column>     which column the shift log is ordered by. VIEW STATE, only /shifts/
  *   dir=asc|desc      which way. VIEW STATE, only /shifts/
+ *   evidence=<uuid>   opens one shift's photo + GPS trail on /shifts/, by the shift's
+ *                     `client_uuid` (the key GET /admin/shifts/:client_uuid/evidence takes).
+ *                     NOT a filter: the shift need not be in the loaded page or period, the
+ *                     view fetches it by uuid. The deep link other screens send to (TASK-380)
  *   zones=<uuid>      opens the ZONE list on /locations/ for that building (decision-43).
  *                     Separate from `open=`, because they are two different jobs on one
  *                     screen and one parameter for both would make „Zonen verwalten“ and
@@ -99,6 +103,7 @@ export const FILTER_KEYS = [
   'sort',
   'dir',
   'q',
+  'evidence',
 ] as const
 
 export type FilterKey = (typeof FILTER_KEYS)[number]
@@ -185,6 +190,8 @@ export type AdminFilters = {
   dir: SortDir | null
   /** Worker roster search; preserved when opening and closing a person. */
   q: string | null
+  /** A shift's `client_uuid`: opens its photo + GPS evidence view on /shifts/. VIEW STATE. */
+  evidence: string | null
 }
 
 export const EMPTY_FILTERS: AdminFilters = {
@@ -204,6 +211,7 @@ export const EMPTY_FILTERS: AdminFilters = {
   sort: null,
   dir: null,
   q: null,
+  evidence: null,
 }
 
 /**
@@ -294,6 +302,7 @@ export function parseFilters(search: string): AdminFilters {
     sort: sort !== null && isShiftSort(sort) ? sort : null,
     dir: dir !== null && isSortDir(dir) ? dir : null,
     q: text('q'),
+    evidence: toUuid(text('evidence')),
   }
 }
 

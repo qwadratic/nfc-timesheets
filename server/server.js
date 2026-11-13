@@ -24,6 +24,7 @@ import { workspaceRoutes } from "./routes/workspaces.js";
 import { trialRequestRoutes } from "./routes/trial-requests.js";
 import { scheduleRoutes } from "./routes/schedule.js";
 import { shiftEvidenceRoutes } from "./routes/shift-evidence.js";
+import { shiftNotificationRoutes } from "./routes/shift-notifications.js";
 import { wellknown } from "./routes/wellknown.js";
 import { handleAgent } from "./agent/dispatch.js";
 
@@ -86,6 +87,7 @@ const routes = [
   ...trialRequestRoutes,
   ...scheduleRoutes,
   ...shiftEvidenceRoutes,
+  ...shiftNotificationRoutes,
 ];
 
 async function health() {

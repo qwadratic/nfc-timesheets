@@ -5,11 +5,12 @@ import { type FormEvent, useId, useState } from 'react'
 import { Field } from '@/components/Field'
 import { ListPanel } from '@/components/ListPanel'
 import { PageHeader } from '@/components/PageHeader'
+import { ShiftPolicySettings } from '@/components/ShiftPolicySettings'
 import { ApiError, changePassword } from '@/lib/api'
 import type { ErrorKey } from '@/lib/locale'
 
 /**
- * The admin's own account. One job: change the password.
+ * The admin's own account: company shift rules (GPS / photo proof) and the password.
  *
  * The form is NOT in a drawer. A drawer exists to get a form off a screen that also has to
  * show a list; this screen has no list, so a drawer would put the only content on the page
@@ -88,6 +89,11 @@ export default function AccountPage() {
       {/* A password form is a narrow column, not a page-wide panel: a 28rem form inside a
           1200px surface is the empty-container look this redesign is removing. */}
       <div style={{ maxWidth: '34rem' }}>
+        {/* Company shift rules (GPS interval, photo proof). Same component as /setup/ step 0,
+            mounted here too because the owner changes these mid-operation and the setup
+            wizard is not where anyone looks for a setting. Applies to NEW shifts only. */}
+        <ShiftPolicySettings />
+
         <ListPanel title={t('formHeading')} padded>
           <form className="auth-form" onSubmit={onSubmit}>
             <Field id={currentId} label={t('current')} required>

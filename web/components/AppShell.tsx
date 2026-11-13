@@ -99,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           the DOM so the tab and reading order match the phone layout, which is the one that
           was broken — at desktop width the header row is a single visual line either way.
           See components/HeaderTools.tsx for the measurement that moved it. */}
-      <HeaderTools />
+      <HeaderTools notifications={account?.role === 'admin'} />
 
       {/* tabIndex -1 so the skip link actually moves focus, not just the scroll position. */}
       <main id="main-content" className="content" tabIndex={-1}>

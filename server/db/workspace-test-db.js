@@ -12,6 +12,7 @@ export async function prepareWorkspaceTestDb(admin, schema) {
   await admin.query(readFileSync(new URL("./migrations/027_agent_tool_calls.sql", import.meta.url), "utf8"));
   await admin.query(readFileSync(new URL("./migrations/028_shift_evidence.sql", import.meta.url), "utf8"));
   await admin.query(readFileSync(new URL("./migrations/029_admin_impersonation.sql", import.meta.url), "utf8"));
+  await admin.query(readFileSync(new URL("./migrations/030_shift_notifications.sql", import.meta.url), "utf8"));
   return grantWorkspaceTestRole(admin, schema);
 }
 
